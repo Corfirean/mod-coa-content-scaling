@@ -1,0 +1,94 @@
+#
+# CoA Universal Content Scaling Configuration
+#
+
+[worldserver]
+
+#
+# CoAContentScaling.Enable
+#     Description: Enable or disable the entire universal content scaling system.
+#     Default:     1 - Enabled
+#                  0 - Disabled
+#
+CoAContentScaling.Enable = 1
+
+#
+# CoAContentScaling.Progression.Mode
+#     Description: Progression layout boundary mode.
+#     Default:     Auto (calculates boundaries based on active content packs and MaxPlayerLevel)
+#                  Custom (uses Progression.ClassicEnd and Progression.TbcEnd)
+#
+CoAContentScaling.Progression.Mode = Auto
+
+#
+# CoAContentScaling.Progression.ClassicEnd
+#     Description: Upper level boundary for Classic content when Progression.Mode = Custom.
+#                  0 = Auto (45 on cap 60, 60 on cap 80).
+#     Default:     0
+#
+CoAContentScaling.Progression.ClassicEnd = 0
+
+#
+# CoAContentScaling.Progression.TbcEnd
+#     Description: Upper level boundary for TBC content when Progression.Mode = Custom.
+#                  0 = Auto (55 on cap 60, 70 on cap 80).
+#     Default:     0
+#
+CoAContentScaling.Progression.TbcEnd = 0
+
+#
+# CoAContentScaling.GroupScaling.Enable
+#     Description: Dynamically scale dungeons and raids based on group size (1..N players).
+#     Default:     1 - Enabled
+#                  0 - Disabled
+#
+CoAContentScaling.GroupScaling.Enable = 1
+
+#
+# CoAContentScaling.GroupScaling.LockOnEncounterStart
+#     Description: Freeze participant count upon pull to prevent join/leave exploits.
+#     Default:     1 - Enabled
+#                  0 - Disabled
+#
+CoAContentScaling.GroupScaling.LockOnEncounterStart = 1
+
+#
+# CoAContentScaling.AdaptiveMechanics.Enable
+#     Description: Adapt encounter mechanics (target counts, adds) for small groups.
+#     Default:     1 - Enabled
+#                  0 - Disabled
+#
+CoAContentScaling.AdaptiveMechanics.Enable = 1
+
+#
+# CoAContentScaling.SoloAssist.Mode
+#     Description: Assist mode for solo dungeon/raid gameplay.
+#     Default:     0 - NONE
+#                  1 - LIGHT (15% unavoidable damage mitigation)
+#                  2 - FULL (30% unavoidable damage mitigation)
+#
+CoAContentScaling.SoloAssist.Mode = 0
+
+#
+# CoAContentScaling.Rewards.ScaleLootCount
+#     Description: Scale dropped item count with group size (guaranteeing at least 1 drop).
+#     Default:     1 - Enabled
+#                  0 - Disabled
+#
+CoAContentScaling.Rewards.ScaleLootCount = 1
+
+#
+# CoAContentScaling.AllowSoloRaids
+#     Description: Allow solo players to enter raid instances without being in a raid group.
+#     Default:     1 - Enabled
+#                  0 - Disabled
+#
+CoAContentScaling.AllowSoloRaids = 1
+
+#
+# CoAContentScaling.Debug
+#     Description: Enable verbose debug logging for scaling calculations.
+#     Default:     0 - Disabled
+#                  1 - Enabled
+#
+CoAContentScaling.Debug = 0

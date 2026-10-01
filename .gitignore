@@ -1,0 +1,9 @@
+# CMake & build artifacts
+build/
+bin/
+*.user
+*.suo
+*.VC.db
+.vs/
+.idea/
+*.log

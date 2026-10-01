@@ -1,0 +1,94 @@
+diff --git a/modules/mod-coa-raid-difficulty/src/FlexHealth.cpp b/modules/mod-coa-raid-difficulty/src/FlexHealth.cpp
+index 64067c75e..5f8847e6f 100644
+--- a/modules/mod-coa-raid-difficulty/src/FlexHealth.cpp
++++ b/modules/mod-coa-raid-difficulty/src/FlexHealth.cpp
+@@ -31,6 +31,7 @@
+ #include "DBCEnums.h"
+ #include "DatabaseEnv.h"
+ #include "Field.h"
++#include "LocalLevelScaling.h"
+ #include "Log.h"
+ #include "Map.h"
+ #include "Player.h"
+@@ -89,6 +90,9 @@ namespace
+     // already hurt stays exactly as hurt.
+     void ApplyFlex(Creature* creature)
+     {
++        if (LocalLevelScaling::ContentScalingActive.load(std::memory_order_relaxed))
++            return;
++
+         if (!creature || !creature->GetMap() || !creature->GetMap()->IsRaid())
+             return;
+ 
+diff --git a/src/server/game/Entities/Player/PlayerQuest.cpp b/src/server/game/Entities/Player/PlayerQuest.cpp
+index b87f9a041..950cd43f3 100644
+--- a/src/server/game/Entities/Player/PlayerQuest.cpp
++++ b/src/server/game/Entities/Player/PlayerQuest.cpp
+@@ -55,9 +55,12 @@ int32 Player::GetQuestLevel(Quest const* quest) const
+ {
+     if (!quest)
+         return GetLevel();
++
++    int32 const baseLevel = LocalLevelScaling::GetEffectiveQuestBaseLevel(quest);
+     if (LocalLevelScaling::QuestScalingEnabled(this))
+-        return LocalLevelScaling::ScaleQuestLevel(quest->GetQuestLevel(), GetLevel());
+-    return quest->GetQuestLevel() > 0 ? quest->GetQuestLevel() : GetLevel();
++        return LocalLevelScaling::ScaleQuestLevel(baseLevel, GetLevel());
++
++    return baseLevel > 0 ? baseLevel : GetLevel();
+ }
+ 
+ void Player::PrepareQuestMenu(ObjectGuid guid)
+diff --git a/src/server/game/Miscellaneous/LocalLevelScaling.h b/src/server/game/Miscellaneous/LocalLevelScaling.h
+index 9437c65b5..263998494 100644
+--- a/src/server/game/Miscellaneous/LocalLevelScaling.h
++++ b/src/server/game/Miscellaneous/LocalLevelScaling.h
+@@ -13,11 +13,24 @@
+ #include <optional>
+ 
+ class Creature;
++class CreatureTemplate;
+ class Player;
++class Quest;
+ 
+ namespace LocalLevelScaling
+ {
++using QuestBaseLevelResolver = std::int32_t (*)(Quest const*);
++inline std::atomic<QuestBaseLevelResolver> QuestBaseLevelOwner{nullptr};
++
++std::int32_t GetEffectiveQuestBaseLevel(Quest const* quest);
++
++using CreatureBaseLevelResolver = std::uint8_t (*)(CreatureTemplate const*, Creature const*);
++inline std::atomic<CreatureBaseLevelResolver> CreatureBaseLevelOwner{nullptr};
++
++std::uint8_t GetEffectiveCreatureBaseLevel(CreatureTemplate const* cinfo, Creature const* creature = nullptr);
++
+ inline std::atomic<bool> QuestEnabled{false};
++inline std::atomic<bool> ContentScalingActive{false};
+ inline std::atomic<std::uint8_t> CreatureOffset{3};
+ 
+ /// How much of the level-scaled reward a quest keeps when it is lifted from its own level to the
+diff --git a/src/server/game/Quests/QuestDef.cpp b/src/server/game/Quests/QuestDef.cpp
+index 7d2239d8e..9d43761f0 100644
+--- a/src/server/game/Quests/QuestDef.cpp
++++ b/src/server/game/Quests/QuestDef.cpp
+@@ -199,8 +199,9 @@ void Quest::LoadQuestTemplateAddon(Field* fields)
+ 
+ uint32 Quest::XPValue(uint8 playerLevel, bool levelScaling) const
+ {
++    int32 const baseLevel = LocalLevelScaling::GetEffectiveQuestBaseLevel(this);
+     int32 quest_level = levelScaling && LocalLevelScaling::QuestEnabled.load(std::memory_order_relaxed) ?
+-        LocalLevelScaling::ScaleQuestLevel(Level, playerLevel) : (Level == -1 ? playerLevel : Level);
++        LocalLevelScaling::ScaleQuestLevel(baseLevel, playerLevel) : (baseLevel == -1 ? playerLevel : baseLevel);
+     QuestXPEntry const* xpentry = sQuestXPStore.LookupEntry(quest_level);
+     if (!xpentry)
+     {
+@@ -238,7 +239,7 @@ uint32 Quest::XPValue(uint8 playerLevel, bool levelScaling) const
+     // Optional discount on experience, off by default: levelling through content far below the
+     // character is what the scaling system exists to allow. See QuestXpKeepSharePercent.
+     uint32 const xpFloor = LocalLevelScaling::QuestXpKeepSharePercent.load(std::memory_order_relaxed);
+-    if (uint32 const keep = LocalLevelScaling::RewardKeepPercent(xpFloor, Level, uint8(quest_level));
++    if (uint32 const keep = LocalLevelScaling::RewardKeepPercent(xpFloor, baseLevel, uint8(quest_level));
+         keep < 100)
+     {
+         xp = xp * keep / 100;
