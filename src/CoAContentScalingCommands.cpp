@@ -1,6 +1,6 @@
 /*
  * CoA Universal Content Scaling
- * CoAContentScalingCommands: Diagnostic and administration commands (.coascale).
+ * CoAContentScalingCommands: Diagnostic and administration commands (.coascale, .lfgmode, .lfgchallenge).
  */
 
 #include "AdaptiveEncounterAPI.h"
@@ -29,20 +29,30 @@ public:
 
     ChatCommandTable GetCommands() const override
     {
+        static ChatCommandTable const coaScaleLfgCommandTable =
+        {
+            { "",          HandleLfgStatus,    SEC_PLAYER, Console::No },
+            { "mode",      HandleLfgMode,      SEC_PLAYER, Console::No },
+            { "challenge", HandleLfgChallenge, SEC_PLAYER, Console::No },
+        };
+
         static ChatCommandTable const coaScaleCommandTable =
         {
-            { "status",   HandleStatus,   SEC_ADMINISTRATOR, Console::Yes },
-            { "layout",   HandleLayout,   SEC_ADMINISTRATOR, Console::Yes },
-            { "creature", HandleCreature, SEC_ADMINISTRATOR, Console::No },
-            { "instance", HandleInstance, SEC_ADMINISTRATOR, Console::No },
-            { "quest",    HandleQuest,    SEC_ADMINISTRATOR, Console::Yes },
-            { "item",     HandleItem,     SEC_ADMINISTRATOR, Console::Yes },
-            { "validate", HandleValidate, SEC_ADMINISTRATOR, Console::Yes },
+            { "status",    HandleStatus,    SEC_ADMINISTRATOR, Console::Yes },
+            { "layout",    HandleLayout,    SEC_ADMINISTRATOR, Console::Yes },
+            { "creature",  HandleCreature,  SEC_ADMINISTRATOR, Console::No },
+            { "instance",  HandleInstance,  SEC_ADMINISTRATOR, Console::No },
+            { "quest",     HandleQuest,     SEC_ADMINISTRATOR, Console::Yes },
+            { "item",      HandleItem,      SEC_ADMINISTRATOR, Console::Yes },
+            { "validate",  HandleValidate,  SEC_ADMINISTRATOR, Console::Yes },
+            { "lfg",       coaScaleLfgCommandTable },
         };
 
         static ChatCommandTable const commandTable =
         {
-            { "coascale", coaScaleCommandTable },
+            { "coascale",     coaScaleCommandTable },
+            { "lfgmode",      HandleLfgMode,      SEC_PLAYER, Console::No },
+            { "lfgchallenge", HandleLfgChallenge, SEC_PLAYER, Console::No },
         };
         return commandTable;
     }
@@ -99,13 +109,17 @@ private:
 
         CreatureScaleContext const ctx = sCombatBudgetProfile->BuildContext(cinfo, target, target->GetLevel());
         CalculatedCombatBudget const budget = sCombatBudgetProfile->CalculateBudget(cinfo, ctx);
+        EraResolutionResult const eraRes = sContentPackRegistry->ResolveEraDetailsForCreature(
+            cinfo->Entry, target->GetMapId(), target->GetAreaId(), cinfo->expansion, cinfo->maxlevel);
 
         handler->PSendSysMessage("=== Creature Scaling: %s (Entry: %u) ===", cinfo->Name.c_str(), cinfo->Entry);
+        handler->PSendSysMessage("Era: %s | Resolved by: %s (Confidence: %.2f)",
+            ContentEraToString(eraRes.era).data(), EraResolutionSourceToString(eraRes.source).data(), eraRes.confidence);
         handler->PSendSysMessage("Authored Level: %u | Effective Level: %u", uint32(ctx.authoredLevel), uint32(ctx.effectiveLevel));
-        handler->PSendSysMessage("Era: %s | Tier: %s", ContentEraToString(ctx.era).data(), ContentTierToString(ctx.tier).data());
-        handler->PSendSysMessage("Authored HealthMod: %.2f | DamageMod: %.2f | Expansion: %u",
-            cinfo->ModHealth, cinfo->DamageModifier, uint32(cinfo->expansion));
-        handler->PSendSysMessage("Scaled Health: %u | Mana: %u | Armor: %.0f", budget.health, budget.mana, budget.armor);
+        handler->PSendSysMessage("Tier: %s | HealthMod: %.2f | DamageMod: %.2f",
+            ContentTierToString(ctx.tier).data(), cinfo->ModHealth, cinfo->DamageModifier);
+        handler->PSendSysMessage("Scaled Health: %u | Mana: %u | Armor: %.0f | AP: %u",
+            budget.health, budget.mana, budget.armor, budget.attackPower);
         handler->PSendSysMessage("Damage Range: %.1f - %.1f | Current HP: %u / %u",
             budget.minDamage, budget.maxDamage, target->GetHealth(), target->GetMaxHealth());
 
@@ -126,11 +140,15 @@ private:
         }
 
         InstanceScaleContext const ctx = sInstanceScalingMgr->GetOrCreateContext(map);
+        EraResolutionResult const eraRes = sContentPackRegistry->ResolveEraDetailsForMap(ctx.mapId);
+
         handler->PSendSysMessage("=== Instance Group Scaling (Map: %u, Inst: %u) ===", ctx.mapId, ctx.instanceId);
-        handler->PSendSysMessage("Era: %s | Tier: %s | Difficulty: %u",
-            ContentEraToString(ctx.era).data(), ContentTierToString(ctx.tier).data(), uint32(ctx.difficulty));
+        handler->PSendSysMessage("Era: %s | Resolved by: %s",
+            ContentEraToString(eraRes.era).data(), EraResolutionSourceToString(eraRes.source).data());
+        handler->PSendSysMessage("Tier: %s | Difficulty: %u",
+            ContentTierToString(ctx.tier).data(), uint32(ctx.difficulty));
         handler->PSendSysMessage("Intended Players: %u | Effective Players: %.1f", ctx.intendedPlayers, ctx.effectivePlayers);
-        handler->PSendSysMessage("Status: %s", ctx.encounterLocked ? "[FROZEN IN ENCOUNTER]" : "[IDLE / DYNAMIC]");
+        handler->PSendSysMessage("Lock State: %s", ctx.encounterLocked ? "[FROZEN IN ENCOUNTER]" : "[IDLE / DYNAMIC]");
         handler->PSendSysMessage("Multipliers: HP x%.2f | Damage x%.2f | Heal x%.2f | Absorb x%.2f",
             ctx.healthScale, ctx.damageScale, ctx.healingScale, ctx.absorbScale);
 
@@ -146,13 +164,14 @@ private:
             return true;
         }
 
-        ProgressionLayout const& layout = sCoAContentScaling->GetLayout();
-        ContentEra const era = sContentPackRegistry->ResolveEraForQuest(questId, quest->GetZoneOrSort());
+        EraResolutionResult const eraRes = sContentPackRegistry->ResolveEraDetailsForQuest(
+            questId, quest->GetZoneOrSort(), 0, quest->GetQuestLevel());
         int32 const effectiveLevel = sCoAContentScaling->GetEffectiveQuestLevel(quest);
         uint32 const effectiveMin = sCoAContentScaling->GetEffectiveQuestMinLevel(quest);
 
         handler->PSendSysMessage("=== Quest Scaling: %s (ID: %u) ===", quest->GetTitle().c_str(), questId);
-        handler->PSendSysMessage("Era: %s", ContentEraToString(era).data());
+        handler->PSendSysMessage("Era: %s | Resolved by: %s (Confidence: %.2f)",
+            ContentEraToString(eraRes.era).data(), EraResolutionSourceToString(eraRes.source).data(), eraRes.confidence);
         handler->PSendSysMessage("Authored Level: %d | Effective Level: %d", quest->GetQuestLevel(), effectiveLevel);
         handler->PSendSysMessage("Authored MinLevel: %u | Effective MinLevel: %u", quest->GetMinLevel(), effectiveMin);
 
@@ -170,8 +189,12 @@ private:
 
         ProgressionLayout const& layout = sCoAContentScaling->GetLayout();
         ScaledItemBudget const budget = sItemBudgetScaler->CalculateItemBudget(item, layout);
+        EraResolutionResult const eraRes = sContentPackRegistry->ResolveEraDetailsForItem(
+            itemId, item->ItemLevel, item->RequiredLevel);
 
         handler->PSendSysMessage("=== Item Scaling: %s (ID: %u) ===", item->Name1.c_str(), itemId);
+        handler->PSendSysMessage("Era: %s | Resolved by: %s",
+            ContentEraToString(eraRes.era).data(), EraResolutionSourceToString(eraRes.source).data());
         handler->PSendSysMessage("Authored ReqLevel: %u | Effective ReqLevel: %u", item->RequiredLevel, budget.effectiveRequiredLevel);
         handler->PSendSysMessage("Authored ItemLevel: %u | Effective ItemLevel: %u", item->ItemLevel, budget.effectiveItemLevel);
         handler->PSendSysMessage("Multipliers: Stats x%.2f | Ratings x%.2f | Armor x%.2f | DPS x%.2f",
@@ -194,6 +217,98 @@ private:
         handler->PSendSysMessage("[PASS] ProgressionLayout valid: Cap %u", uint32(layout.maxLevel));
         handler->PSendSysMessage("[PASS] Enabled eras continuous and terminating at Cap");
         handler->PSendSysMessage("All validation checks passed.");
+        return true;
+    }
+
+    static bool HandleLfgStatus(ChatHandler* handler)
+    {
+        Player* player = handler->GetPlayer();
+        if (!player)
+            return false;
+
+        lfg::LfgCompositionMode const mode = sCoAContentScaling->GetPlayerLfgMode(player->GetGUID());
+        uint32 const challenge = sCoAContentScaling->GetPlayerLfgChallenge(player->GetGUID());
+
+        std::string_view modeStr = "matchmaking";
+        if (mode == lfg::LfgCompositionMode::BOT_FILL)
+            modeStr = "bots";
+        else if (mode == lfg::LfgCompositionMode::CURRENT_PARTY)
+            modeStr = "party";
+
+        handler->PSendSysMessage("=== CoA LFG Settings ===");
+        handler->PSendSysMessage("Composition Mode: %s", modeStr.data());
+        if (challenge == 0)
+            handler->SendSysMessage("Challenge Size: Adaptive (matches actual player count)");
+        else
+            handler->PSendSysMessage("Challenge Size: %u player(s)", challenge);
+
+        return true;
+    }
+
+    static bool HandleLfgMode(ChatHandler* handler, std::string const& modeArg)
+    {
+        Player* player = handler->GetPlayer();
+        if (!player)
+            return false;
+
+        if (modeArg == "matchmaking" || modeArg == "real" || modeArg == "normal")
+        {
+            sCoAContentScaling->SetPlayerLfgMode(player->GetGUID(), lfg::LfgCompositionMode::MATCHMAKING);
+            handler->SendSysMessage("LFG Mode set to MATCHMAKING (wait for real players).");
+        }
+        else if (modeArg == "bots" || modeArg == "botfill" || modeArg == "fill")
+        {
+            sCoAContentScaling->SetPlayerLfgMode(player->GetGUID(), lfg::LfgCompositionMode::BOT_FILL);
+            handler->SendSysMessage("LFG Mode set to BOT_FILL (auto-fill party with bots).");
+        }
+        else if (modeArg == "party" || modeArg == "current" || modeArg == "solo")
+        {
+            sCoAContentScaling->SetPlayerLfgMode(player->GetGUID(), lfg::LfgCompositionMode::CURRENT_PARTY);
+            handler->SendSysMessage("LFG Mode set to CURRENT_PARTY (queue immediately with current group/solo, bypassing matchmaking).");
+        }
+        else
+        {
+            handler->SendSysMessage("Usage: .lfgmode [matchmaking | bots | party]");
+            return true;
+        }
+
+        sCoAContentScaling->SavePlayerLfgSettings(player);
+        return true;
+    }
+
+    static bool HandleLfgChallenge(ChatHandler* handler, std::string const& challengeArg)
+    {
+        Player* player = handler->GetPlayer();
+        if (!player)
+            return false;
+
+        if (challengeArg == "adaptive" || challengeArg == "auto" || challengeArg == "0")
+        {
+            sCoAContentScaling->SetPlayerLfgChallenge(player->GetGUID(), 0);
+            handler->SendSysMessage("LFG Challenge Size set to Adaptive (scales dynamically to group size).");
+        }
+        else
+        {
+            try
+            {
+                int val = std::stoi(challengeArg);
+                if (val < 1 || val > 40)
+                {
+                    handler->SendSysMessage("Challenge size must be between 1 and 40 (or 'adaptive').");
+                    return true;
+                }
+
+                sCoAContentScaling->SetPlayerLfgChallenge(player->GetGUID(), uint32(val));
+                handler->PSendSysMessage("LFG Challenge Size locked to %d players.", val);
+            }
+            catch (...)
+            {
+                handler->SendSysMessage("Usage: .lfgchallenge [adaptive | 1..40]");
+                return true;
+            }
+        }
+
+        sCoAContentScaling->SavePlayerLfgSettings(player);
         return true;
     }
 };

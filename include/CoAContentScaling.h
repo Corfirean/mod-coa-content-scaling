@@ -9,16 +9,32 @@
 #include "ContentEra.h"
 #include "ContentTier.h"
 #include "Define.h"
+#include "DungeonFinding/LFG.h"
 #include "InstanceScaleContext.h"
+#include "ObjectGuid.h"
 #include "ProgressionLayout.h"
+#include <mutex>
 #include <string>
+#include <unordered_map>
 
 class Creature;
 class Player;
 class Unit;
 class Quest;
 class Map;
+class Group;
 struct CreatureTemplate;
+
+namespace lfg
+{
+    struct LfgProposal;
+}
+
+struct PlayerLfgSettings
+{
+    lfg::LfgCompositionMode compositionMode{lfg::LfgCompositionMode::MATCHMAKING};
+    uint32 challengeSize{0}; // 0 = Adaptive, 1 = Solo, 2..25 = fixed
+};
 
 class CoAContentScaling
 {
@@ -26,6 +42,7 @@ public:
     static CoAContentScaling* Instance();
 
     void LoadConfig();
+    void FinalizeAndInitialize();
     void InitializeLayout();
 
     [[nodiscard]] bool IsEnabled() const { return _enabled; }
@@ -42,6 +59,7 @@ public:
 
     // Combat scaling calculations
     void ApplyCreatureScaling(CreatureTemplate const* cinfo, Creature* creature);
+    void RecalculateEncounterCombatStats(Creature* boss, InstanceScaleContext const& snapshot);
 
     // Expansion enablement
     void SetTbcEnabled(bool enabled) { _tbcEnabled = enabled; }
@@ -51,6 +69,17 @@ public:
 
     // Map access validation
     [[nodiscard]] bool CanPlayerEnterMap(Player const* player, uint32 mapId) const;
+
+    // LFG Policy & Composition Integration
+    void SetPlayerLfgMode(ObjectGuid guid, lfg::LfgCompositionMode mode);
+    [[nodiscard]] lfg::LfgCompositionMode GetPlayerLfgMode(ObjectGuid guid) const;
+    void SetPlayerLfgChallenge(ObjectGuid guid, uint32 challengeSize);
+    [[nodiscard]] uint32 GetPlayerLfgChallenge(ObjectGuid guid) const;
+    void LoadPlayerLfgSettings(Player* player);
+    void SavePlayerLfgSettings(Player* player);
+
+    void OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::LfgQueuePolicy& policy);
+    void OnLfgProposalMadeGroup(lfg::LfgProposal const& proposal, Group* group);
 
 private:
     CoAContentScaling() = default;
@@ -71,6 +100,9 @@ private:
     uint8 _customTbcEnd{0};
 
     ProgressionLayout _layout;
+
+    mutable std::mutex _lfgSettingsLock;
+    std::unordered_map<ObjectGuid, PlayerLfgSettings> _playerLfgSettings;
 };
 
 #define sCoAContentScaling CoAContentScaling::Instance()

@@ -161,8 +161,9 @@ CalculatedCombatBudget CombatBudgetProfile::CalculateBudget(CreatureTemplate con
     // Armor: base * authored multiplier * tier modifier
     budget.armor = std::ceil(baseArmor * cinfo->ModArmor * tierArmorMod);
 
-    // Damage:
-    float effectiveDmgMod = cinfo->DamageModifier * tierDmgMod * context.groupDamageScale;
+    // Damage: Base weapon damage is calculated strictly from base stats, authored modifier and tier.
+    // Group scaling is applied at runtime in damage modification hooks to eliminate double scaling.
+    float effectiveDmgMod = cinfo->DamageModifier * tierDmgMod;
     if (effectiveDmgMod <= 0.0f)
         effectiveDmgMod = 1.0f;
 

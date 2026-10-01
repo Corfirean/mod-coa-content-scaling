@@ -29,4 +29,39 @@ constexpr std::string_view ContentEraToString(ContentEra era)
     }
 }
 
+enum class EraResolutionSource : uint8
+{
+    ExplicitOverride       = 0,
+    ExplicitAreaOverride   = 1,
+    InstanceProfile        = 2,
+    ContentPack            = 3,
+    AuthoredExpansion      = 4,
+    ZoneSortMetadata       = 5,
+    AuthoredLevelHeuristic = 6,
+    SafeFallback           = 7
+};
+
+constexpr std::string_view EraResolutionSourceToString(EraResolutionSource source)
+{
+    switch (source)
+    {
+        case EraResolutionSource::ExplicitOverride:       return "ExplicitOverride";
+        case EraResolutionSource::ExplicitAreaOverride:   return "ExplicitAreaOverride";
+        case EraResolutionSource::InstanceProfile:        return "InstanceProfile";
+        case EraResolutionSource::ContentPack:            return "ContentPack";
+        case EraResolutionSource::AuthoredExpansion:      return "AuthoredExpansion";
+        case EraResolutionSource::ZoneSortMetadata:       return "ZoneSortMetadata";
+        case EraResolutionSource::AuthoredLevelHeuristic: return "AuthoredLevelHeuristic";
+        case EraResolutionSource::SafeFallback:           return "SafeFallback";
+        default:                                          return "Unknown";
+    }
+}
+
+struct EraResolutionResult
+{
+    ContentEra era{ContentEra::Classic};
+    EraResolutionSource source{EraResolutionSource::SafeFallback};
+    float confidence{1.0f};
+};
+
 #endif // COA_CONTENT_ERA_H

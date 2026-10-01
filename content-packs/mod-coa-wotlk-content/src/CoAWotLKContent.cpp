@@ -36,8 +36,14 @@ namespace
     public:
         coa_wotlk_content_world() : WorldScript("coa_wotlk_content_world") { }
 
-        void OnAfterConfigLoad(bool /*reload*/) override
+        void OnAfterConfigLoad(bool reload) override
         {
+            if (reload && sContentPackRegistry->IsFinalized())
+            {
+                LOG_WARN("module.coa_content_scaling", "CoAWotLKContent: Expansion pack enablement cannot be changed at runtime. Server restart required.");
+                return;
+            }
+
             bool const enabled = sConfigMgr->GetOption<bool>("CoAWotLK.Enable", true);
             if (enabled)
             {

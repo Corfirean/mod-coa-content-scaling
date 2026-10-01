@@ -19,6 +19,14 @@ class Player;
 class Unit;
 class Creature;
 
+enum class EncounterLockState : uint8
+{
+    IDLE      = 0,
+    ACTIVE    = 1,
+    COMPLETED = 2,
+    RESETTING = 3
+};
+
 struct InstanceScaleContext
 {
     uint32 mapId{0};
@@ -37,6 +45,7 @@ struct InstanceScaleContext
     float healingScale{1.0f};
     float absorbScale{1.0f};
 
+    EncounterLockState lockState{EncounterLockState::IDLE};
     bool encounterLocked{false};
     uint32 lockEncounterId{0};
 

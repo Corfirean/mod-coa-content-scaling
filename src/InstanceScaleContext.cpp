@@ -4,9 +4,11 @@
  */
 
 #include "InstanceScaleContext.h"
+#include "CoAContentScaling.h"
 #include "ContentPackRegistry.h"
 #include "DatabaseEnv.h"
 #include "Field.h"
+#include "InstanceProfile.h"
 #include "Log.h"
 #include "Map.h"
 #include "Player.h"
@@ -59,6 +61,7 @@ InstanceScaleContext InstanceScalingMgr::GetOrCreateContext(Map* map)
     if (!map)
         return InstanceScaleContext{};
 
+    float const actualPlayers = CountEffectivePlayers(map);
     uint32 const mapId = map->GetId();
     uint32 const instanceId = map->GetInstanceId();
     uint64 const key = (static_cast<uint64>(mapId) << 32) | instanceId;
@@ -77,7 +80,6 @@ InstanceScaleContext InstanceScalingMgr::GetOrCreateContext(Map* map)
         if (cit != _challengeSizes.end())
             virtualChallenge = cit->second;
 
-        float const actualPlayers = CountEffectivePlayers(map);
         it->second.effectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : actualPlayers;
         it->second.CalculateMultipliers(it->second.effectivePlayers / float(it->second.intendedPlayers));
         return it->second;
@@ -89,27 +91,19 @@ InstanceScaleContext InstanceScalingMgr::GetOrCreateContext(Map* map)
     ctx.instanceId = instanceId;
     ctx.era = sContentPackRegistry->ResolveEraForMap(mapId);
     ctx.difficulty = map->GetDifficulty();
+    ctx.intendedPlayers = sInstanceProfileRegistry->GetIntendedPlayers(mapId, ctx.difficulty);
 
     if (map->IsRaid())
     {
-        ctx.intendedPlayers = (ctx.difficulty == RAID_DIFFICULTY_10MAN_NORMAL ||
-                               ctx.difficulty == RAID_DIFFICULTY_10MAN_HEROIC) ? 10 : 25;
-        // Classic raids default to 40 unless 10/20 man
-        if (ctx.era == ContentEra::Classic)
-        {
-            if (mapId == 409 || mapId == 469 || mapId == 509 || mapId == 531) // MC, BWL, AQ40, Naxx
-                ctx.intendedPlayers = 40;
-            else if (mapId == 309 || mapId == 509) // ZG, AQ20
-                ctx.intendedPlayers = 20;
-            else if (mapId == 249) // Onyxia Classic
-                ctx.intendedPlayers = 40;
-        }
         ctx.tier = map->IsHeroic() ? ContentTier::RAID_END : ContentTier::RAID_MID;
+    }
+    else if (map->IsDungeon())
+    {
+        ctx.tier = map->IsHeroic() ? ContentTier::DUNGEON_HEROIC : ContentTier::DUNGEON_NORMAL;
     }
     else
     {
-        ctx.intendedPlayers = 5;
-        ctx.tier = map->IsHeroic() ? ContentTier::DUNGEON_HEROIC : ContentTier::DUNGEON_NORMAL;
+        ctx.tier = ContentTier::WORLD;
     }
 
     uint32 virtualChallenge = 0;
@@ -117,7 +111,6 @@ InstanceScaleContext InstanceScalingMgr::GetOrCreateContext(Map* map)
     if (cit != _challengeSizes.end())
         virtualChallenge = cit->second;
 
-    float const actualPlayers = CountEffectivePlayers(map);
     ctx.effectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : actualPlayers;
     ctx.CalculateMultipliers(ctx.effectivePlayers / float(ctx.intendedPlayers));
 
@@ -135,34 +128,44 @@ InstanceScaleContext InstanceScalingMgr::GetContext(uint32 mapId, uint32 instanc
     return InstanceScaleContext{};
 }
 
-void InstanceScalingMgr::OnEncounterStart(Map* map, Creature* /*boss*/, uint32 encounterId)
+void InstanceScalingMgr::OnEncounterStart(Map* map, Creature* boss, uint32 encounterId)
 {
     if (!map)
         return;
 
+    float const actualPlayers = CountEffectivePlayers(map);
     uint32 const mapId = map->GetId();
     uint32 const instanceId = map->GetInstanceId();
     uint64 const key = (static_cast<uint64>(mapId) << 32) | instanceId;
 
-    std::lock_guard<std::mutex> lock(_lock);
-    InstanceScaleContext& ctx = _contexts[key];
-    if (ctx.encounterLocked)
-        return; // Already locked by another boss / pull
+    InstanceScaleContext snapshot;
+    {
+        std::lock_guard<std::mutex> lock(_lock);
+        InstanceScaleContext& ctx = _contexts[key];
+        if (ctx.encounterLocked)
+            return; // Already locked by another boss / pull
 
-    ctx.encounterLocked = true;
-    ctx.lockEncounterId = encounterId;
+        ctx.lockState = EncounterLockState::ACTIVE;
+        ctx.encounterLocked = true;
+        ctx.lockEncounterId = encounterId;
 
-    uint32 virtualChallenge = 0;
-    auto cit = _challengeSizes.find(key);
-    if (cit != _challengeSizes.end())
-        virtualChallenge = cit->second;
+        uint32 virtualChallenge = 0;
+        auto cit = _challengeSizes.find(key);
+        if (cit != _challengeSizes.end())
+            virtualChallenge = cit->second;
 
-    float const actualPlayers = CountEffectivePlayers(map);
-    ctx.effectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : actualPlayers;
-    ctx.CalculateMultipliers(ctx.effectivePlayers / float(ctx.intendedPlayers));
+        ctx.effectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : actualPlayers;
+        ctx.CalculateMultipliers(ctx.effectivePlayers / float(ctx.intendedPlayers));
+        snapshot = ctx;
+    }
 
     LOG_INFO("server.loading", "UniversalContentScaling: Encounter {} locked on map {} with {} effective players (intended {}) -> HP x{:.2f}, Dmg x{:.2f}",
-             encounterId, mapId, ctx.effectivePlayers, ctx.intendedPlayers, ctx.healthScale, ctx.damageScale);
+             encounterId, mapId, snapshot.effectivePlayers, snapshot.intendedPlayers, snapshot.healthScale, snapshot.damageScale);
+
+    if (boss)
+    {
+        sCoAContentScaling->RecalculateEncounterCombatStats(boss, snapshot);
+    }
 }
 
 void InstanceScalingMgr::OnEncounterEnd(Map* map, uint32 encounterId)
@@ -178,6 +181,7 @@ void InstanceScalingMgr::OnEncounterEnd(Map* map, uint32 encounterId)
     auto it = _contexts.find(key);
     if (it != _contexts.end() && it->second.encounterLocked)
     {
+        it->second.lockState = EncounterLockState::COMPLETED;
         it->second.encounterLocked = false;
         it->second.lockEncounterId = 0;
         LOG_INFO("server.loading", "UniversalContentScaling: Encounter {} unlocked on map {}", encounterId, mapId);

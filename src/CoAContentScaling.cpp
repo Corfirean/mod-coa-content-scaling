@@ -11,13 +11,20 @@
 #include "Creature.h"
 #include "CreatureData.h"
 #include "DBCEnums.h"
+#include "DatabaseEnv.h"
+#include "Field.h"
+#include "Group.h"
 #include "InstanceScaleContext.h"
 #include "ItemBudgetScaler.h"
+#include "LFGMgr.h"
 #include "LocalLevelScaling.h"
+#include "Log.h"
 #include "LootMgr.h"
 #include "Map.h"
+#include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "QueryResult.h"
 #include "QuestDef.h"
 #include "ScriptMgr.h"
 #include "SoloAssistPolicy.h"
@@ -27,6 +34,7 @@
 #include "SpellInfo.h"
 #include "World.h"
 #include <algorithm>
+#include <cmath>
 
 void AddCoAContentScalingCommands();
 
@@ -43,38 +51,88 @@ void CoAContentScaling::LoadConfig()
     _lockOnEncounterStart = sConfigMgr->GetOption<bool>("CoAContentScaling.GroupScaling.LockOnEncounterStart", true);
     _adaptiveMechanicsEnabled = sConfigMgr->GetOption<bool>("CoAContentScaling.AdaptiveMechanics.Enable", true);
     _scaleLootCount = sConfigMgr->GetOption<bool>("CoAContentScaling.Rewards.ScaleLootCount", true);
-    _allowSoloRaids = sConfigMgr->GetOption<bool>("CoAContentScaling.AllowSoloRaids", true);
+    _allowSoloRaids = sConfigMgr->GetOption<bool>("CoAContentScaling.GroupScaling.AllowSoloRaids", true);
     _debug = sConfigMgr->GetOption<bool>("CoAContentScaling.Debug", false);
 
-    _progressionMode = sConfigMgr->GetOption<std::string>("CoAContentScaling.Progression.Mode", "Auto");
-    _customClassicEnd = static_cast<uint8>(sConfigMgr->GetOption<uint32>("CoAContentScaling.Progression.ClassicEnd", 0));
-    _customTbcEnd     = static_cast<uint8>(sConfigMgr->GetOption<uint32>("CoAContentScaling.Progression.TbcEnd", 0));
+    _progressionMode = sConfigMgr->GetOption<std::string>("CoAContentScaling.ProgressionMode", "Auto");
+    _customClassicEnd = static_cast<uint8>(sConfigMgr->GetOption<uint32>("CoAContentScaling.Progression.CustomClassicEnd", 45));
+    _customTbcEnd = static_cast<uint8>(sConfigMgr->GetOption<uint32>("CoAContentScaling.Progression.CustomTbcEnd", 58));
 
-    uint32 soloAssistMode = sConfigMgr->GetOption<uint32>("CoAContentScaling.SoloAssist.Mode", 0);
-    sSoloAssistPolicy->SetMode(static_cast<SoloAssistMode>(std::min(soloAssistMode, 2u)));
+    std::string const soloMode = sConfigMgr->GetOption<std::string>("CoAContentScaling.SoloAssist.Mode", "Light");
+    if (soloMode == "Full")
+        sSoloAssistPolicy->SetMode(SoloAssistMode::FULL);
+    else if (soloMode == "None")
+        sSoloAssistPolicy->SetMode(SoloAssistMode::NONE);
+    else
+        sSoloAssistPolicy->SetMode(SoloAssistMode::LIGHT);
+}
 
-    LOG_INFO("server.loading", "UniversalContentScaling: Configuration loaded (Enabled: {})", _enabled);
+void CoAContentScaling::FinalizeAndInitialize()
+{
+    if (sContentPackRegistry->IsFinalized())
+        return;
+
+    // 1. Finalize content pack registrations
+    sContentPackRegistry->Finalize();
+
+    // 2. Compute immutable progression layout
+    InitializeLayout();
+
+    // 3. Load calibrated boss flex profiles
+    sInstanceScalingMgr->LoadCalibratedBossFlex();
+
+    // 4. Scale item templates if enabled
+    if (sConfigMgr->GetOption<bool>("CoAContentScaling.ScaleItems", true))
+    {
+        sItemBudgetScaler->ScaleAllItems(_layout);
+    }
+
+    // 5. Ensure DB table for character LFG settings exists
+    CharacterDatabase.Execute(
+        "CREATE TABLE IF NOT EXISTS `character_coa_lfg_settings` ("
+        "`guid` INT UNSIGNED NOT NULL,"
+        "`composition_mode` TINYINT UNSIGNED NOT NULL DEFAULT 0,"
+        "`challenge_size` TINYINT UNSIGNED NOT NULL DEFAULT 0,"
+        "PRIMARY KEY (`guid`)"
+        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
+    );
+
+    LOG_INFO("server.loading", "CoAContentScaling: Finalized lifecycle and built immutable ProgressionLayout (Cap {})",
+             _layout.maxLevel);
 }
 
 void CoAContentScaling::InitializeLayout()
 {
-    uint32 const maxPlayerLevel = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL);
-    uint8 const cap = static_cast<uint8>(std::clamp<uint32>(maxPlayerLevel, 1, 255));
+    uint8 const maxPlayerLevel = static_cast<uint8>(sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL));
+    bool const tbcActive = _tbcEnabled && sContentPackRegistry->HasPack(ContentEra::TBC);
+    bool const wotlkActive = _wotlkEnabled && sContentPackRegistry->HasPack(ContentEra::WotLK);
 
-    _layout = ProgressionLayout::Create(cap, _tbcEnabled, _wotlkEnabled, _customClassicEnd, _customTbcEnd);
-
-    std::string err;
-    if (!_layout.Validate(err))
+    if (_progressionMode == "Custom")
     {
-        LOG_ERROR("server.loading", "UniversalContentScaling: ProgressionLayout validation failed: {}. Falling back to Classic-only layout.", err);
-        _layout = ProgressionLayout::Create(cap, false, false);
+        _layout = ProgressionLayout::Create(
+            maxPlayerLevel, tbcActive, wotlkActive, _customClassicEnd, _customTbcEnd);
+    }
+    else
+    {
+        _layout = ProgressionLayout::Create(maxPlayerLevel, tbcActive, wotlkActive);
     }
 
-    LOG_INFO("server.loading", "UniversalContentScaling: Active Progression Layout:\n{}", _layout.ToString());
+    std::string validationError;
+    if (!_layout.Validate(validationError))
+    {
+        LOG_FATAL("server.loading", "CoAContentScaling: Progression layout invalid: {}", validationError);
+        _enabled = false;
+        return;
+    }
+
+    LOG_INFO("server.loading", "UniversalContentScaling: Active layout [Classic {}-{} | TBC: {} | WotLK: {}] Cap: {}",
+             _layout.classic.minLevel, _layout.classic.maxLevel,
+             _layout.tbc ? std::to_string(_layout.tbc->minLevel) + "-" + std::to_string(_layout.tbc->maxLevel) : "None",
+             _layout.wotlk ? std::to_string(_layout.wotlk->minLevel) + "-" + std::to_string(_layout.wotlk->maxLevel) : "None",
+             _layout.maxLevel);
 }
 
-uint8 CoAContentScaling::GetEffectiveCreatureLevel(CreatureTemplate const* cinfo, Creature const* creature,
-                                                  uint8 authoredLevel) const
+uint8 CoAContentScaling::GetEffectiveCreatureLevel(CreatureTemplate const* cinfo, Creature const* creature, uint8 authoredLevel) const
 {
     if (!_enabled || !cinfo)
         return authoredLevel;
@@ -127,7 +185,7 @@ void CoAContentScaling::ApplyCreatureScaling(CreatureTemplate const* cinfo, Crea
     Map* map = creature->GetMap();
     CreatureScaleContext ctx = sCombatBudgetProfile->BuildContext(cinfo, creature, creature->GetLevel());
 
-    // Apply instance group scaling if in dungeon/raid
+    uint32 calibratedHp = 0;
     if (_groupScalingEnabled && map && map->IsDungeon())
     {
         InstanceScaleContext instCtx = sInstanceScalingMgr->GetOrCreateContext(map);
@@ -137,28 +195,20 @@ void CoAContentScaling::ApplyCreatureScaling(CreatureTemplate const* cinfo, Crea
         // Check calibrated coa_boss_flex profile
         if (map->IsRaid() && sInstanceScalingMgr->HasCalibratedBossHp(cinfo->Entry, map->GetSpawnMode()))
         {
-            uint32 const calibratedHp = sInstanceScalingMgr->GetCalibratedBossHp(
+            calibratedHp = sInstanceScalingMgr->GetCalibratedBossHp(
                 cinfo->Entry, map->GetSpawnMode(), instCtx.effectivePlayers);
-
-            if (calibratedHp > 0)
-            {
-                float const pct = creature->GetMaxHealth() ? creature->GetHealthPct() : 100.0f;
-                creature->SetCreateHealth(calibratedHp);
-                creature->SetStatFlatModifier(UNIT_MOD_HEALTH, BASE_VALUE, float(calibratedHp));
-                creature->UpdateMaxHealth();
-                creature->SetHealth(std::max<uint32>(1, static_cast<uint32>(creature->GetMaxHealth() * pct / 100.0f)));
-                return;
-            }
         }
     }
 
-    CalculatedCombatBudget const budget = sCombatBudgetProfile->CalculateBudget(cinfo, ctx);
+    CalculatedCombatBudget budget = sCombatBudgetProfile->CalculateBudget(cinfo, ctx);
+    if (calibratedHp > 0)
+        budget.health = calibratedHp;
 
     float const pct = creature->GetMaxHealth() ? creature->GetHealthPct() : 100.0f;
     creature->SetCreateHealth(budget.health);
     creature->SetStatFlatModifier(UNIT_MOD_HEALTH, BASE_VALUE, float(budget.health));
     creature->UpdateMaxHealth();
-    creature->SetHealth(std::max<uint32>(1, static_cast<uint32>(creature->GetMaxHealth() * pct / 100.0f)));
+    creature->SetHealth(std::max<uint32>(1, static_cast<uint32>(std::round(float(creature->GetMaxHealth()) * pct / 100.0f))));
 
     if (budget.mana > 0)
     {
@@ -168,12 +218,82 @@ void CoAContentScaling::ApplyCreatureScaling(CreatureTemplate const* cinfo, Crea
         creature->SetStatFlatModifier(UNIT_MOD_MANA, BASE_VALUE, float(budget.mana));
     }
 
+    creature->SetStatFlatModifier(UNIT_MOD_ARMOR, BASE_VALUE, budget.armor);
+    creature->UpdateArmor();
+
+    creature->SetStatFlatModifier(UNIT_MOD_ATTACK_POWER, BASE_VALUE, float(budget.attackPower));
+    creature->UpdateAttackPowerAndDamage();
+
     creature->SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, budget.minDamage);
     creature->SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, budget.maxDamage);
     creature->SetBaseWeaponDamage(OFF_ATTACK, MINDAMAGE, budget.minDamage);
     creature->SetBaseWeaponDamage(OFF_ATTACK, MAXDAMAGE, budget.maxDamage);
     creature->SetBaseWeaponDamage(RANGED_ATTACK, MINDAMAGE, budget.minDamage);
     creature->SetBaseWeaponDamage(RANGED_ATTACK, MAXDAMAGE, budget.maxDamage);
+
+    creature->UpdateDamagePhysical(BASE_ATTACK);
+    creature->UpdateDamagePhysical(OFF_ATTACK);
+    creature->UpdateDamagePhysical(RANGED_ATTACK);
+}
+
+void CoAContentScaling::RecalculateEncounterCombatStats(Creature* boss, InstanceScaleContext const& snapshot)
+{
+    if (!_enabled || !boss)
+        return;
+
+    CreatureTemplate const* cinfo = boss->GetCreatureTemplate();
+    if (!cinfo)
+        return;
+
+    Map* map = boss->GetMap();
+    if (!map || !map->IsDungeon())
+        return;
+
+    CreatureScaleContext ctx = sCombatBudgetProfile->BuildContext(cinfo, boss, boss->GetLevel());
+    ctx.groupHealthScale = snapshot.healthScale;
+    ctx.groupDamageScale = snapshot.damageScale;
+
+    uint32 calibratedHp = 0;
+    if (map->IsRaid() && sInstanceScalingMgr->HasCalibratedBossHp(cinfo->Entry, map->GetSpawnMode()))
+    {
+        calibratedHp = sInstanceScalingMgr->GetCalibratedBossHp(
+            cinfo->Entry, map->GetSpawnMode(), snapshot.effectivePlayers);
+    }
+
+    CalculatedCombatBudget budget = sCombatBudgetProfile->CalculateBudget(cinfo, ctx);
+    if (calibratedHp > 0)
+        budget.health = calibratedHp;
+
+    float const pct = boss->GetMaxHealth() ? boss->GetHealthPct() : 100.0f;
+    boss->SetCreateHealth(budget.health);
+    boss->SetStatFlatModifier(UNIT_MOD_HEALTH, BASE_VALUE, float(budget.health));
+    boss->UpdateMaxHealth();
+    boss->SetHealth(std::max<uint32>(1, static_cast<uint32>(std::round(float(boss->GetMaxHealth()) * pct / 100.0f))));
+
+    if (budget.mana > 0)
+    {
+        boss->SetCreateMana(budget.mana);
+        boss->SetMaxPower(POWER_MANA, budget.mana);
+        boss->SetPower(POWER_MANA, budget.mana);
+        boss->SetStatFlatModifier(UNIT_MOD_MANA, BASE_VALUE, float(budget.mana));
+    }
+
+    boss->SetStatFlatModifier(UNIT_MOD_ARMOR, BASE_VALUE, budget.armor);
+    boss->UpdateArmor();
+
+    boss->SetStatFlatModifier(UNIT_MOD_ATTACK_POWER, BASE_VALUE, float(budget.attackPower));
+    boss->UpdateAttackPowerAndDamage();
+
+    boss->SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, budget.minDamage);
+    boss->SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, budget.maxDamage);
+    boss->SetBaseWeaponDamage(OFF_ATTACK, MINDAMAGE, budget.minDamage);
+    boss->SetBaseWeaponDamage(OFF_ATTACK, MAXDAMAGE, budget.maxDamage);
+    boss->SetBaseWeaponDamage(RANGED_ATTACK, MINDAMAGE, budget.minDamage);
+    boss->SetBaseWeaponDamage(RANGED_ATTACK, MAXDAMAGE, budget.maxDamage);
+
+    boss->UpdateDamagePhysical(BASE_ATTACK);
+    boss->UpdateDamagePhysical(OFF_ATTACK);
+    boss->UpdateDamagePhysical(RANGED_ATTACK);
 }
 
 bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId) const
@@ -188,6 +308,129 @@ bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId) co
     return true;
 }
 
+void CoAContentScaling::SetPlayerLfgMode(ObjectGuid guid, lfg::LfgCompositionMode mode)
+{
+    std::lock_guard<std::mutex> lock(_lfgSettingsLock);
+    _playerLfgSettings[guid].compositionMode = mode;
+}
+
+lfg::LfgCompositionMode CoAContentScaling::GetPlayerLfgMode(ObjectGuid guid) const
+{
+    std::lock_guard<std::mutex> lock(_lfgSettingsLock);
+    auto it = _playerLfgSettings.find(guid);
+    return (it != _playerLfgSettings.end()) ? it->second.compositionMode : lfg::LfgCompositionMode::MATCHMAKING;
+}
+
+void CoAContentScaling::SetPlayerLfgChallenge(ObjectGuid guid, uint32 challengeSize)
+{
+    std::lock_guard<std::mutex> lock(_lfgSettingsLock);
+    _playerLfgSettings[guid].challengeSize = challengeSize;
+}
+
+uint32 CoAContentScaling::GetPlayerLfgChallenge(ObjectGuid guid) const
+{
+    std::lock_guard<std::mutex> lock(_lfgSettingsLock);
+    auto it = _playerLfgSettings.find(guid);
+    return (it != _playerLfgSettings.end()) ? it->second.challengeSize : 0;
+}
+
+void CoAContentScaling::LoadPlayerLfgSettings(Player* player)
+{
+    if (!player)
+        return;
+
+    ObjectGuid const guid = player->GetGUID();
+    QueryResult result = CharacterDatabase.Query(
+        "SELECT composition_mode, challenge_size FROM character_coa_lfg_settings WHERE guid = {}",
+        guid.GetCounter());
+
+    std::lock_guard<std::mutex> lock(_lfgSettingsLock);
+    if (result)
+    {
+        Field* fields = result->Fetch();
+        _playerLfgSettings[guid].compositionMode = static_cast<lfg::LfgCompositionMode>(fields[0].Get<uint8>());
+        _playerLfgSettings[guid].challengeSize = fields[1].Get<uint32>();
+    }
+    else
+    {
+        _playerLfgSettings[guid] = PlayerLfgSettings{};
+    }
+}
+
+void CoAContentScaling::SavePlayerLfgSettings(Player* player)
+{
+    if (!player)
+        return;
+
+    ObjectGuid const guid = player->GetGUID();
+    PlayerLfgSettings settings;
+    {
+        std::lock_guard<std::mutex> lock(_lfgSettingsLock);
+        auto it = _playerLfgSettings.find(guid);
+        if (it != _playerLfgSettings.end())
+            settings = it->second;
+    }
+
+    CharacterDatabase.Execute(
+        "REPLACE INTO character_coa_lfg_settings (guid, composition_mode, challenge_size) VALUES ({}, {}, {})",
+        guid.GetCounter(), static_cast<uint8>(settings.compositionMode), settings.challengeSize);
+}
+
+void CoAContentScaling::OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::LfgQueuePolicy& policy)
+{
+    PlayerLfgSettings settings;
+    {
+        std::lock_guard<std::mutex> lock(_lfgSettingsLock);
+        auto it = _playerLfgSettings.find(guid);
+        if (it != _playerLfgSettings.end())
+            settings = it->second;
+    }
+
+    policy.compositionMode = settings.compositionMode;
+    policy.challengeSize = settings.challengeSize;
+
+    switch (settings.compositionMode)
+    {
+        case lfg::LfgCompositionMode::MATCHMAKING:
+            policy.bypassMatchmaking = false;
+            policy.requireStandardRoles = true;
+            policy.minPlayers = 5;
+            policy.targetPlayers = 5;
+            break;
+
+        case lfg::LfgCompositionMode::BOT_FILL:
+            policy.bypassMatchmaking = false;
+            policy.requireStandardRoles = true;
+            policy.minPlayers = 5;
+            policy.targetPlayers = 5;
+            break;
+
+        case lfg::LfgCompositionMode::CURRENT_PARTY:
+            policy.bypassMatchmaking = true;
+            policy.requireStandardRoles = false;
+            policy.minPlayers = 1;
+            Player* player = ObjectAccessor::FindPlayer(guid);
+            Group* grp = player ? player->GetGroup() : nullptr;
+            policy.targetPlayers = (settings.challengeSize > 0) ? settings.challengeSize : (grp ? grp->GetMembersCount() : 1);
+            break;
+    }
+}
+
+void CoAContentScaling::OnLfgProposalMadeGroup(lfg::LfgProposal const& proposal, Group* group)
+{
+    if (!group)
+        return;
+
+    lfg::LFGDungeonData const* dungeon = sLFGMgr->GetLFGDungeon(proposal.dungeonId);
+    if (!dungeon)
+        return;
+
+    if (proposal.policy.challengeSize > 0)
+    {
+        sInstanceScalingMgr->SetChallengeSize(dungeon->map, group->GetGUID().GetCounter(), proposal.policy.challengeSize);
+    }
+}
+
 // =============================================================================
 // Script Hooks Integration
 // =============================================================================
@@ -199,10 +442,21 @@ namespace
     public:
         coa_content_scaling_world() : WorldScript("coa_content_scaling_world") { }
 
-        void OnAfterConfigLoad(bool /*reload*/) override
+        void OnAfterConfigLoad(bool reload) override
         {
+            if (reload && sContentPackRegistry->IsFinalized())
+            {
+                LOG_WARN("module.coa_content_scaling",
+                         "UniversalContentScaling: Progression layout, expansion packs and MaxPlayerLevel cannot be changed at runtime! Server restart required.");
+                return;
+            }
+
             sCoAContentScaling->LoadConfig();
-            sCoAContentScaling->InitializeLayout();
+        }
+
+        void OnLoadCustomDatabaseTable() override
+        {
+            sCoAContentScaling->FinalizeAndInitialize();
 
             bool const enabled = sCoAContentScaling->IsEnabled();
             LocalLevelScaling::ContentScalingActive.store(enabled, std::memory_order_relaxed);
@@ -225,16 +479,36 @@ namespace
                 LocalLevelScaling::CreatureBaseLevelOwner.store(nullptr, std::memory_order_relaxed);
             }
         }
+    };
 
-        void OnLoadCustomDatabaseTable() override
+    class coa_content_scaling_global : public GlobalScript
+    {
+    public:
+        coa_content_scaling_global() : GlobalScript("coa_content_scaling_global") { }
+
+        void OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::LfgQueuePolicy& policy) override
         {
-            sInstanceScalingMgr->LoadCalibratedBossFlex();
+            sCoAContentScaling->OnResolveLfgQueuePolicy(guid, policy);
         }
 
-        void OnStartup() override
+        void OnLfgProposalMadeGroup(lfg::LfgProposal const& proposal, Group* group) override
         {
-            if (sCoAContentScaling->IsEnabled())
-                sItemBudgetScaler->ScaleAllItems(sCoAContentScaling->GetLayout());
+            sCoAContentScaling->OnLfgProposalMadeGroup(proposal, group);
+        }
+
+        void OnBeforeSetBossState(uint32 id, EncounterState newState, EncounterState /*oldState*/, Map* instance) override
+        {
+            if (!sCoAContentScaling->IsEnabled() || !instance || !instance->IsDungeon())
+                return;
+
+            if (newState == IN_PROGRESS)
+            {
+                sInstanceScalingMgr->OnEncounterStart(instance, nullptr, id);
+            }
+            else if (newState == DONE || newState == FAIL || newState == NOT_STARTED)
+            {
+                sInstanceScalingMgr->OnEncounterEnd(instance, id);
+            }
         }
     };
 
@@ -263,21 +537,11 @@ namespace
     class coa_content_scaling_unit : public UnitScript
     {
     public:
-        coa_content_scaling_unit() : UnitScript("coa_content_scaling_unit", true,
-            {
-                UNITHOOK_MODIFY_MELEE_DAMAGE,
-                UNITHOOK_MODIFY_SPELL_DAMAGE_TAKEN,
-                UNITHOOK_MODIFY_PERIODIC_DAMAGE_AURAS_TICK,
-                UNITHOOK_MODIFY_HEAL_RECEIVED,
-                UNITHOOK_ON_AFTER_AURA_EFFECT_CALCULATE_AMOUNT,
-                UNITHOOK_ON_UNIT_ENTER_COMBAT,
-                UNITHOOK_ON_UNIT_EXIT_COMBAT,
-                UNITHOOK_ON_UNIT_DEATH
-            }) { }
+        coa_content_scaling_unit() : UnitScript("coa_content_scaling_unit") { }
 
         void ModifyMeleeDamage(Unit* target, Unit* attacker, uint32& damage) override
         {
-            if (!sCoAContentScaling->IsEnabled() || !sCoAContentScaling->IsGroupScalingEnabled())
+            if (!sCoAContentScaling->IsEnabled() || !sCoAContentScaling->IsGroupScalingEnabled() || damage == 0)
                 return;
 
             if (!attacker || !attacker->IsCreature() || !attacker->GetMap() || !attacker->GetMap()->IsDungeon())
@@ -298,7 +562,6 @@ namespace
             if (!attacker || !attacker->IsCreature() || !attacker->GetMap() || !attacker->GetMap()->IsDungeon())
                 return;
 
-            // Exclude percentage-of-health or instant death effects
             if (spellInfo && spellInfo->HasAttribute(SPELL_ATTR0_CU_AURA_CC))
                 return;
 
@@ -359,7 +622,8 @@ namespace
                 return;
 
             CreatureTemplate const* cinfo = creature->GetCreatureTemplate();
-            if (cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || creature->GetMap()->IsRaid()))
+            // Authoritative encounter start: only bosses lock the encounter snapshot! Trash never locks.
+            if (cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || (cinfo->flags_extra & CREATURE_FLAG_EXTRA_DUNGEON_BOSS)))
             {
                 sInstanceScalingMgr->OnEncounterStart(creature->GetMap(), creature, creature->GetEntry());
             }
@@ -375,7 +639,7 @@ namespace
                 return;
 
             CreatureTemplate const* cinfo = creature->GetCreatureTemplate();
-            if (cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || creature->GetMap()->IsRaid()))
+            if (cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || (cinfo->flags_extra & CREATURE_FLAG_EXTRA_DUNGEON_BOSS)))
             {
                 sInstanceScalingMgr->OnEncounterEnd(creature->GetMap(), creature->GetEntry());
             }
@@ -391,7 +655,7 @@ namespace
                 return;
 
             CreatureTemplate const* cinfo = creature->GetCreatureTemplate();
-            if (cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || creature->GetMap()->IsRaid()))
+            if (cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || (cinfo->flags_extra & CREATURE_FLAG_EXTRA_DUNGEON_BOSS)))
             {
                 sInstanceScalingMgr->OnEncounterEnd(creature->GetMap(), creature->GetEntry());
             }
@@ -410,6 +674,16 @@ namespace
                 return true;
 
             return sCoAContentScaling->CanPlayerEnterMap(player, entry->MapID);
+        }
+
+        void OnPlayerLogin(Player* player) override
+        {
+            sCoAContentScaling->LoadPlayerLfgSettings(player);
+        }
+
+        void OnPlayerLogout(Player* player) override
+        {
+            sCoAContentScaling->SavePlayerLfgSettings(player);
         }
     };
 
@@ -433,7 +707,6 @@ namespace
             if (ctx.effectivePlayers >= float(ctx.intendedPlayers))
                 return; // Full group, standard loot
 
-            // Ratio of drop slots
             float const ratio = ctx.effectivePlayers / float(ctx.intendedPlayers);
 
             // Never eliminate all loot: keep at least 1 meaningful item
@@ -450,6 +723,7 @@ namespace
 void AddCoAContentScalingScripts()
 {
     new coa_content_scaling_world();
+    new coa_content_scaling_global();
     new coa_content_scaling_creature();
     new coa_content_scaling_unit();
     new coa_content_scaling_player();

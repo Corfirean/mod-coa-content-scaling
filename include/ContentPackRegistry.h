@@ -46,6 +46,10 @@ public:
     void RegisterPack(std::shared_ptr<IContentPack> pack);
     void UnregisterPack(ContentEra era);
 
+    // Lifecycle control: registration allowed only before finalization
+    void Finalize();
+    [[nodiscard]] bool IsFinalized() const { return _finalized; }
+
     [[nodiscard]] IContentPack const* GetPack(ContentEra era) const;
     [[nodiscard]] bool HasPack(ContentEra era) const;
     [[nodiscard]] std::vector<std::shared_ptr<IContentPack>> const& GetPacks() const { return _packs; }
@@ -57,15 +61,28 @@ public:
     void RegisterQuestOverride(uint32 questId, ContentEra era);
     void RegisterItemOverride(uint32 itemId, ContentEra era);
 
-    // Authoritative resolution chain:
+    // Authoritative 8-level resolution chain:
     // 1. Explicit entry override
     // 2. Explicit area override
-    // 3. Instance / Map pack profile
-    // 4. Authored expansion metadata
-    // 5. Fallback
+    // 3. Explicit instance/map profile
+    // 4. Registered content-pack ownership
+    // 5. Authored expansion metadata
+    // 6. Zone/sort metadata
+    // 7. Authored level heuristic (last resort)
+    static constexpr uint32 MAP_UNSPECIFIED = 0xFFFFFFFF;
+
+    [[nodiscard]] EraResolutionResult ResolveEraDetailsForMap(uint32 mapId, uint8 authoredExpansion = 0) const;
+    [[nodiscard]] EraResolutionResult ResolveEraDetailsForArea(uint32 areaId, uint32 mapId = MAP_UNSPECIFIED, uint8 authoredExpansion = 0) const;
+    [[nodiscard]] EraResolutionResult ResolveEraDetailsForCreature(uint32 creatureEntry, uint32 mapId = MAP_UNSPECIFIED, uint32 areaId = 0,
+                                                                   uint8 authoredExpansion = 0, uint8 authoredLevel = 0) const;
+    [[nodiscard]] EraResolutionResult ResolveEraDetailsForQuest(uint32 questId, int32 zoneOrSort = 0,
+                                                                uint8 authoredExpansion = 0, uint8 authoredLevel = 0) const;
+    [[nodiscard]] EraResolutionResult ResolveEraDetailsForItem(uint32 itemId, uint32 itemLevel = 0,
+                                                               uint32 requiredLevel = 0, uint8 authoredExpansion = 0) const;
+
     [[nodiscard]] ContentEra ResolveEraForMap(uint32 mapId, uint8 authoredExpansion = 0) const;
-    [[nodiscard]] ContentEra ResolveEraForArea(uint32 areaId, uint32 mapId = 0, uint8 authoredExpansion = 0) const;
-    [[nodiscard]] ContentEra ResolveEraForCreature(uint32 creatureEntry, uint32 mapId = 0, uint32 areaId = 0,
+    [[nodiscard]] ContentEra ResolveEraForArea(uint32 areaId, uint32 mapId = MAP_UNSPECIFIED, uint8 authoredExpansion = 0) const;
+    [[nodiscard]] ContentEra ResolveEraForCreature(uint32 creatureEntry, uint32 mapId = MAP_UNSPECIFIED, uint32 areaId = 0,
                                                    uint8 authoredExpansion = 0, uint8 authoredLevel = 0) const;
     [[nodiscard]] ContentEra ResolveEraForQuest(uint32 questId, int32 zoneOrSort = 0,
                                                 uint8 authoredExpansion = 0, uint8 authoredLevel = 0) const;
@@ -76,6 +93,8 @@ public:
 
 private:
     ContentPackRegistry() = default;
+
+    bool _finalized{false};
 
     std::vector<std::shared_ptr<IContentPack>> _packs;
     std::unordered_map<uint32, ContentEra> _mapOverrides;

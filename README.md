@@ -71,19 +71,36 @@ In AzerothCore, `CreatureBaseStats` indexes health and damage by `expansion`. Si
 
 ---
 
-## In-Game Diagnostics (`.coascale`)
+### 7. Core LFG Architecture Integration (Solo / Matchmaking / Bot Fill)
+`mod-coa-content-scaling` hooks into AzerothCore's Dungeon Finding engine (`LFGMgr`, `LFGQueue`) to support flexible group compositions without breaking standard matchmaking:
+- **`LfgCompositionMode`**:
+  - `MATCHMAKING`: Standard automated group assembly with real players.
+  - `BOT_FILL`: Immediately fills missing party roles with autonomous `mod-coa-playerbots` bots.
+  - `CURRENT_PARTY`: Enters the dungeon with the current partial group (or solo) without waiting for 5 players, relying on dynamic instance scaling.
+- **Queue Policy Isolation**: Non-standard queue policies bypass role check and standard composition requirements (`LfgQueuePolicy.bypassMatchmaking`), ensuring solo and partial groups can instantly enter dungeons.
+- **Persistence**: Player LFG preferences (`lfg_mode`, `challenge_size`) are stored in `character_coa_lfg_settings`.
 
-The module provides full GM diagnostic commands:
+---
 
+## In-Game Diagnostics & Commands
+
+### Administration (`.coascale`)
 | Command | Description |
 |---|---|
 | `.coascale status` | Displays current module state, MaxPlayerLevel, active eras, and group scaling flags. |
 | `.coascale layout` | Prints the complete active `ProgressionLayout` with level ranges and boundaries. |
-| `.coascale creature [entry]` | Inspects targeted creature or entry: authored vs effective level, tier, HP, and damage. |
-| `.coascale instance` | Shows instance scale context for the current map (player count, HP scale, damage scale, lock status). |
-| `.coascale quest <questId>` | Inspects quest authored level vs effective compressed level and min level. |
-| `.coascale item <itemId>` | Inspects item authored level/stats vs scaled effective item budget. |
+| `.coascale creature [entry]` | Inspects creature: authored vs effective level, tier, HP, damage, and era resolution source/confidence. |
+| `.coascale instance` | Shows instance scale context for current map (player count, HP scale, damage scale, lock status). |
+| `.coascale quest <questId>` | Inspects quest authored vs effective level, and era resolution source. |
+| `.coascale item <itemId>` | Inspects item authored vs scaled budget, power band, tier, and era resolution source. |
+| `.coascale lfg` | Displays current player's CoA LFG settings (composition mode, challenge size). |
 | `.coascale validate` | Performs runtime consistency check on progression boundaries and active configuration. |
+
+### Player LFG Commands
+| Command | Description |
+|---|---|
+| `.lfgmode [matchmaking\|bots\|party]` | Sets personal dungeon finder composition mode (standard queue, bot fill, or partial party). |
+| `.lfgchallenge [adaptive\|1..40]` | Sets instance scaling challenge target (adaptive to group size, or fixed simulated player count). |
 
 ---
 
@@ -137,6 +154,9 @@ CoAContentScaling.SoloAssist.Mode = 0
 # Adaptive Mechanics & Rewards
 CoAContentScaling.AdaptiveMechanics.Enable = 1
 CoAContentScaling.Rewards.ScaleLootCount = 1
+
+# LFG Integration Default Mode (0 = Matchmaking, 1 = Bot Fill, 2 = Current Party)
+CoAContentScaling.LFG.DefaultMode = 0
 
 # Debug Logging
 CoAContentScaling.Debug = 0
