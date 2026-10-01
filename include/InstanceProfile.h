@@ -10,8 +10,10 @@
 #include "ContentTier.h"
 #include "Define.h"
 #include <optional>
+#include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 struct InstanceProfile
 {
@@ -31,8 +33,10 @@ public:
 
     void Initialize();
     [[nodiscard]] InstanceProfile const* GetProfile(uint32 mapId) const;
-    [[nodiscard]] std::optional<ContentEra> GetEraForMap(uint32 mapId) const;
+    [[nodiscard]] std::optional<ContentEra> GetEraForMap(uint32 mapId, uint8 difficulty = 0) const;
     [[nodiscard]] uint32 GetIntendedPlayers(uint32 mapId, uint8 difficulty) const;
+
+    [[nodiscard]] bool ValidateAll(std::vector<std::string>& issues) const;
 
 private:
     InstanceProfileRegistry();

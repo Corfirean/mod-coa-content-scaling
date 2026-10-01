@@ -7,6 +7,7 @@
 #include "AdaptiveEncounterAPI.h"
 #include "CombatBudgetProfile.h"
 #include "Config.h"
+#include "Containers.h"
 #include "ContentPackRegistry.h"
 #include "Creature.h"
 #include "CreatureData.h"
@@ -58,6 +59,24 @@ void CoAContentScaling::LoadConfig()
     _customClassicEnd = static_cast<uint8>(sConfigMgr->GetOption<uint32>("CoAContentScaling.Progression.CustomClassicEnd", 45));
     _customTbcEnd = static_cast<uint8>(sConfigMgr->GetOption<uint32>("CoAContentScaling.Progression.CustomTbcEnd", 58));
 
+    std::string const defaultModeStr = sConfigMgr->GetOption<std::string>("CoAContentScaling.LFG.DefaultMode", "Matchmaking");
+    if (defaultModeStr == "BotFill" || defaultModeStr == "Bots")
+        _defaultLfgCompositionMode = lfg::LfgCompositionMode::BOT_FILL;
+    else if (defaultModeStr == "CurrentParty" || defaultModeStr == "Party")
+        _defaultLfgCompositionMode = lfg::LfgCompositionMode::CURRENT_PARTY;
+    else
+        _defaultLfgCompositionMode = lfg::LfgCompositionMode::MATCHMAKING;
+
+    if (_defaultLfgCompositionMode == lfg::LfgCompositionMode::BOT_FILL && !sScriptMgr->HasLfgAutoFillProvider())
+    {
+        LOG_WARN("module.coa_content_scaling", "CoAContentScaling: LFG default mode configured as BotFill, but no bot fill provider is registered! Falling back to Matchmaking.");
+        _defaultLfgCompositionMode = lfg::LfgCompositionMode::MATCHMAKING;
+    }
+
+    _defaultLfgChallengeSize = sConfigMgr->GetOption<uint32>("CoAContentScaling.LFG.DefaultChallengeSize", 0);
+    if (_defaultLfgChallengeSize > 40)
+        _defaultLfgChallengeSize = 40;
+
     std::string const soloMode = sConfigMgr->GetOption<std::string>("CoAContentScaling.SoloAssist.Mode", "Light");
     if (soloMode == "Full")
         sSoloAssistPolicy->SetMode(SoloAssistMode::FULL);
@@ -86,16 +105,6 @@ void CoAContentScaling::FinalizeAndInitialize()
     {
         sItemBudgetScaler->ScaleAllItems(_layout);
     }
-
-    // 5. Ensure DB table for character LFG settings exists
-    CharacterDatabase.Execute(
-        "CREATE TABLE IF NOT EXISTS `character_coa_lfg_settings` ("
-        "`guid` INT UNSIGNED NOT NULL,"
-        "`composition_mode` TINYINT UNSIGNED NOT NULL DEFAULT 0,"
-        "`challenge_size` TINYINT UNSIGNED NOT NULL DEFAULT 0,"
-        "PRIMARY KEY (`guid`)"
-        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
-    );
 
     LOG_INFO("server.loading", "CoAContentScaling: Finalized lifecycle and built immutable ProgressionLayout (Cap {})",
              _layout.maxLevel);
@@ -236,7 +245,8 @@ void CoAContentScaling::ApplyCreatureScaling(CreatureTemplate const* cinfo, Crea
     creature->UpdateDamagePhysical(RANGED_ATTACK);
 }
 
-void CoAContentScaling::RecalculateEncounterCombatStats(Creature* boss, InstanceScaleContext const& snapshot)
+void CoAContentScaling::RecalculateEncounterCombatStats(Creature* boss, EncounterScaleSnapshot const& snapshot,
+                                                        EncounterHealthTransferPolicy hpPolicy)
 {
     if (!_enabled || !boss)
         return;
@@ -264,11 +274,30 @@ void CoAContentScaling::RecalculateEncounterCombatStats(Creature* boss, Instance
     if (calibratedHp > 0)
         budget.health = calibratedHp;
 
-    float const pct = boss->GetMaxHealth() ? boss->GetHealthPct() : 100.0f;
+    uint32 const oldMaxHp = boss->GetMaxHealth();
+    uint32 const oldCurHp = boss->GetHealth();
+    float const pct = oldMaxHp ? (float(oldCurHp) * 100.0f / float(oldMaxHp)) : 100.0f;
+
     boss->SetCreateHealth(budget.health);
     boss->SetStatFlatModifier(UNIT_MOD_HEALTH, BASE_VALUE, float(budget.health));
     boss->UpdateMaxHealth();
-    boss->SetHealth(std::max<uint32>(1, static_cast<uint32>(std::round(float(boss->GetMaxHealth()) * pct / 100.0f))));
+
+    uint32 newCurHp = budget.health;
+    if (hpPolicy == EncounterHealthTransferPolicy::FULL_ON_PULL)
+    {
+        newCurHp = budget.health;
+    }
+    else if (hpPolicy == EncounterHealthTransferPolicy::PRESERVE_PERCENT)
+    {
+        newCurHp = std::max<uint32>(1, static_cast<uint32>(std::round(float(boss->GetMaxHealth()) * pct / 100.0f)));
+    }
+    else if (hpPolicy == EncounterHealthTransferPolicy::PRESERVE_ABSOLUTE)
+    {
+        newCurHp = std::min<uint32>(oldCurHp, boss->GetMaxHealth());
+        if (newCurHp == 0 && oldCurHp > 0)
+            newCurHp = 1;
+    }
+    boss->SetHealth(newCurHp);
 
     if (budget.mana > 0)
     {
@@ -310,28 +339,36 @@ bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId) co
 
 void CoAContentScaling::SetPlayerLfgMode(ObjectGuid guid, lfg::LfgCompositionMode mode)
 {
-    std::lock_guard<std::mutex> lock(_lfgSettingsLock);
-    _playerLfgSettings[guid].compositionMode = mode;
+    {
+        std::lock_guard<std::mutex> lock(_lfgSettingsLock);
+        _playerLfgSettings[guid].compositionMode = mode;
+    }
+    if (Player* player = ObjectAccessor::FindPlayer(guid))
+        SavePlayerLfgSettings(player);
 }
 
 lfg::LfgCompositionMode CoAContentScaling::GetPlayerLfgMode(ObjectGuid guid) const
 {
     std::lock_guard<std::mutex> lock(_lfgSettingsLock);
     auto it = _playerLfgSettings.find(guid);
-    return (it != _playerLfgSettings.end()) ? it->second.compositionMode : lfg::LfgCompositionMode::MATCHMAKING;
+    return (it != _playerLfgSettings.end()) ? it->second.compositionMode : _defaultLfgCompositionMode;
 }
 
 void CoAContentScaling::SetPlayerLfgChallenge(ObjectGuid guid, uint32 challengeSize)
 {
-    std::lock_guard<std::mutex> lock(_lfgSettingsLock);
-    _playerLfgSettings[guid].challengeSize = challengeSize;
+    {
+        std::lock_guard<std::mutex> lock(_lfgSettingsLock);
+        _playerLfgSettings[guid].challengeSize = std::min<uint32>(challengeSize, 40);
+    }
+    if (Player* player = ObjectAccessor::FindPlayer(guid))
+        SavePlayerLfgSettings(player);
 }
 
 uint32 CoAContentScaling::GetPlayerLfgChallenge(ObjectGuid guid) const
 {
     std::lock_guard<std::mutex> lock(_lfgSettingsLock);
     auto it = _playerLfgSettings.find(guid);
-    return (it != _playerLfgSettings.end()) ? it->second.challengeSize : 0;
+    return (it != _playerLfgSettings.end()) ? it->second.challengeSize : _defaultLfgChallengeSize;
 }
 
 void CoAContentScaling::LoadPlayerLfgSettings(Player* player)
@@ -348,12 +385,28 @@ void CoAContentScaling::LoadPlayerLfgSettings(Player* player)
     if (result)
     {
         Field* fields = result->Fetch();
-        _playerLfgSettings[guid].compositionMode = static_cast<lfg::LfgCompositionMode>(fields[0].Get<uint8>());
-        _playerLfgSettings[guid].challengeSize = fields[1].Get<uint32>();
+        uint8 const modeVal = fields[0].Get<uint8>();
+        uint32 const challenge = fields[1].Get<uint32>();
+
+        PlayerLfgSettings settings;
+        if (modeVal <= static_cast<uint8>(lfg::LfgCompositionMode::CURRENT_PARTY))
+            settings.compositionMode = static_cast<lfg::LfgCompositionMode>(modeVal);
+        else
+            settings.compositionMode = _defaultLfgCompositionMode;
+
+        if (challenge <= 40)
+            settings.challengeSize = challenge;
+        else
+            settings.challengeSize = _defaultLfgChallengeSize;
+
+        _playerLfgSettings[guid] = settings;
     }
     else
     {
-        _playerLfgSettings[guid] = PlayerLfgSettings{};
+        PlayerLfgSettings settings;
+        settings.compositionMode = _defaultLfgCompositionMode;
+        settings.challengeSize = _defaultLfgChallengeSize;
+        _playerLfgSettings[guid] = settings;
     }
 }
 
@@ -369,11 +422,34 @@ void CoAContentScaling::SavePlayerLfgSettings(Player* player)
         auto it = _playerLfgSettings.find(guid);
         if (it != _playerLfgSettings.end())
             settings = it->second;
+        else
+        {
+            settings.compositionMode = _defaultLfgCompositionMode;
+            settings.challengeSize = _defaultLfgChallengeSize;
+        }
     }
 
     CharacterDatabase.Execute(
         "REPLACE INTO character_coa_lfg_settings (guid, composition_mode, challenge_size) VALUES ({}, {}, {})",
         guid.GetCounter(), static_cast<uint8>(settings.compositionMode), settings.challengeSize);
+}
+
+void CoAContentScaling::OnPlayerLogout(Player* player)
+{
+    if (!player)
+        return;
+
+    SavePlayerLfgSettings(player);
+
+    ObjectGuid const guid = player->GetGUID();
+    {
+        std::lock_guard<std::mutex> lock(_lfgSettingsLock);
+        _playerLfgSettings.erase(guid);
+    }
+    {
+        std::lock_guard<std::mutex> pLock(_pendingPolicyLock);
+        _pendingPlayerPolicies.erase(guid);
+    }
 }
 
 void CoAContentScaling::OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::LfgQueuePolicy& policy)
@@ -384,6 +460,20 @@ void CoAContentScaling::OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::Lfg
         auto it = _playerLfgSettings.find(guid);
         if (it != _playerLfgSettings.end())
             settings = it->second;
+        else
+        {
+            settings.compositionMode = _defaultLfgCompositionMode;
+            settings.challengeSize = _defaultLfgChallengeSize;
+        }
+    }
+
+    // Capability check: If player selected BOT_FILL but server has no provider, fall back to MATCHMAKING
+    if (settings.compositionMode == lfg::LfgCompositionMode::BOT_FILL && !sScriptMgr->HasLfgAutoFillProvider())
+    {
+        LOG_WARN("module.coa_content_scaling",
+                 "CoAContentScaling: Player {} requested BOT_FILL but no provider registered. Falling back to MATCHMAKING.",
+                 guid.ToString());
+        settings.compositionMode = lfg::LfgCompositionMode::MATCHMAKING;
     }
 
     policy.compositionMode = settings.compositionMode;
@@ -406,13 +496,16 @@ void CoAContentScaling::OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::Lfg
             break;
 
         case lfg::LfgCompositionMode::CURRENT_PARTY:
+        {
             policy.bypassMatchmaking = true;
             policy.requireStandardRoles = false;
-            policy.minPlayers = 1;
             Player* player = ObjectAccessor::FindPlayer(guid);
             Group* grp = player ? player->GetGroup() : nullptr;
-            policy.targetPlayers = (settings.challengeSize > 0) ? settings.challengeSize : (grp ? grp->GetMembersCount() : 1);
+            uint8 const currentPartySize = grp ? grp->GetMembersCount() : 1;
+            policy.minPlayers = currentPartySize;
+            policy.targetPlayers = currentPartySize;
             break;
+        }
     }
 }
 
@@ -425,9 +518,68 @@ void CoAContentScaling::OnLfgProposalMadeGroup(lfg::LfgProposal const& proposal,
     if (!dungeon)
         return;
 
-    if (proposal.policy.challengeSize > 0)
+    std::lock_guard<std::mutex> lock(_pendingPolicyLock);
+    ++_pendingPolicyGeneration;
+
+    PendingInstanceScalePolicy pendingPolicy;
+    pendingPolicy.mapId = dungeon->map;
+    pendingPolicy.groupGuid = group->GetGUID();
+    pendingPolicy.challengeSize = proposal.policy.challengeSize;
+    pendingPolicy.compositionMode = proposal.policy.compositionMode;
+    pendingPolicy.generation = _pendingPolicyGeneration;
+
+    _pendingInstancePolicies[group->GetGUID()] = pendingPolicy;
+
+    for (auto const& pair : proposal.players)
     {
-        sInstanceScalingMgr->SetChallengeSize(dungeon->map, group->GetGUID().GetCounter(), proposal.policy.challengeSize);
+        _pendingPlayerPolicies[pair.first] = pendingPolicy;
+    }
+}
+
+void CoAContentScaling::OnInstanceMapCreated(InstanceMap* instanceMap, Player* player)
+{
+    if (!instanceMap)
+        return;
+
+    uint32 const mapId = instanceMap->GetId();
+    uint32 const instanceId = instanceMap->GetInstanceId();
+
+    PendingInstanceScalePolicy policy;
+    bool found = false;
+
+    {
+        std::lock_guard<std::mutex> lock(_pendingPolicyLock);
+        if (player)
+        {
+            Group* group = player->GetGroup();
+            if (group)
+            {
+                auto it = _pendingInstancePolicies.find(group->GetGUID());
+                if (it != _pendingInstancePolicies.end() && it->second.mapId == mapId)
+                {
+                    policy = it->second;
+                    found = true;
+                }
+            }
+
+            if (!found)
+            {
+                auto it = _pendingPlayerPolicies.find(player->GetGUID());
+                if (it != _pendingPlayerPolicies.end() && it->second.mapId == mapId)
+                {
+                    policy = it->second;
+                    found = true;
+                }
+            }
+        }
+    }
+
+    if (found && policy.challengeSize > 0)
+    {
+        sInstanceScalingMgr->SetChallengeSize(mapId, instanceId, policy.challengeSize);
+        LOG_INFO("module.coa_content_scaling",
+                 "CoAContentScaling: Applied pending LFG challenge size {} to instance (mapId: {}, instanceId: {})",
+                 policy.challengeSize, mapId, instanceId);
     }
 }
 
@@ -496,6 +648,14 @@ namespace
             sCoAContentScaling->OnLfgProposalMadeGroup(proposal, group);
         }
 
+        void OnInstanceMapCreated(InstanceMap* instanceMap, Player* player) override
+        {
+            if (sCoAContentScaling->IsEnabled())
+            {
+                sCoAContentScaling->OnInstanceMapCreated(instanceMap, player);
+            }
+        }
+
         void OnBeforeSetBossState(uint32 id, EncounterState newState, EncounterState /*oldState*/, Map* instance) override
         {
             if (!sCoAContentScaling->IsEnabled() || !instance || !instance->IsDungeon())
@@ -503,11 +663,27 @@ namespace
 
             if (newState == IN_PROGRESS)
             {
-                sInstanceScalingMgr->OnEncounterStart(instance, nullptr, id);
+                sInstanceScalingMgr->BeginEncounter(
+                    instance,
+                    EncounterLifecycleSource::INSTANCE_SCRIPT,
+                    EncounterKey{EncounterKeyType::INSTANCE_ENCOUNTER, id},
+                    nullptr);
             }
-            else if (newState == DONE || newState == FAIL || newState == NOT_STARTED)
+            else if (newState == DONE)
             {
-                sInstanceScalingMgr->OnEncounterEnd(instance, id);
+                sInstanceScalingMgr->EndEncounter(
+                    instance,
+                    EncounterLifecycleSource::INSTANCE_SCRIPT,
+                    EncounterKey{EncounterKeyType::INSTANCE_ENCOUNTER, id},
+                    EncounterLockState::COMPLETED);
+            }
+            else if (newState == FAIL || newState == NOT_STARTED)
+            {
+                sInstanceScalingMgr->EndEncounter(
+                    instance,
+                    EncounterLifecycleSource::INSTANCE_SCRIPT,
+                    EncounterKey{EncounterKeyType::INSTANCE_ENCOUNTER, id},
+                    EncounterLockState::RESETTING);
             }
         }
     };
@@ -562,8 +738,23 @@ namespace
             if (!attacker || !attacker->IsCreature() || !attacker->GetMap() || !attacker->GetMap()->IsDungeon())
                 return;
 
-            if (spellInfo && spellInfo->HasAttribute(SPELL_ATTR0_CU_AURA_CC))
+            // Instakill and extreme script damage mechanic protection
+            if (damage >= 10000000)
                 return;
+
+            if (spellInfo)
+            {
+                if (spellInfo->HasAttribute(SPELL_ATTR0_CU_AURA_CC))
+                    return;
+
+                for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
+                {
+                    if (spellInfo->Effects[i].Effect == SPELL_EFFECT_INSTAKILL)
+                        return;
+                    if (spellInfo->Effects[i].ApplyAuraName == SPELL_AURA_PERIODIC_DAMAGE_PERCENT)
+                        return;
+                }
+            }
 
             InstanceScaleContext const ctx = sInstanceScalingMgr->GetOrCreateContext(attacker->GetMap());
             bool const isSolo = (ctx.effectivePlayers <= 1.0f);
@@ -625,7 +816,11 @@ namespace
             // Authoritative encounter start: only bosses lock the encounter snapshot! Trash never locks.
             if (cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || (cinfo->flags_extra & CREATURE_FLAG_EXTRA_DUNGEON_BOSS)))
             {
-                sInstanceScalingMgr->OnEncounterStart(creature->GetMap(), creature, creature->GetEntry());
+                sInstanceScalingMgr->BeginEncounter(
+                    creature->GetMap(),
+                    EncounterLifecycleSource::CREATURE_FALLBACK,
+                    EncounterKey{EncounterKeyType::CREATURE_ENTRY, creature->GetEntry()},
+                    creature);
             }
         }
 
@@ -641,7 +836,11 @@ namespace
             CreatureTemplate const* cinfo = creature->GetCreatureTemplate();
             if (cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || (cinfo->flags_extra & CREATURE_FLAG_EXTRA_DUNGEON_BOSS)))
             {
-                sInstanceScalingMgr->OnEncounterEnd(creature->GetMap(), creature->GetEntry());
+                sInstanceScalingMgr->EndEncounter(
+                    creature->GetMap(),
+                    EncounterLifecycleSource::CREATURE_FALLBACK,
+                    EncounterKey{EncounterKeyType::CREATURE_ENTRY, creature->GetEntry()},
+                    EncounterLockState::RESETTING);
             }
         }
 
@@ -657,7 +856,11 @@ namespace
             CreatureTemplate const* cinfo = creature->GetCreatureTemplate();
             if (cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || (cinfo->flags_extra & CREATURE_FLAG_EXTRA_DUNGEON_BOSS)))
             {
-                sInstanceScalingMgr->OnEncounterEnd(creature->GetMap(), creature->GetEntry());
+                sInstanceScalingMgr->EndEncounter(
+                    creature->GetMap(),
+                    EncounterLifecycleSource::CREATURE_FALLBACK,
+                    EncounterKey{EncounterKeyType::CREATURE_ENTRY, creature->GetEntry()},
+                    EncounterLockState::COMPLETED);
             }
         }
     };
@@ -683,7 +886,7 @@ namespace
 
         void OnPlayerLogout(Player* player) override
         {
-            sCoAContentScaling->SavePlayerLfgSettings(player);
+            sCoAContentScaling->OnPlayerLogout(player);
         }
     };
 
@@ -709,13 +912,35 @@ namespace
 
             float const ratio = ctx.effectivePlayers / float(ctx.intendedPlayers);
 
-            // Never eliminate all loot: keep at least 1 meaningful item
-            if (loot->items.size() > 1)
+            // Separate quest items and regular items:
+            // 1) 100% preservation of quest items
+            // 2) Shuffle regular items to eliminate positional slot bias
+            std::vector<LootItem> questItems;
+            std::vector<LootItem> regularItems;
+
+            for (LootItem const& item : loot->items)
             {
-                uint32 const keepCount = std::max<uint32>(1, static_cast<uint32>(std::round(float(loot->items.size()) * ratio)));
-                if (keepCount < loot->items.size())
-                    loot->items.resize(keepCount);
+                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(item.itemid);
+                if (proto && (proto->Class == ITEM_CLASS_QUEST || proto->Bonding == BIND_QUEST_ITEM || proto->Bonding == BIND_QUEST_ITEM1 || proto->StartQuest > 0))
+                    questItems.push_back(item);
+                else
+                    regularItems.push_back(item);
             }
+
+            if (!regularItems.empty())
+            {
+                uint32 const keepCount = std::max<uint32>(1, static_cast<uint32>(std::round(float(regularItems.size()) * ratio)));
+                if (keepCount < regularItems.size())
+                {
+                    Acore::Containers::RandomShuffle(regularItems);
+                    regularItems.resize(keepCount);
+                }
+            }
+
+            loot->items.clear();
+            loot->items.insert(loot->items.end(), questItems.begin(), questItems.end());
+            loot->items.insert(loot->items.end(), regularItems.begin(), regularItems.end());
+            loot->unlootedCount = static_cast<uint8>(loot->items.size());
         }
     };
 }

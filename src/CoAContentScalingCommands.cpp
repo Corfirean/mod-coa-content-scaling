@@ -18,6 +18,7 @@
 #include "Player.h"
 #include "ProgressionLayout.h"
 #include "QuestDef.h"
+#include "ScriptMgr.h"
 #include <string>
 
 using namespace Acore::ChatCommands;
@@ -147,8 +148,20 @@ private:
             ContentEraToString(eraRes.era).data(), EraResolutionSourceToString(eraRes.source).data());
         handler->PSendSysMessage("Tier: %s | Difficulty: %u",
             ContentTierToString(ctx.tier).data(), uint32(ctx.difficulty));
+        handler->PSendSysMessage("Actual Players: %u | Challenge Size: %s",
+            map->GetPlayersCountExceptGMs(),
+            ctx.challengeSize > 0 ? std::to_string(ctx.challengeSize).c_str() : "Adaptive (0)");
         handler->PSendSysMessage("Intended Players: %u | Effective Players: %.1f", ctx.intendedPlayers, ctx.effectivePlayers);
-        handler->PSendSysMessage("Lock State: %s", ctx.encounterLocked ? "[FROZEN IN ENCOUNTER]" : "[IDLE / DYNAMIC]");
+        handler->PSendSysMessage("Encounter Lock: %s (Gen: %llu)",
+            ctx.encounterLocked ? "[FROZEN IN ENCOUNTER]" : "[IDLE / DYNAMIC]",
+            static_cast<unsigned long long>(ctx.snapshotGeneration));
+        if (ctx.encounterLocked)
+        {
+            handler->PSendSysMessage("Encounter Source: %u | Key Type: %u, ID: %u",
+                static_cast<uint32>(ctx.activeEncounterSource),
+                static_cast<uint32>(ctx.activeEncounterKey.type),
+                ctx.activeEncounterKey.id);
+        }
         handler->PSendSysMessage("Multipliers: HP x%.2f | Damage x%.2f | Heal x%.2f | Absorb x%.2f",
             ctx.healthScale, ctx.damageScale, ctx.healingScale, ctx.absorbScale);
 
@@ -258,6 +271,10 @@ private:
         }
         else if (modeArg == "bots" || modeArg == "botfill" || modeArg == "fill")
         {
+            if (!sScriptMgr->HasLfgAutoFillProvider())
+            {
+                handler->SendSysMessage("Warning: No bot fill provider is registered. Bot fill mode will fall back to Matchmaking upon queuing.");
+            }
             sCoAContentScaling->SetPlayerLfgMode(player->GetGUID(), lfg::LfgCompositionMode::BOT_FILL);
             handler->SendSysMessage("LFG Mode set to BOT_FILL (auto-fill party with bots).");
         }

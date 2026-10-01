@@ -1,6 +1,6 @@
 /*
  * CoA Universal Content Scaling
- * InstanceScaleContext: Group and instance scaling context with encounter snapshot locking.
+ * InstanceScaleContext: Group and instance scaling context with authoritative encounter snapshot locking.
  */
 
 #ifndef COA_INSTANCE_SCALE_CONTEXT_H
@@ -10,9 +10,12 @@
 #include "ContentTier.h"
 #include "DBCEnums.h"
 #include "Define.h"
+#include "ObjectGuid.h"
 #include <cmath>
 #include <mutex>
+#include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 class Map;
 class Player;
@@ -27,6 +30,56 @@ enum class EncounterLockState : uint8
     RESETTING = 3
 };
 
+enum class EncounterLifecycleSource : uint8
+{
+    INSTANCE_SCRIPT    = 0,
+    REGISTERED_ADAPTER = 1,
+    CREATURE_FALLBACK  = 2
+};
+
+enum class EncounterKeyType : uint8
+{
+    INSTANCE_ENCOUNTER = 0,
+    CREATURE_ENTRY     = 1,
+    CUSTOM_ADAPTER     = 2
+};
+
+struct EncounterKey
+{
+    EncounterKeyType type{EncounterKeyType::INSTANCE_ENCOUNTER};
+    uint32 id{0};
+
+    bool operator==(EncounterKey const& other) const = default;
+};
+
+template <>
+struct std::hash<EncounterKey>
+{
+    std::size_t operator()(EncounterKey const& key) const noexcept
+    {
+        return (static_cast<std::size_t>(key.type) << 32) | key.id;
+    }
+};
+
+enum class EncounterHealthTransferPolicy : uint8
+{
+    FULL_ON_PULL      = 0,
+    PRESERVE_PERCENT  = 1,
+    PRESERVE_ABSOLUTE = 2
+};
+
+struct EncounterScaleSnapshot
+{
+    float effectivePlayers{1.0f};
+    uint32 intendedPlayers{5};
+    float healthScale{1.0f};
+    float damageScale{1.0f};
+    float healingScale{1.0f};
+    float absorbScale{1.0f};
+    uint64 generation{0};
+    bool valid{false};
+};
+
 struct InstanceScaleContext
 {
     uint32 mapId{0};
@@ -37,6 +90,7 @@ struct InstanceScaleContext
 
     uint32 intendedPlayers{5};
     float effectivePlayers{5.0f};
+    uint32 challengeSize{0};
 
     Difficulty difficulty{DUNGEON_DIFFICULTY_NORMAL};
 
@@ -48,6 +102,14 @@ struct InstanceScaleContext
     EncounterLockState lockState{EncounterLockState::IDLE};
     bool encounterLocked{false};
     uint32 lockEncounterId{0};
+
+    EncounterKey activeEncounterKey{EncounterKeyType::INSTANCE_ENCOUNTER, 0};
+    EncounterLifecycleSource activeEncounterSource{EncounterLifecycleSource::CREATURE_FALLBACK};
+    uint64 snapshotGeneration{0};
+    EncounterScaleSnapshot activeSnapshot;
+    std::unordered_set<ObjectGuid> bossGuids;
+    std::unordered_map<ObjectGuid, uint64> bossAppliedGenerations;
+    EncounterHealthTransferPolicy hpPolicy{EncounterHealthTransferPolicy::FULL_ON_PULL};
 
     void CalculateMultipliers(float realRatio);
 };
@@ -64,7 +126,16 @@ public:
     // Count participants in map
     float CountEffectivePlayers(Map* map) const;
 
-    // Encounter lifecycle
+    // Authoritative Encounter Lifecycle
+    EncounterScaleSnapshot LockEncounterContext(Map* map, EncounterLifecycleSource source, EncounterKey key, EncounterHealthTransferPolicy hpPolicy);
+    void ApplySnapshotToBoss(Creature* boss, EncounterScaleSnapshot const& snapshot, EncounterHealthTransferPolicy hpPolicy);
+
+    void BeginEncounter(Map* map, EncounterLifecycleSource source, EncounterKey key, Creature* boss = nullptr,
+                        EncounterHealthTransferPolicy hpPolicy = EncounterHealthTransferPolicy::FULL_ON_PULL);
+    void EndEncounter(Map* map, EncounterLifecycleSource source, EncounterKey key, EncounterLockState endState,
+                      ObjectGuid endingGuid = ObjectGuid::Empty);
+
+    // Legacy / Convenience wrappers
     void OnEncounterStart(Map* map, Creature* boss, uint32 encounterId);
     void OnEncounterEnd(Map* map, uint32 encounterId);
 

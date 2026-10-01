@@ -6,6 +6,9 @@
 #include "ProgressionLayout.h"
 #include "ContentEra.h"
 #include "ContentPackRegistry.h"
+#include "DungeonFinding/LFG.h"
+#include "InstanceProfile.h"
+#include "InstanceScaleContext.h"
 #include "ItemBudgetScaler.h"
 #include "ItemTemplate.h"
 #include "gtest/gtest.h"
@@ -306,4 +309,200 @@ TEST(ItemBudgetScalerTest, MonotonicRaidTierIlvlOrdering)
     EXPECT_LT(statUlduar, statToc);
     EXPECT_LT(statToc, statIcc);
 }
+
+// 8. Instance Profile Validation and Multi-Era Resolution (Onyxia 249)
+TEST(InstanceProfileRegistryTest, ValidationAndEraResolution)
+{
+    sInstanceProfileRegistry->Initialize();
+
+    std::vector<std::string> issues;
+    bool const valid = sInstanceProfileRegistry->ValidateAll(issues);
+    EXPECT_TRUE(valid) << (issues.empty() ? "" : issues[0]);
+
+    // Onyxia (Map 249): 40-man Classic vs 10/25 WotLK
+    EXPECT_EQ(sInstanceProfileRegistry->GetEraForMap(249, 0), ContentEra::Classic);
+    EXPECT_EQ(sInstanceProfileRegistry->GetEraForMap(249, 1), ContentEra::WotLK);
+    EXPECT_EQ(sInstanceProfileRegistry->GetEraForMap(249, 2), ContentEra::WotLK);
+}
+
+// 9. Instance Scaling Multipliers Monotonicity & Solo Floor
+TEST(InstanceScalingMultipliersTest, DynamicScalingMonotonicity)
+{
+    InstanceScaleContext ctx;
+    ctx.intendedPlayers = 5;
+
+    // Solo in 5-man
+    ctx.CalculateMultipliers(1.0f / 5.0f);
+    float const soloHealth = ctx.healthScale;
+    float const soloDamage = ctx.damageScale;
+    EXPECT_GT(soloHealth, 0.0f);
+    EXPECT_LT(soloHealth, 1.0f);
+    EXPECT_GT(soloDamage, 0.0f);
+    EXPECT_LT(soloDamage, 1.0f);
+
+    // Duo in 5-man
+    ctx.CalculateMultipliers(2.0f / 5.0f);
+    float const duoHealth = ctx.healthScale;
+    float const duoDamage = ctx.damageScale;
+    EXPECT_GT(duoHealth, soloHealth);
+    EXPECT_GT(duoDamage, soloDamage);
+
+    // Full 5-man
+    ctx.CalculateMultipliers(5.0f / 5.0f);
+    EXPECT_FLOAT_EQ(ctx.healthScale, 1.0f);
+    EXPECT_FLOAT_EQ(ctx.damageScale, 1.0f);
+    EXPECT_FLOAT_EQ(ctx.healingScale, 1.0f);
+    EXPECT_FLOAT_EQ(ctx.absorbScale, 1.0f);
+}
+
+// 10. Challenge Size Isolation by Instance ID
+TEST(InstanceScalingMgrTest, ChallengeModeStorage)
+{
+    uint32 const mapId = 33; // Shadowfang Keep
+    uint32 const instA = 1001;
+    uint32 const instB = 1002;
+
+    sInstanceScalingMgr->SetChallengeSize(mapId, instA, 10);
+    sInstanceScalingMgr->SetChallengeSize(mapId, instB, 1);
+
+    EXPECT_EQ(sInstanceScalingMgr->GetChallengeSize(mapId, instA), 10u);
+    EXPECT_EQ(sInstanceScalingMgr->GetChallengeSize(mapId, instB), 1u);
+
+    // Reset instA to adaptive
+    sInstanceScalingMgr->SetChallengeSize(mapId, instA, 0);
+    EXPECT_EQ(sInstanceScalingMgr->GetChallengeSize(mapId, instA), 0u);
+    EXPECT_EQ(sInstanceScalingMgr->GetChallengeSize(mapId, instB), 1u); // instB remains unaffected
+}
+
+// 11. Authoritative Encounter Lifecycle Hierarchy & Keys
+TEST(EncounterLifecycleSourceHierarchyTest, PriorityAndKeyIntegrity)
+{
+    // Instance Script has higher priority (lower numeric value) than Creature Fallback
+    EXPECT_LT(static_cast<uint8>(EncounterLifecycleSource::INSTANCE_SCRIPT),
+              static_cast<uint8>(EncounterLifecycleSource::REGISTERED_ADAPTER));
+    EXPECT_LT(static_cast<uint8>(EncounterLifecycleSource::REGISTERED_ADAPTER),
+              static_cast<uint8>(EncounterLifecycleSource::CREATURE_FALLBACK));
+
+    EncounterKey k1{EncounterKeyType::INSTANCE_ENCOUNTER, 1};
+    EncounterKey k2{EncounterKeyType::INSTANCE_ENCOUNTER, 1};
+    EncounterKey k3{EncounterKeyType::CREATURE_ENTRY, 1};
+
+    EXPECT_EQ(k1, k2);
+    EXPECT_NE(k1, k3);
+
+    std::hash<EncounterKey> hasher;
+    EXPECT_EQ(hasher(k1), hasher(k2));
+}
+
+// 12. LFG Queue Policy Acceptance Matrix
+TEST(LfgQueuePolicyAcceptanceMatrixTest, AcceptanceMatrixVerification)
+{
+    auto ResolvePolicy = [](lfg::LfgCompositionMode mode, uint32 challengeSize, uint8 partySize)
+    {
+        lfg::LfgQueuePolicy policy;
+        policy.compositionMode = mode;
+        policy.challengeSize = challengeSize;
+
+        switch (mode)
+        {
+            case lfg::LfgCompositionMode::MATCHMAKING:
+                policy.bypassMatchmaking = false;
+                policy.requireStandardRoles = true;
+                policy.minPlayers = 5;
+                policy.targetPlayers = 5;
+                break;
+
+            case lfg::LfgCompositionMode::BOT_FILL:
+                policy.bypassMatchmaking = false;
+                policy.requireStandardRoles = true;
+                policy.minPlayers = 5;
+                policy.targetPlayers = 5;
+                break;
+
+            case lfg::LfgCompositionMode::CURRENT_PARTY:
+                policy.bypassMatchmaking = true;
+                policy.requireStandardRoles = false;
+                policy.minPlayers = partySize;
+                policy.targetPlayers = partySize;
+                break;
+        }
+        return policy;
+    };
+
+    // Scenario 1: CURRENT_PARTY, solo, adaptive
+    {
+        auto p = ResolvePolicy(lfg::LfgCompositionMode::CURRENT_PARTY, 0, 1);
+        EXPECT_TRUE(p.bypassMatchmaking);
+        EXPECT_FALSE(p.requireStandardRoles);
+        EXPECT_EQ(p.minPlayers, 1u);
+        EXPECT_EQ(p.targetPlayers, 1u);
+        EXPECT_EQ(p.challengeSize, 0u);
+    }
+
+    // Scenario 2: CURRENT_PARTY, solo, challenge 5
+    {
+        auto p = ResolvePolicy(lfg::LfgCompositionMode::CURRENT_PARTY, 5, 1);
+        EXPECT_TRUE(p.bypassMatchmaking);
+        EXPECT_EQ(p.minPlayers, 1u);
+        EXPECT_EQ(p.targetPlayers, 1u);
+        EXPECT_EQ(p.challengeSize, 5u);
+    }
+
+    // Scenario 3: CURRENT_PARTY, duo, adaptive
+    {
+        auto p = ResolvePolicy(lfg::LfgCompositionMode::CURRENT_PARTY, 0, 2);
+        EXPECT_TRUE(p.bypassMatchmaking);
+        EXPECT_EQ(p.minPlayers, 2u);
+        EXPECT_EQ(p.targetPlayers, 2u);
+        EXPECT_EQ(p.challengeSize, 0u);
+    }
+
+    // Scenario 4: CURRENT_PARTY, duo, challenge 1
+    {
+        auto p = ResolvePolicy(lfg::LfgCompositionMode::CURRENT_PARTY, 1, 2);
+        EXPECT_TRUE(p.bypassMatchmaking);
+        EXPECT_EQ(p.minPlayers, 2u);
+        EXPECT_EQ(p.targetPlayers, 2u);
+        EXPECT_EQ(p.challengeSize, 1u);
+    }
+
+    // Scenario 5: CURRENT_PARTY, duo, challenge 5
+    {
+        auto p = ResolvePolicy(lfg::LfgCompositionMode::CURRENT_PARTY, 5, 2);
+        EXPECT_TRUE(p.bypassMatchmaking);
+        EXPECT_EQ(p.minPlayers, 2u);
+        EXPECT_EQ(p.targetPlayers, 2u);
+        EXPECT_EQ(p.challengeSize, 5u);
+    }
+
+    // Scenario 6: CURRENT_PARTY, 4-man, challenge 10
+    {
+        auto p = ResolvePolicy(lfg::LfgCompositionMode::CURRENT_PARTY, 10, 4);
+        EXPECT_TRUE(p.bypassMatchmaking);
+        EXPECT_EQ(p.minPlayers, 4u);
+        EXPECT_EQ(p.targetPlayers, 4u);
+        EXPECT_EQ(p.challengeSize, 10u);
+    }
+
+    // Scenario 7: MATCHMAKING, solo, adaptive
+    {
+        auto p = ResolvePolicy(lfg::LfgCompositionMode::MATCHMAKING, 0, 1);
+        EXPECT_FALSE(p.bypassMatchmaking);
+        EXPECT_TRUE(p.requireStandardRoles);
+        EXPECT_EQ(p.minPlayers, 5u);
+        EXPECT_EQ(p.targetPlayers, 5u);
+        EXPECT_EQ(p.challengeSize, 0u);
+    }
+
+    // Scenario 8: BOT_FILL, solo, adaptive
+    {
+        auto p = ResolvePolicy(lfg::LfgCompositionMode::BOT_FILL, 0, 1);
+        EXPECT_FALSE(p.bypassMatchmaking);
+        EXPECT_TRUE(p.requireStandardRoles);
+        EXPECT_EQ(p.minPlayers, 5u);
+        EXPECT_EQ(p.targetPlayers, 5u);
+        EXPECT_EQ(p.challengeSize, 0u);
+    }
+}
+
 

@@ -22,6 +22,7 @@ class Player;
 class Unit;
 class Quest;
 class Map;
+class InstanceMap;
 class Group;
 struct CreatureTemplate;
 
@@ -33,7 +34,16 @@ namespace lfg
 struct PlayerLfgSettings
 {
     lfg::LfgCompositionMode compositionMode{lfg::LfgCompositionMode::MATCHMAKING};
-    uint32 challengeSize{0}; // 0 = Adaptive, 1 = Solo, 2..25 = fixed
+    uint32 challengeSize{0}; // 0 = Adaptive, 1 = Solo, 2..40 = fixed
+};
+
+struct PendingInstanceScalePolicy
+{
+    uint32 mapId{0};
+    ObjectGuid groupGuid;
+    uint32 challengeSize{0};
+    lfg::LfgCompositionMode compositionMode{lfg::LfgCompositionMode::MATCHMAKING};
+    uint64 generation{0};
 };
 
 class CoAContentScaling
@@ -59,7 +69,8 @@ public:
 
     // Combat scaling calculations
     void ApplyCreatureScaling(CreatureTemplate const* cinfo, Creature* creature);
-    void RecalculateEncounterCombatStats(Creature* boss, InstanceScaleContext const& snapshot);
+    void RecalculateEncounterCombatStats(Creature* boss, EncounterScaleSnapshot const& snapshot,
+                                         EncounterHealthTransferPolicy hpPolicy = EncounterHealthTransferPolicy::FULL_ON_PULL);
 
     // Expansion enablement
     void SetTbcEnabled(bool enabled) { _tbcEnabled = enabled; }
@@ -77,9 +88,11 @@ public:
     [[nodiscard]] uint32 GetPlayerLfgChallenge(ObjectGuid guid) const;
     void LoadPlayerLfgSettings(Player* player);
     void SavePlayerLfgSettings(Player* player);
+    void OnPlayerLogout(Player* player);
 
     void OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::LfgQueuePolicy& policy);
     void OnLfgProposalMadeGroup(lfg::LfgProposal const& proposal, Group* group);
+    void OnInstanceMapCreated(InstanceMap* instanceMap, Player* player);
 
 private:
     CoAContentScaling() = default;
@@ -101,8 +114,16 @@ private:
 
     ProgressionLayout _layout;
 
+    lfg::LfgCompositionMode _defaultLfgCompositionMode{lfg::LfgCompositionMode::MATCHMAKING};
+    uint32 _defaultLfgChallengeSize{0};
+
     mutable std::mutex _lfgSettingsLock;
     std::unordered_map<ObjectGuid, PlayerLfgSettings> _playerLfgSettings;
+
+    mutable std::mutex _pendingPolicyLock;
+    uint64 _pendingPolicyGeneration{0};
+    std::unordered_map<ObjectGuid, PendingInstanceScalePolicy> _pendingInstancePolicies;
+    std::unordered_map<ObjectGuid, PendingInstanceScalePolicy> _pendingPlayerPolicies;
 };
 
 #define sCoAContentScaling CoAContentScaling::Instance()
