@@ -13,6 +13,8 @@
 #include "InstanceScaleContext.h"
 #include "ItemBudgetScaler.h"
 #include "ItemTemplate.h"
+#include <fstream>
+#include <sstream>
 #include "gtest/gtest.h"
 
 // 1. MaxLevel 60 Combinations
@@ -1098,7 +1100,7 @@ TEST(ContentCensusIntegrityTest, GeneratedCensusSchemaAndCounts)
     EXPECT_EQ(sGeneratedInstanceProfiles.size(), 221u); // 221 PvE instance difficulty variants
     EXPECT_EQ(sGeneratedCreaturePlacements.size(), 18751u); // 100% active production spawns
     EXPECT_EQ(sGeneratedQuestProfiles.size(), 10106u);
-    EXPECT_EQ(sGeneratedItemProfiles.size(), 3857u);
+    EXPECT_EQ(sGeneratedItemProfiles.size(), 3865u);
     EXPECT_EQ(sGeneratedLfgProfiles.size(), 423u);
     EXPECT_EQ(sGeneratedAccessProfiles.size(), 121u);
 }
@@ -1301,7 +1303,7 @@ TEST(ItemRuntimeAuthorityTest, CustomItemSafetyAndPreservePolicies)
 {
     ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
 
-    // 1. CUSTOM_COSMETIC (100000..200000): e.g. Wizened Wizard (100002)
+    // 1. Profiled Custom Cosmetic: Wizened Wizard (100002) in generated census
     ItemTemplate cosmetic;
     cosmetic.ItemId = 100002;
     cosmetic.ItemLevel = 20;
@@ -1309,6 +1311,7 @@ TEST(ItemRuntimeAuthorityTest, CustomItemSafetyAndPreservePolicies)
     cosmetic.Armor = 0;
 
     ItemScalingContext ctxCosmetic = ItemScalingContext::Resolve(&cosmetic);
+    EXPECT_TRUE(ctxCosmetic.hasGeneratedProfile);
     EXPECT_EQ(ctxCosmetic.policy, ItemScalingPolicy::PRESERVE);
     EXPECT_TRUE(ctxCosmetic.specialFlags & ITEM_SPECIAL_PRESERVE);
 
@@ -1317,35 +1320,55 @@ TEST(ItemRuntimeAuthorityTest, CustomItemSafetyAndPreservePolicies)
     EXPECT_EQ(bCosmetic.effectiveRequiredLevel, cosmetic.RequiredLevel);
     EXPECT_FLOAT_EQ(bCosmetic.statMultiplier, 1.0f);
 
-    // 2. CUSTOM_CLASS_ITEM (200001..350000): e.g. Race Change Potion (200001)
+    // 2. Profiled Custom Service / Potion: Race Change Potion (200001) in generated census
     ItemTemplate classItem;
     classItem.ItemId = 200001;
     classItem.ItemLevel = 64;
     classItem.RequiredLevel = 0;
 
     ItemScalingContext ctxClass = ItemScalingContext::Resolve(&classItem);
+    EXPECT_TRUE(ctxCosmetic.hasGeneratedProfile);
     EXPECT_EQ(ctxClass.policy, ItemScalingPolicy::PRESERVE);
     ScaledItemBudget bClass = sItemBudgetScaler->CalculateItemBudget(&classItem, layout, ctxClass);
     EXPECT_EQ(bClass.effectiveItemLevel, classItem.ItemLevel);
     EXPECT_FLOAT_EQ(bClass.statMultiplier, 1.0f);
 
-    // 3. CUSTOM_GAMEPLAY (350001..600000): e.g. Havoc's Call (350012)
+    // 3. Profiled Custom Gameplay: Havoc's Call (350012) in generated census
     ItemTemplate gameplayItem;
     gameplayItem.ItemId = 350012;
     gameplayItem.ItemLevel = 287;
     gameplayItem.RequiredLevel = 80;
 
     ItemScalingContext ctxGameplay = ItemScalingContext::Resolve(&gameplayItem);
+    EXPECT_TRUE(ctxGameplay.hasGeneratedProfile);
     EXPECT_EQ(ctxGameplay.policy, ItemScalingPolicy::TIER_ALIGNED);
     EXPECT_FALSE(ctxGameplay.specialFlags & ITEM_SPECIAL_PRESERVE);
+
+    // 4. Unprofiled Custom Item (ItemId >= 100000 without census entry): must safely fallback to PRESERVE + ITEM_SPECIAL_CUSTOM
+    ItemTemplate unprofiledCustom;
+    unprofiledCustom.ItemId = 750000;
+    unprofiledCustom.ItemLevel = 80;
+    unprofiledCustom.RequiredLevel = 60;
+
+    ItemScalingContext ctxUnprofiledCustom = ItemScalingContext::Resolve(&unprofiledCustom);
+    EXPECT_FALSE(ctxUnprofiledCustom.hasGeneratedProfile);
+    EXPECT_EQ(ctxUnprofiledCustom.policy, ItemScalingPolicy::PRESERVE);
+    EXPECT_TRUE(ctxUnprofiledCustom.specialFlags & ITEM_SPECIAL_CUSTOM);
+    EXPECT_TRUE(ctxUnprofiledCustom.specialFlags & ITEM_SPECIAL_PRESERVE);
+
+    ScaledItemBudget bUnprofiled = sItemBudgetScaler->CalculateItemBudget(&unprofiledCustom, layout, ctxUnprofiledCustom);
+    EXPECT_EQ(bUnprofiled.effectiveItemLevel, unprofiledCustom.ItemLevel);
+    EXPECT_FLOAT_EQ(bUnprofiled.statMultiplier, 1.0f);
 }
+
 
 TEST(ItemRuntimeAuthorityTest, MissingGeneratedProfileSafelyFallsBack)
 {
     ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
 
+    // Standard unprofiled item (< 100000, not custom): uses fallback tier inference
     ItemTemplate unprofiled;
-    unprofiled.ItemId = 999999;
+    unprofiled.ItemId = 99999;
     unprofiled.ItemLevel = 200;
     unprofiled.RequiredLevel = 80;
 
@@ -1359,6 +1382,7 @@ TEST(ItemRuntimeAuthorityTest, MissingGeneratedProfileSafelyFallsBack)
     EXPECT_LE(budget.effectiveRequiredLevel, 60u);
     EXPECT_LT(budget.effectiveItemLevel, 200u);
 }
+
 
 TEST(ItemRuntimeAuthorityTest, StockCap80IdentityPreserved)
 {
@@ -1533,3 +1557,129 @@ TEST(SourceGraphAuthorityTest, HighEntryCreaturePlacementIndexed)
     EXPECT_EQ(lkPlacement->mapId, 631u);
     EXPECT_EQ(lkPlacement->era, ContentEra::WotLK);
 }
+
+TEST(SourceGraphAuthorityTest, RealGeneratedHeroicProgressionOrdering)
+{
+    // Validate real generated items from census without manual Context override
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    // 1. WotLK progression:
+    // Skadi the Ruthless (26693, Utgarde Pinnacle Normal, Map 575): Item 37056 (Drake-Mounted Crossbow, ilvl 187) -> DUNGEON_NORMAL
+    // Skadi the Ruthless (30807, Utgarde Pinnacle Heroic, Map 575): Item 37379 (Netherbreath Spellblade, ilvl 200) -> DUNGEON_HEROIC
+    // Naxxramas Boss Drop (Map 533): Item 39291 (Torment of the Banished, ilvl 200) -> RAID_ENTRY
+    auto const* profNormWotlk = FindGeneratedItemProfile(37056);
+    auto const* profHeroicWotlk = FindGeneratedItemProfile(37379);
+    auto const* profRaidWotlk = FindGeneratedItemProfile(39291);
+
+    ASSERT_NE(profNormWotlk, nullptr);
+    ASSERT_NE(profHeroicWotlk, nullptr);
+    ASSERT_NE(profRaidWotlk, nullptr);
+
+    EXPECT_EQ(profNormWotlk->tier, ContentTier::DUNGEON_NORMAL);
+    EXPECT_EQ(profHeroicWotlk->tier, ContentTier::DUNGEON_HEROIC);
+    EXPECT_EQ(profRaidWotlk->tier, ContentTier::RAID_ENTRY);
+
+    ItemTemplate itemNormWotlk;
+    itemNormWotlk.ItemId = 37056;
+    itemNormWotlk.ItemLevel = 187;
+    itemNormWotlk.RequiredLevel = 80;
+
+    ItemTemplate itemHeroicWotlk;
+    itemHeroicWotlk.ItemId = 37379;
+    itemHeroicWotlk.ItemLevel = 200;
+    itemHeroicWotlk.RequiredLevel = 80;
+
+    ItemTemplate itemRaidWotlk;
+    itemRaidWotlk.ItemId = 39291;
+    itemRaidWotlk.ItemLevel = 200;
+    itemRaidWotlk.RequiredLevel = 80;
+
+    ItemScalingContext ctxNormWotlk = ItemScalingContext::Resolve(&itemNormWotlk);
+    ItemScalingContext ctxHeroicWotlk = ItemScalingContext::Resolve(&itemHeroicWotlk);
+    ItemScalingContext ctxRaidWotlk = ItemScalingContext::Resolve(&itemRaidWotlk);
+
+    EXPECT_EQ(ctxNormWotlk.tier, ContentTier::DUNGEON_NORMAL);
+    EXPECT_EQ(ctxHeroicWotlk.tier, ContentTier::DUNGEON_HEROIC);
+    EXPECT_EQ(ctxRaidWotlk.tier, ContentTier::RAID_ENTRY);
+
+    ScaledItemBudget bNormWotlk = sItemBudgetScaler->CalculateItemBudget(&itemNormWotlk, layout, ctxNormWotlk);
+    ScaledItemBudget bHeroicWotlk = sItemBudgetScaler->CalculateItemBudget(&itemHeroicWotlk, layout, ctxHeroicWotlk);
+    ScaledItemBudget bRaidWotlk = sItemBudgetScaler->CalculateItemBudget(&itemRaidWotlk, layout, ctxRaidWotlk);
+
+    // Strict progression ordering: real Normal item < real Heroic item < real Raid Entry item
+    EXPECT_LT(bNormWotlk.effectiveItemLevel, bHeroicWotlk.effectiveItemLevel);
+    EXPECT_LT(bHeroicWotlk.effectiveItemLevel, bRaidWotlk.effectiveItemLevel);
+
+    // 2. TBC progression:
+    // Watchkeeper Gargolmar Normal (17306, Ramparts, Map 543): Item 24021 (Moonstrider Boots, ilvl 85) -> DUNGEON_NORMAL
+    // Watchkeeper Gargolmar Heroic (18436, Ramparts, Map 543): Item 27447 (Bracers of Just Rewards, ilvl 115) -> DUNGEON_HEROIC
+    // Shade of Aran (16524, Karazhan, Map 532): Item 28612 (Pendant of the Violet Eye, ilvl 115) -> RAID_ENTRY
+    auto const* profNormTbc = FindGeneratedItemProfile(24021);
+    auto const* profHeroicTbc = FindGeneratedItemProfile(27447);
+    auto const* profRaidTbc = FindGeneratedItemProfile(28612);
+
+    ASSERT_NE(profNormTbc, nullptr);
+    ASSERT_NE(profHeroicTbc, nullptr);
+    ASSERT_NE(profRaidTbc, nullptr);
+
+    EXPECT_EQ(profNormTbc->tier, ContentTier::DUNGEON_NORMAL);
+    EXPECT_EQ(profHeroicTbc->tier, ContentTier::DUNGEON_HEROIC);
+    EXPECT_EQ(profRaidTbc->tier, ContentTier::RAID_ENTRY);
+
+    ItemTemplate itemNormTbc;
+    itemNormTbc.ItemId = 24021;
+    itemNormTbc.ItemLevel = 85;
+    itemNormTbc.RequiredLevel = 60;
+
+    ItemTemplate itemHeroicTbc;
+    itemHeroicTbc.ItemId = 27447;
+    itemHeroicTbc.ItemLevel = 115;
+    itemHeroicTbc.RequiredLevel = 70;
+
+    ItemTemplate itemRaidTbc;
+    itemRaidTbc.ItemId = 28612;
+    itemRaidTbc.ItemLevel = 115;
+    itemRaidTbc.RequiredLevel = 70;
+
+    ItemScalingContext ctxNormTbc = ItemScalingContext::Resolve(&itemNormTbc);
+    ItemScalingContext ctxHeroicTbc = ItemScalingContext::Resolve(&itemHeroicTbc);
+    ItemScalingContext ctxRaidTbc = ItemScalingContext::Resolve(&itemRaidTbc);
+
+    EXPECT_EQ(ctxNormTbc.tier, ContentTier::DUNGEON_NORMAL);
+    EXPECT_EQ(ctxHeroicTbc.tier, ContentTier::DUNGEON_HEROIC);
+    EXPECT_EQ(ctxRaidTbc.tier, ContentTier::RAID_ENTRY);
+
+    ScaledItemBudget bNormTbc = sItemBudgetScaler->CalculateItemBudget(&itemNormTbc, layout, ctxNormTbc);
+    ScaledItemBudget bHeroicTbc = sItemBudgetScaler->CalculateItemBudget(&itemHeroicTbc, layout, ctxHeroicTbc);
+    ScaledItemBudget bRaidTbc = sItemBudgetScaler->CalculateItemBudget(&itemRaidTbc, layout, ctxRaidTbc);
+
+    EXPECT_LT(bNormTbc.effectiveItemLevel, bHeroicTbc.effectiveItemLevel);
+    EXPECT_LT(bHeroicTbc.effectiveItemLevel, bRaidTbc.effectiveItemLevel);
+}
+
+TEST(SourceGraphAuthorityTest, NoHardcodedCustomBoundariesInItemBudgetScalerCpp)
+{
+    // Verify that ItemBudgetScaler.cpp does not contain hardcoded custom category boundaries (200000, 350000, 600000).
+    // The sole source of truth for custom item ranges and categories is custom_content.json and GeneratedContentCensus.h.
+    std::ifstream file("modules/mod-coa-content-scaling/src/ItemBudgetScaler.cpp");
+    if (!file.is_open())
+    {
+        // Try fallback path if running from build-local or other working directory
+        file.open("../modules/mod-coa-content-scaling/src/ItemBudgetScaler.cpp");
+    }
+    if (!file.is_open())
+    {
+        file.open("C:/games/coa-core-fork/modules/mod-coa-content-scaling/src/ItemBudgetScaler.cpp");
+    }
+
+    ASSERT_TRUE(file.is_open()) << "Could not open ItemBudgetScaler.cpp to verify absence of hardcoded boundaries";
+
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    std::string content = buffer.str();
+
+    EXPECT_EQ(content.find("200000"), std::string::npos) << "Found hardcoded 200000 boundary in ItemBudgetScaler.cpp";
+    EXPECT_EQ(content.find("350000"), std::string::npos) << "Found hardcoded 350000 boundary in ItemBudgetScaler.cpp";
+    EXPECT_EQ(content.find("600000"), std::string::npos) << "Found hardcoded 600000 boundary in ItemBudgetScaler.cpp";
+}
+

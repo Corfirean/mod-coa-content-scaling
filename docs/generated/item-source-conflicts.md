@@ -2,50 +2,50 @@
 
 Total multi-instance conflicts detected: 45
 
-| Item ID | Authored ilvl | Competing Instances (Map ID: Drop Count) | Resolved Map | Resolution Rationale |
-|---|---|---|---|---|
-| 24024 | 85 | 230:7, 329:1, 409:1, 543:1 | 230 | Highest drop count with deterministic tie-break |
-| 1725 | 35 | 189:2, 609:2 | 609 | Highest drop count with deterministic tie-break |
-| 857 | 25 | 34:1, 47:1 | 47 | Highest drop count with deterministic tie-break |
-| 5575 | 25 | 34:2, 47:2, 90:1 | 47 | Highest drop count with deterministic tie-break |
-| 24064 | 85 | 34:2, 47:2, 90:1, 560:1 | 47 | Highest drop count with deterministic tie-break |
-| 804 | 25 | 34:2, 47:2 | 47 | Highest drop count with deterministic tie-break |
-| 5576 | 25 | 34:2, 47:2 | 47 | Highest drop count with deterministic tie-break |
-| 856 | 15 | 33:2, 389:1 | 33 | Highest drop count with deterministic tie-break |
-| 5573 | 15 | 33:2, 389:2 | 389 | Highest drop count with deterministic tie-break |
-| 5574 | 15 | 33:1, 389:2 | 389 | Highest drop count with deterministic tie-break |
-| 10407 | 21 | 34:1, 33:2 | 33 | Highest drop count with deterministic tie-break |
-| 24077 | 83 | 33:2, 389:2 | 389 | Highest drop count with deterministic tie-break |
-| 24078 | 83 | 33:2, 389:2 | 389 | Highest drop count with deterministic tie-break |
-| 24020 | 85 | 409:1, 469:1, 429:1, 531:2, 509:7, 543:1 | 509 | Highest drop count with deterministic tie-break |
-| 24069 | 85 | 34:2, 543:1 | 34 | Highest drop count with deterministic tie-break |
-| 4614 | 35 | 189:23, 70:6, 129:15, 609:7 | 189 | Highest drop count with deterministic tie-break |
-| 3914 | 45 | 209:7, 230:3, 329:1, 349:1, 609:11 | 609 | Highest drop count with deterministic tie-break |
-| 4500 | 55 | 230:7, 329:1, 429:1, 609:7 | 609 | Highest drop count with deterministic tie-break |
-| 24021 | 85 | 329:1, 543:1 | 543 | Highest drop count with deterministic tie-break |
-| 24089 | 125 | 409:1, 469:1 | 469 | Highest drop count with deterministic tie-break |
-| 24090 | 85 | 409:1, 469:1, 531:1, 509:1, 543:1 | 543 | Highest drop count with deterministic tie-break |
-| 4957 | 3 | 43:1, 47:1 | 47 | Highest drop count with deterministic tie-break |
-| 24044 | 85 | 209:5, 230:1, 349:1 | 209 | Highest drop count with deterministic tie-break |
-| 24045 | 85 | 209:6, 230:1, 349:1 | 209 | Highest drop count with deterministic tie-break |
-| 24046 | 85 | 209:2, 230:1, 349:1 | 209 | Highest drop count with deterministic tie-break |
-| 24082 | 125 | 209:1, 230:1, 349:1 | 349 | Highest drop count with deterministic tie-break |
-| 24083 | 85 | 209:1, 349:1 | 349 | Highest drop count with deterministic tie-break |
-| 209 | 4 | 209:12, 230:25 | 230 | Highest drop count with deterministic tie-break |
-| 16681 | 57 | 229:1, 329:3 | 329 | Highest drop count with deterministic tie-break |
-| 16717 | 57 | 229:7, 329:1 | 229 | Highest drop count with deterministic tie-break |
-| 16685 | 57 | 229:1, 329:5, 289:1 | 329 | Highest drop count with deterministic tie-break |
-| 16716 | 57 | 229:3, 329:2, 289:4 | 289 | Highest drop count with deterministic tie-break |
-| 16710 | 57 | 229:1, 329:1, 289:3 | 289 | Highest drop count with deterministic tie-break |
-| 16736 | 57 | 229:1, 329:3 | 329 | Highest drop count with deterministic tie-break |
-| 16702 | 57 | 329:4, 289:1 | 329 | Highest drop count with deterministic tie-break |
-| 16722 | 57 | 329:2, 289:3 | 289 | Highest drop count with deterministic tie-break |
-| 16671 | 57 | 329:3, 289:1 | 329 | Highest drop count with deterministic tie-break |
-| 16714 | 57 | 329:3, 289:1 | 329 | Highest drop count with deterministic tie-break |
-| 24091 | 85 | 409:1, 469:1, 543:1 | 543 | Highest drop count with deterministic tie-break |
-| 26040 | 13 | 249:2, 574:4, 600:7, 575:6, 576:7, 602:7, 601:6, 608:12, 604:6, 619:9, 615:5 | 608 | Highest drop count with deterministic tie-break |
-| 24092 | 114 | 545:3, 560:1, 556:1, 554:1, 552:1 | 545 | Highest drop count with deterministic tie-break |
-| 24093 | 114 | 545:2, 560:1, 557:2, 555:1, 554:1 | 557 | Highest drop count with deterministic tie-break |
-| 22206 | 1 | 574:2, 599:2, 619:2 | 619 | Highest drop count with deterministic tie-break |
-| 44731 | 60 | 574:2, 599:2, 619:2 | 619 | Highest drop count with deterministic tie-break |
-| 21524 | 1 | 576:2, 619:2 | 619 | Highest drop count with deterministic tie-break |
+| Item ID | Authored ilvl | Candidates | Chosen Source | Chosen Tier | Reason |
+|---|---|---|---|---|---|
+| 24024 | 85 | Map 329 (diff 0, boss=yes)<br>Map 230 (diff 0, boss=no)<br>Map 543 (diff 0, boss=yes)<br>Map 409 (diff 0, boss=no) | Map 543 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=TBC > mapId=543 |
+| 1725 | 35 | Map 189 (diff 0, boss=no)<br>Map 609 (diff 0, boss=no) | Map 189 (diff 0, boss=no) | DUNGEON_NORMAL | Ranked highest via priority: boss=False > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=189 |
+| 857 | 25 | Map 47 (diff 0, boss=no)<br>Map 34 (diff 0, boss=yes) | Map 34 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=34 |
+| 5575 | 25 | Map 47 (diff 0, boss=no)<br>Map 47 (diff 0, boss=yes)<br>Map 34 (diff 0, boss=yes)<br>Map 90 (diff 0, boss=no) | Map 34 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=34 |
+| 24064 | 85 | Map 47 (diff 0, boss=no)<br>Map 47 (diff 0, boss=yes)<br>Map 34 (diff 0, boss=yes)<br>Map 90 (diff 0, boss=no)<br>Map 560 (diff 0, boss=no) | Map 34 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=34 |
+| 804 | 25 | Map 47 (diff 0, boss=no)<br>Map 47 (diff 0, boss=yes)<br>Map 34 (diff 0, boss=yes) | Map 34 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=34 |
+| 5576 | 25 | Map 47 (diff 0, boss=no)<br>Map 47 (diff 0, boss=yes)<br>Map 34 (diff 0, boss=yes) | Map 34 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=34 |
+| 856 | 15 | Map 33 (diff 0, boss=no)<br>Map 389 (diff 0, boss=yes) | Map 389 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=389 |
+| 5573 | 15 | Map 33 (diff 0, boss=no)<br>Map 389 (diff 0, boss=yes) | Map 389 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=389 |
+| 5574 | 15 | Map 33 (diff 0, boss=no)<br>Map 389 (diff 0, boss=yes) | Map 389 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=389 |
+| 10407 | 21 | Map 33 (diff 0, boss=no)<br>Map 34 (diff 0, boss=yes) | Map 34 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=34 |
+| 24077 | 83 | Map 33 (diff 0, boss=no)<br>Map 389 (diff 0, boss=yes) | Map 389 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=389 |
+| 24078 | 83 | Map 33 (diff 0, boss=no)<br>Map 389 (diff 0, boss=yes) | Map 389 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=389 |
+| 24020 | 85 | Map 509 (diff 0, boss=no)<br>Map 429 (diff 0, boss=no)<br>Map 469 (diff 0, boss=no)<br>Map 531 (diff 0, boss=no)<br>Map 543 (diff 0, boss=yes)<br>Map 409 (diff 0, boss=no) | Map 543 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=TBC > mapId=543 |
+| 24069 | 85 | Map 543 (diff 0, boss=yes)<br>Map 34 (diff 0, boss=yes) | Map 543 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=TBC > mapId=543 |
+| 4614 | 35 | Map 189 (diff 0, boss=no)<br>Map 70 (diff 0, boss=no)<br>Map 129 (diff 0, boss=no)<br>Map 609 (diff 0, boss=no) | Map 70 (diff 0, boss=no) | DUNGEON_NORMAL | Ranked highest via priority: boss=False > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=70 |
+| 3914 | 45 | Map 329 (diff 0, boss=yes)<br>Map 230 (diff 0, boss=no)<br>Map 349 (diff 0, boss=no)<br>Map 209 (diff 0, boss=no)<br>Map 209 (diff 0, boss=yes)<br>Map 609 (diff 0, boss=no) | Map 209 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=209 |
+| 4500 | 55 | Map 329 (diff 0, boss=yes)<br>Map 230 (diff 0, boss=no)<br>Map 429 (diff 0, boss=no)<br>Map 609 (diff 0, boss=no) | Map 329 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=329 |
+| 24021 | 85 | Map 329 (diff 0, boss=yes)<br>Map 543 (diff 0, boss=yes) | Map 543 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=TBC > mapId=543 |
+| 24089 | 125 | Map 469 (diff 0, boss=no)<br>Map 409 (diff 0, boss=no) | Map 469 (diff 0, boss=no) | RAID_END | Ranked highest via priority: boss=False > conf=100 > tier=RAID_END > era=Classic > mapId=469 |
+| 24090 | 85 | Map 509 (diff 0, boss=no)<br>Map 531 (diff 0, boss=no)<br>Map 469 (diff 0, boss=no)<br>Map 543 (diff 0, boss=yes)<br>Map 409 (diff 0, boss=no) | Map 543 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=TBC > mapId=543 |
+| 4957 | 3 | Map 47 (diff 0, boss=yes)<br>Map 43 (diff 0, boss=no) | Map 47 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=47 |
+| 24044 | 85 | Map 230 (diff 0, boss=no)<br>Map 349 (diff 0, boss=no)<br>Map 209 (diff 0, boss=no)<br>Map 209 (diff 0, boss=yes) | Map 209 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=209 |
+| 24045 | 85 | Map 230 (diff 0, boss=no)<br>Map 349 (diff 0, boss=no)<br>Map 209 (diff 0, boss=no)<br>Map 209 (diff 0, boss=yes) | Map 209 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=209 |
+| 24046 | 85 | Map 230 (diff 0, boss=no)<br>Map 349 (diff 0, boss=no)<br>Map 209 (diff 0, boss=no)<br>Map 209 (diff 0, boss=yes) | Map 209 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=209 |
+| 24082 | 125 | Map 230 (diff 0, boss=no)<br>Map 349 (diff 0, boss=no)<br>Map 209 (diff 0, boss=yes) | Map 209 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=209 |
+| 24083 | 85 | Map 349 (diff 0, boss=no)<br>Map 209 (diff 0, boss=yes) | Map 209 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=209 |
+| 209 | 4 | Map 230 (diff 0, boss=no)<br>Map 209 (diff 0, boss=no)<br>Map 230 (diff 0, boss=yes) | Map 230 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=230 |
+| 16681 | 57 | Map 229 (diff 0, boss=no)<br>Map 329 (diff 0, boss=no) | Map 229 (diff 0, boss=no) | DUNGEON_NORMAL | Ranked highest via priority: boss=False > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=229 |
+| 16717 | 57 | Map 329 (diff 0, boss=yes)<br>Map 229 (diff 0, boss=no) | Map 329 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=329 |
+| 16685 | 57 | Map 289 (diff 0, boss=no)<br>Map 229 (diff 0, boss=no)<br>Map 329 (diff 0, boss=no) | Map 229 (diff 0, boss=no) | DUNGEON_NORMAL | Ranked highest via priority: boss=False > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=229 |
+| 16716 | 57 | Map 229 (diff 0, boss=yes)<br>Map 289 (diff 0, boss=yes)<br>Map 289 (diff 0, boss=no)<br>Map 229 (diff 0, boss=no)<br>Map 329 (diff 0, boss=no) | Map 229 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=229 |
+| 16710 | 57 | Map 289 (diff 0, boss=yes)<br>Map 289 (diff 0, boss=no)<br>Map 229 (diff 0, boss=no)<br>Map 329 (diff 0, boss=no) | Map 289 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=289 |
+| 16736 | 57 | Map 229 (diff 0, boss=no)<br>Map 329 (diff 0, boss=no) | Map 229 (diff 0, boss=no) | DUNGEON_NORMAL | Ranked highest via priority: boss=False > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=229 |
+| 16702 | 57 | Map 289 (diff 0, boss=no)<br>Map 329 (diff 0, boss=no) | Map 289 (diff 0, boss=no) | DUNGEON_NORMAL | Ranked highest via priority: boss=False > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=289 |
+| 16722 | 57 | Map 289 (diff 0, boss=yes)<br>Map 289 (diff 0, boss=no)<br>Map 329 (diff 0, boss=no) | Map 289 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=289 |
+| 16671 | 57 | Map 289 (diff 0, boss=no)<br>Map 329 (diff 0, boss=no) | Map 289 (diff 0, boss=no) | DUNGEON_NORMAL | Ranked highest via priority: boss=False > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=289 |
+| 16714 | 57 | Map 289 (diff 0, boss=no)<br>Map 329 (diff 0, boss=no) | Map 289 (diff 0, boss=no) | DUNGEON_NORMAL | Ranked highest via priority: boss=False > conf=100 > tier=DUNGEON_NORMAL > era=Classic > mapId=289 |
+| 24091 | 85 | Map 409 (diff 0, boss=no)<br>Map 543 (diff 0, boss=yes)<br>Map 469 (diff 0, boss=no) | Map 543 (diff 0, boss=yes) | DUNGEON_NORMAL | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_NORMAL > era=TBC > mapId=543 |
+| 26040 | 13 | Map 604 (diff 0, boss=yes)<br>Map 601 (diff 0, boss=yes)<br>Map 575 (diff 1, boss=yes)<br>Map 574 (diff 0, boss=yes)<br>Map 608 (diff 0, boss=no)<br>Map 601 (diff 1, boss=yes)<br>Map 608 (diff 1, boss=no)<br>Map 600 (diff 0, boss=yes)<br>Map 615 (diff 1, boss=no)<br>Map 576 (diff 1, boss=yes)<br>Map 600 (diff 1, boss=no)<br>Map 602 (diff 1, boss=yes)<br>Map 608 (diff 0, boss=yes)<br>Map 604 (diff 1, boss=yes)<br>Map 249 (diff 0, boss=no)<br>Map 615 (diff 0, boss=no)<br>Map 608 (diff 1, boss=yes)<br>Map 576 (diff 0, boss=yes)<br>Map 602 (diff 0, boss=yes)<br>Map 600 (diff 0, boss=no)<br>Map 574 (diff 1, boss=yes)<br>Map 249 (diff 1, boss=no)<br>Map 619 (diff 0, boss=yes)<br>Map 600 (diff 1, boss=yes)<br>Map 575 (diff 0, boss=yes)<br>Map 619 (diff 1, boss=yes) | Map 574 (diff 1, boss=yes) | DUNGEON_HEROIC | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_HEROIC > era=WotLK > mapId=574 |
+| 24092 | 114 | Map 545 (diff 0, boss=no)<br>Map 556 (diff 0, boss=no)<br>Map 552 (diff 0, boss=no)<br>Map 560 (diff 0, boss=no)<br>Map 554 (diff 0, boss=no) | Map 545 (diff 0, boss=no) | DUNGEON_NORMAL | Ranked highest via priority: boss=False > conf=100 > tier=DUNGEON_NORMAL > era=TBC > mapId=545 |
+| 24093 | 114 | Map 545 (diff 0, boss=no)<br>Map 557 (diff 0, boss=no)<br>Map 557 (diff 1, boss=no)<br>Map 560 (diff 0, boss=no)<br>Map 555 (diff 0, boss=no)<br>Map 554 (diff 0, boss=no) | Map 557 (diff 1, boss=no) | DUNGEON_HEROIC | Ranked highest via priority: boss=False > conf=100 > tier=DUNGEON_HEROIC > era=TBC > mapId=557 |
+| 22206 | 1 | Map 574 (diff 1, boss=yes)<br>Map 574 (diff 0, boss=yes)<br>Map 599 (diff 0, boss=yes)<br>Map 599 (diff 1, boss=yes)<br>Map 619 (diff 0, boss=yes)<br>Map 619 (diff 1, boss=yes) | Map 574 (diff 1, boss=yes) | DUNGEON_HEROIC | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_HEROIC > era=WotLK > mapId=574 |
+| 44731 | 60 | Map 574 (diff 1, boss=yes)<br>Map 574 (diff 0, boss=yes)<br>Map 599 (diff 0, boss=yes)<br>Map 599 (diff 1, boss=yes)<br>Map 619 (diff 0, boss=yes)<br>Map 619 (diff 1, boss=yes) | Map 574 (diff 1, boss=yes) | DUNGEON_HEROIC | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_HEROIC > era=WotLK > mapId=574 |
+| 21524 | 1 | Map 576 (diff 0, boss=yes)<br>Map 576 (diff 1, boss=yes)<br>Map 619 (diff 1, boss=yes)<br>Map 619 (diff 0, boss=yes) | Map 576 (diff 1, boss=yes) | DUNGEON_HEROIC | Ranked highest via priority: boss=True > conf=100 > tier=DUNGEON_HEROIC > era=WotLK > mapId=576 |

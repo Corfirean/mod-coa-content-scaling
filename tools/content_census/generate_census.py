@@ -439,9 +439,11 @@ def main():
     print(f"Classified {len(quest_profiles)} quests: {dict(quest_era_counts)}")
 
     print("=== Step 7: Items Census, Sources, Outliers & Scaling Calculation ===")
-    # 7.1 Build Authoritative Loot-to-Map Source Graph
-    # Index creature templates for lootid, difficulty child entries and unique names
-    c_templates = run_query(cmd_base, f"SELECT entry, name, lootid, difficulty_entry_1, difficulty_entry_2, difficulty_entry_3 FROM {world_db}.creature_template;")
+    # 7.1 Build Authoritative Difficulty-Aware Loot-to-Instance Source Graph
+    # Index creature templates for lootid, difficulty child entries, rank, flags_extra and unique names
+    c_templates = run_query(cmd_base, f"SELECT entry, name, lootid, difficulty_entry_1, difficulty_entry_2, difficulty_entry_3, `rank`, flags_extra FROM {world_db}.creature_template;")
+    boss_entries = set(int(r[0]) for r in run_query(cmd_base, f"SELECT DISTINCT creditEntry FROM {world_db}.instance_encounters WHERE creditEntry > 0;"))
+
     name_to_maps = defaultdict(set)
     for r in c_templates:
         entry = int(r[0])
@@ -449,39 +451,78 @@ def main():
         if entry in entry_maps:
             name_to_maps[name].update(entry_maps[entry])
 
-    loot_to_maps = defaultdict(set)
+    # Map PvE instance profiles by (map_id, difficulty)
+    inst_profiles_by_key = {(ip["map_id"], ip["difficulty"]): ip for ip in pve_instance_profiles}
+    maps_in_pve = set(ip["map_id"] for ip in pve_instance_profiles)
+
+    # loot_to_sources: loot_entry -> set of (map_id, difficulty, is_boss, confidence)
+    loot_to_sources = defaultdict(set)
     for r in c_templates:
         entry = int(r[0])
         name = r[1]
         lootid = int(r[2])
         diffs = [int(r[3]), int(r[4]), int(r[5])]
+        rank = int(r[6])
+        flags_extra = int(r[7])
+
         maps = set(entry_maps.get(entry, set()))
         if not maps and name in name_to_maps and len(name_to_maps[name]) == 1 and len(name) > 3 and name not in ("World Trigger", "Trigger", "Waypoint"):
             maps.update(name_to_maps[name])
-        if maps:
-            loot_to_maps[entry].update(maps)
-            if lootid > 0:
-                loot_to_maps[lootid].update(maps)
-            for d in diffs:
-                if d > 0:
-                    loot_to_maps[d].update(maps)
+        if not maps:
+            continue
 
-    # Query all creature loot entries to map item -> maps with drop counts
+        is_boss = (entry in boss_entries) or (rank == 3) or bool(flags_extra & 1)
+
+        for m in maps:
+            conf = 100 if m in maps_in_pve else 50
+            # Base entry = difficulty 0
+            loot_to_sources[entry].add((m, 0, is_boss, conf))
+            if lootid > 0:
+                loot_to_sources[lootid].add((m, 0, is_boss, conf))
+            # Child difficulty entries (Heroic / 25-man / etc.)
+            for idx, d in enumerate(diffs):
+                if d > 0:
+                    loot_to_sources[d].add((m, idx + 1, is_boss, conf))
+
+    # Query creature loot entries to map item -> drop sources
     clt_all = run_query(cmd_base, f"SELECT item, entry FROM {world_db}.creature_loot_template WHERE item > 0;")
-    item_map_counts = defaultdict(lambda: defaultdict(int))
+    item_sources = defaultdict(set)
     for r in clt_all:
         item = int(r[0])
         entry = int(r[1])
-        maps = loot_to_maps.get(entry, set())
-        for m in maps:
-            item_map_counts[item][m] += 1
+        sources = loot_to_sources.get(entry, set())
+        for s in sources:
+            item_sources[item].add(s)
 
-    # Map instance profiles by map_id for quick lookup
-    inst_profiles_by_map = {}
-    for ip in pve_instance_profiles:
-        m = ip["map_id"]
-        if m not in inst_profiles_by_map or ip["difficulty"] == 0:
-            inst_profiles_by_map[m] = ip
+    TIER_PRIORITY = {
+        "DUNGEON_NORMAL": 1,
+        "DUNGEON_HEROIC": 2,
+        "RAID_ENTRY": 3,
+        "RAID_MID": 4,
+        "RAID_END": 5,
+        "RAID_PINNACLE": 6,
+        "WORLD": 0
+    }
+    ERA_PRIORITY = {
+        "Classic": 1,
+        "TBC": 2,
+        "WotLK": 3,
+        "Custom": 0
+    }
+
+    def candidate_priority_key(cand):
+        m, d, is_boss, conf = cand
+        inst = inst_profiles_by_key.get((m, d)) or inst_profiles_by_key.get((m, 0))
+        tier = inst["tier"] if inst else "WORLD"
+        era = inst["era"] if inst else ("TBC" if m == 530 else ("WotLK" if m == 571 else "Classic"))
+        return (
+            1 if is_boss else 0,
+            conf,
+            TIER_PRIORITY.get(tier, 0),
+            ERA_PRIORITY.get(era, 0),
+            -m,
+            -d
+        )
 
     loot_rows = run_query(cmd_base, f"""
         SELECT clt.Item, it.ItemLevel, it.Quality, it.InventoryType, it.RequiredLevel, it.Flags,
@@ -492,12 +533,35 @@ def main():
         GROUP BY clt.Item;
     """)
 
+    # Index sample custom items from custom_content.json so generated census contains authoritative profiles
+    custom_sample_entries = [100000, 100001, 100002, 200001, 200003, 350003, 350012, 350016]
+    in_clause = ",".join(str(e) for e in custom_sample_entries)
+    custom_rows = run_query(cmd_base, f"""
+        SELECT entry, ItemLevel, Quality, InventoryType, RequiredLevel, Flags,
+               spellid_1, spelltrigger_1, spellid_2, spelltrigger_2, itemset
+        FROM {world_db}.item_template
+        WHERE entry IN ({in_clause});
+    """)
+
+    seen_item_ids = set()
+    combined_items = []
+    for r in loot_rows:
+        iid = int(r[0])
+        if iid not in seen_item_ids:
+            seen_item_ids.add(iid)
+            combined_items.append(r)
+    for r in custom_rows:
+        iid = int(r[0])
+        if iid not in seen_item_ids:
+            seen_item_ids.add(iid)
+            combined_items.append(r)
+
     item_profiles = []
     item_outliers = []
     item_source_conflicts = []
     tier_item_stats = defaultdict(list)
 
-    for r in loot_rows:
+    for r in combined_items:
         item_id = int(r[0])
         ilvl = int(r[1])
         quality = int(r[2])
@@ -513,65 +577,19 @@ def main():
         source_map = 0
         policy_code = 0 # 0=STANDARD, 1=TIER_ALIGNED, 2=PRESERVE, 3=REVIEW_SPECIAL
 
-        # 7.2 Resolve Source Map from Loot Graph
-        counts = item_map_counts.get(item_id, {})
-        inst_counts = {m: c for m, c in counts.items() if m not in (0, 1, 530, 571)}
-        if len(inst_counts) > 1:
-            # Multi-instance drop detected -> track conflict
-            resolved_m = sorted(inst_counts.items(), key=lambda x: (-x[1], -x[0]))[0][0]
-            item_source_conflicts.append({
-                "item_id": item_id,
-                "ilvl": ilvl,
-                "instances": inst_counts,
-                "resolved_map": resolved_m
-            })
-            source_map = resolved_m
-        elif len(inst_counts) == 1:
-            source_map = list(inst_counts.keys())[0]
-        elif counts:
-            source_map = sorted(counts.items(), key=lambda x: -x[1])[0][0]
-        else:
-            source_map = 0
-
-        # 7.3 Determine Era and Tier: Source Graph Authority Wins Over Raw ilvl
-        if source_map in inst_profiles_by_map:
-            inst = inst_profiles_by_map[source_map]
-            era = inst["era"]
-            tier = inst["tier"]
-        elif source_map in (530,):
-            era = "TBC"
-            tier = "WORLD"
-        elif source_map in (571,):
-            era = "WotLK"
-            tier = "WORLD"
-        else:
-            # Fallback for open world or unknown sources
-            if req_lvl >= 75 or ilvl >= 200:
-                era = "WotLK"
-                tier = "RAID_ENTRY" if ilvl <= 213 else ("RAID_MID" if ilvl <= 226 else ("RAID_END" if ilvl <= 245 else "RAID_PINNACLE"))
-            elif req_lvl >= 68 or ilvl >= 115:
-                era = "TBC"
-                tier = "RAID_ENTRY" if ilvl <= 128 else ("RAID_MID" if ilvl <= 138 else ("RAID_END" if ilvl <= 151 else "RAID_PINNACLE"))
-            elif req_lvl >= 55 or ilvl >= 60:
-                era = "Classic"
-                tier = "DUNGEON_NORMAL" if ilvl < 66 else ("RAID_ENTRY" if ilvl <= 68 else ("RAID_MID" if ilvl <= 75 else ("RAID_END" if ilvl <= 83 else "RAID_PINNACLE")))
-            else:
-                era = "Classic"
-                tier = "DUNGEON_NORMAL"
-
-        # 7.4 Special Flags & Policy Determination
+        # Special Flags
         special_flags = 0
         has_proc = (tr1 in (1, 2) and sp1 > 0) or (tr2 in (1, 2) and sp2 > 0)
         has_use = (tr1 == 0 and sp1 > 0) or (tr2 == 0 and sp2 > 0)
         has_set = (itemset > 0)
-        has_socket = bool(flags & 0x8) # approximate
+        has_socket = bool(flags & 0x8)
 
         if has_proc: special_flags |= 1
         if has_use: special_flags |= 2
         if has_set: special_flags |= 4
         if has_socket: special_flags |= 8
 
-        # 7.5 Apply Custom Content Overrides (Single Source of Truth)
+        # 7.2 Apply Custom Content Overrides (Single Source of Truth)
         matched_custom = False
         for rule in custom_ov:
             r_min, r_max = rule.get("entry_range", [0, 0])
@@ -584,12 +602,64 @@ def main():
                     policy_code = 2 # PRESERVE
                 elif rule_pol == "TIER_ALIGNED":
                     policy_code = 1 # TIER_ALIGNED
+                era = "Custom"
+                tier = "WORLD"
+                source_map = 0
                 break
 
         if not matched_custom:
-            if special_flags & 32: # Preserve
-                policy_code = 2
-            elif special_flags & 15: # Proc/Use/Set/Socket
+            sources = item_sources.get(item_id, set())
+            if sources:
+                sorted_cands = sorted(sources, key=candidate_priority_key, reverse=True)
+                chosen = sorted_cands[0]
+                source_map, diff, is_boss, conf = chosen
+
+                # Track multi-source conflicts if multiple distinct instance candidates exist
+                inst_cands = [s for s in sources if s[0] not in (0, 1, 530, 571)]
+                if len(set(s[0] for s in inst_cands)) > 1:
+                    inst_chosen = inst_profiles_by_key.get((source_map, diff)) or inst_profiles_by_key.get((source_map, 0))
+                    tier_str = inst_chosen["tier"] if inst_chosen else "WORLD"
+                    item_source_conflicts.append({
+                        "item_id": item_id,
+                        "ilvl": ilvl,
+                        "candidates": inst_cands,
+                        "chosen_source": f"Map {source_map} (diff {diff}, boss={'yes' if is_boss else 'no'})",
+                        "chosen_tier": tier_str,
+                        "reason": f"Ranked highest via priority: boss={is_boss} > conf={conf} > tier={tier_str} > era={inst_chosen['era'] if inst_chosen else 'Unknown'} > mapId={source_map}"
+                    })
+
+                inst = inst_profiles_by_key.get((source_map, diff)) or inst_profiles_by_key.get((source_map, 0))
+                if inst:
+                    era = inst["era"]
+                    tier = inst["tier"]
+                elif source_map in (530,):
+                    era = "TBC"
+                    tier = "WORLD"
+                elif source_map in (571,):
+                    era = "WotLK"
+                    tier = "WORLD"
+                else:
+                    era = "Classic"
+                    tier = "WORLD"
+            else:
+                source_map = 0
+                # Fallback for open world or unknown sources
+                if req_lvl >= 75 or ilvl >= 200:
+                    era = "WotLK"
+                    tier = "RAID_ENTRY" if ilvl <= 213 else ("RAID_MID" if ilvl <= 226 else ("RAID_END" if ilvl <= 245 else "RAID_PINNACLE"))
+                elif req_lvl >= 68 or ilvl >= 115:
+                    era = "TBC"
+                    tier = "RAID_ENTRY" if ilvl <= 128 else ("RAID_MID" if ilvl <= 138 else ("RAID_END" if ilvl <= 151 else "RAID_PINNACLE"))
+                elif req_lvl >= 55 or ilvl >= 60:
+                    era = "Classic"
+                    tier = "DUNGEON_NORMAL" if ilvl < 66 else ("RAID_ENTRY" if ilvl <= 68 else ("RAID_MID" if ilvl <= 75 else ("RAID_END" if ilvl <= 83 else "RAID_PINNACLE")))
+                else:
+                    era = "Classic"
+                    tier = "DUNGEON_NORMAL"
+
+            if special_flags & 32:
+                policy_code = 2 # PRESERVE
+            elif special_flags & 15:
                 policy_code = 3 # REVIEW_SPECIAL
             elif tier != "WORLD":
                 policy_code = 1 # TIER_ALIGNED
@@ -711,11 +781,11 @@ def main():
     with open(docs_dir / "item-source-conflicts.md", "w", encoding="utf-8") as f:
         f.write("# Item Source Conflicts and Tie-Breaking Resolution Report\n\n")
         f.write(f"Total multi-instance conflicts detected: {len(item_source_conflicts)}\n\n")
-        f.write("| Item ID | Authored ilvl | Competing Instances (Map ID: Drop Count) | Resolved Map | Resolution Rationale |\n")
-        f.write("|---|---|---|---|---|\n")
+        f.write("| Item ID | Authored ilvl | Candidates | Chosen Source | Chosen Tier | Reason |\n")
+        f.write("|---|---|---|---|---|---|\n")
         for sc in item_source_conflicts:
-            inst_str = ", ".join(f"{m}:{c}" for m, c in sc["instances"].items())
-            f.write(f"| {sc['item_id']} | {sc['ilvl']} | {inst_str} | {sc['resolved_map']} | Highest drop count with deterministic tie-break |\n")
+            cands_str = "<br>".join([f"Map {s[0]} (diff {s[1]}, boss={'yes' if s[2] else 'no'})" for s in sc["candidates"]])
+            f.write(f"| {sc['item_id']} | {sc['ilvl']} | {cands_str} | {sc['chosen_source']} | {sc['chosen_tier']} | {sc['reason']} |\n")
 
     # 4. progression-calibration.md
     with open(docs_dir / "progression-calibration.md", "w", encoding="utf-8") as f:

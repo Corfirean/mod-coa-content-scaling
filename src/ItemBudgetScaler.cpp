@@ -54,26 +54,19 @@ ItemScalingContext ItemScalingContext::Resolve(ItemTemplate const* proto)
         return ctx;
     }
 
-    // 2. Custom Item Classification & Safety Rules Fallback (for unprofiled custom items within custom ranges)
-    if (proto->ItemId >= 100000 && proto->ItemId <= 600000)
+    // 2. Custom Item Safety Policy Fallback (for unprofiled custom items)
+    // custom_content.json is the single authoritative source of truth for custom classification.
+    // Unprofiled custom items receive safe fallback: CUSTOM_UNCLASSIFIED -> PRESERVE + warning.
+    if (proto->ItemId >= 100000)
     {
-        ctx.specialFlags |= ITEM_SPECIAL_CUSTOM;
+        ctx.specialFlags |= (ITEM_SPECIAL_CUSTOM | ITEM_SPECIAL_PRESERVE);
         ctx.sourceMap = 0;
         ctx.era = ContentEra::Custom;
+        ctx.tier = ContentTier::WORLD;
+        ctx.policy = ItemScalingPolicy::PRESERVE;
 
-        if (proto->ItemId >= 350001)
-        {
-            // CUSTOM_GAMEPLAY (350001..600000): TIER_ALIGNED, active combat scaling
-            ctx.policy = ItemScalingPolicy::TIER_ALIGNED;
-            ctx.tier = ContentTier::DUNGEON_NORMAL;
-        }
-        else
-        {
-            // CUSTOM_COSMETIC (100000..200000) & CUSTOM_CLASS_ITEM (200001..350000): EXEMPT_PRESERVE
-            ctx.specialFlags |= ITEM_SPECIAL_PRESERVE;
-            ctx.policy = ItemScalingPolicy::PRESERVE;
-            ctx.tier = ContentTier::WORLD;
-        }
+        LOG_WARN("server.loading", "UniversalContentScaling: Unprofiled custom item {} encountered; applying safe PRESERVE fallback.",
+            proto->ItemId);
         return ctx;
     }
 
