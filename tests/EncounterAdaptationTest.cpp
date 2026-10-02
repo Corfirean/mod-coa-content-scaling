@@ -549,7 +549,115 @@ TEST_F(EncounterAdaptationTest, EndToEndHookIntegrationTest)
     uint32 const moduleDisabledTimer = instance.ResolveEncounterMechanic(
         12, 1 /*TIMER_MS*/, static_cast<uint8>(EncounterMechanicType::TIMER_MS), 12000);
     EXPECT_EQ(moduleDisabledTimer, 12000u);
+
+    // D. Razorgore End-to-End Hook (Map 469, DATA_RAZORGORE_THE_UNTAMED = 0)
+    mapScript.enabled = true;
+    mapScript.adaptiveMechanicsEnabled = true;
+    MockInstanceScript bwlInstance{ &mapScript, 469 /*BWL*/ };
+    mapScript.activeContext.mapId = 469;
+    mapScript.activeContext.encounterId = 0;
+    mapScript.activeContext.intendedPlayers = 40;
+
+    // Solo egg count objective adapted from 30 eggs to <= 10
+    uint32 const bwlEggs = bwlInstance.ResolveEncounterMechanic(
+        0, 1 /*OBJECTIVE_COUNT*/, static_cast<uint8>(EncounterMechanicType::OBJECTIVE_COUNT), 30);
+    EXPECT_LE(bwlEggs, 10u);
+    EXPECT_GE(bwlEggs, 1u);
+
+    // Solo mind exhaustion cooldown (authored 60000ms -> 0ms for solo)
+    uint32 const bwlExhaustion = bwlInstance.ResolveEncounterMechanic(
+        0, 2 /*TIMER_MS*/, static_cast<uint8>(EncounterMechanicType::TIMER_MS), 60000);
+    EXPECT_EQ(bwlExhaustion, 0u);
+
+    // E. Flame Leviathan End-to-End Hook (Map 603, BOSS_LEVIATHAN = 0)
+    MockInstanceScript ulduarInstance{ &mapScript, 603 /*Ulduar*/ };
+    mapScript.activeContext.mapId = 603;
+    mapScript.activeContext.encounterId = 0;
+    mapScript.activeContext.intendedPlayers = 10;
+
+    // Solo overload passengers requirement adapted from 2 to 1
+    uint32 const ulduarOverload = ulduarInstance.ResolveEncounterMechanic(
+        0, 1 /*REQUIRED_PLAYERS*/, static_cast<uint8>(EncounterMechanicType::REQUIRED_PLAYERS), 2);
+    EXPECT_EQ(ulduarOverload, 1u);
+
+    // Solo Gathering Speed stack cap adapted from 20 to 10
+    uint32 const ulduarSpeedCap = ulduarInstance.ResolveEncounterMechanic(
+        0, 2 /*STACK_THRESHOLD*/, static_cast<uint8>(EncounterMechanicType::STACK_THRESHOLD), 20);
+    EXPECT_EQ(ulduarSpeedCap, 10u);
+
+    // F. Valithria Dreamwalker End-to-End Hook (Map 631, DATA_VALITHRIA_DREAMWALKER = 10)
+    MockInstanceScript iccInstance{ &mapScript, 631 /*ICC*/ };
+    mapScript.activeContext.mapId = 631;
+    mapScript.activeContext.encounterId = 10;
+    mapScript.activeContext.intendedPlayers = 10;
+
+    // Solo portal count adapted from 3 to 1
+    uint32 const iccPortals = iccInstance.ResolveEncounterMechanic(
+        10, 1 /*REQUIRED_INTERACTORS*/, static_cast<uint8>(EncounterMechanicType::REQUIRED_INTERACTORS), 3);
+    EXPECT_EQ(iccPortals, 1u);
+
+    // Solo add kill heal contribution adapted from 0 to 8%
+    uint32 const iccHealContribution = iccInstance.ResolveEncounterMechanic(
+        10, 2 /*HEALING_CONTRIBUTION*/, static_cast<uint8>(EncounterMechanicType::HEALING_CONTRIBUTION), 0);
+    EXPECT_EQ(iccHealContribution, 8u);
 }
+
+// 14. SourceLevelWiringTest
+// Verifies semantic wiring anchors across the 5 real encounter source scripts:
+// Razorgore, Twin Emperors, Four Horsemen, Flame Leviathan, and The Lich King.
+TEST_F(EncounterAdaptationTest, SourceLevelWiringTest)
+{
+    // Razorgore: egg objective count (DATA_RAZORGORE_THE_UNTAMED, 1, 4), exhaustion (2, 9), wave size (3, 6)
+    EncounterContext soloBwl;
+    soloBwl.mapId = 469;
+    soloBwl.encounterId = 0;
+    soloBwl.mechanicParticipants = 1;
+    soloBwl.intendedPlayers = 40;
+    soloBwl.isMechanicSolo = true;
+    EXPECT_LE(sAdaptiveEncounterMgr->ResolveMechanic(469, 0, 1, EncounterMechanicType::OBJECTIVE_COUNT, 30, soloBwl), 10u);
+    EXPECT_EQ(sAdaptiveEncounterMgr->ResolveMechanic(469, 0, 2, EncounterMechanicType::TIMER_MS, 60000, soloBwl), 0u);
+
+    // Twin Emperors: heal proximity distance check (DATA_TWIN_EMPERORS, 1, 11)
+    EncounterContext soloAq40;
+    soloAq40.mapId = 531;
+    soloAq40.encounterId = 7;
+    soloAq40.mechanicParticipants = 1;
+    soloAq40.intendedPlayers = 40;
+    soloAq40.isMechanicSolo = true;
+    EXPECT_EQ(sAdaptiveEncounterMgr->ResolveMechanic(531, 7, 1, EncounterMechanicType::PROXIMITY_DISTANCE, 60, soloAq40), 0u);
+
+    // Four Horsemen: mark timer (BOSS_HORSEMAN, 1, 9), fail punishment (2, 10)
+    EncounterContext soloNaxx;
+    soloNaxx.mapId = 533;
+    soloNaxx.encounterId = 12;
+    soloNaxx.mechanicParticipants = 1;
+    soloNaxx.intendedPlayers = 10;
+    soloNaxx.isMechanicSolo = true;
+    EXPECT_EQ(sAdaptiveEncounterMgr->ResolveMechanic(533, 12, 1, EncounterMechanicType::TIMER_MS, 12000, soloNaxx), 36000u);
+    EXPECT_EQ(sAdaptiveEncounterMgr->ResolveMechanic(533, 12, 2, EncounterMechanicType::FAIL_THRESHOLD, 1, soloNaxx), 0u);
+
+    // Flame Leviathan: overload passengers (BOSS_LEVIATHAN, 1, 2), gathering speed stack cap (2, 7)
+    EncounterContext soloUlduar;
+    soloUlduar.mapId = 603;
+    soloUlduar.encounterId = 0;
+    soloUlduar.mechanicParticipants = 1;
+    soloUlduar.intendedPlayers = 10;
+    soloUlduar.isMechanicSolo = true;
+    EXPECT_EQ(sAdaptiveEncounterMgr->ResolveMechanic(603, 0, 1, EncounterMechanicType::REQUIRED_PLAYERS, 2, soloUlduar), 1u);
+    EXPECT_EQ(sAdaptiveEncounterMgr->ResolveMechanic(603, 0, 2, EncounterMechanicType::STACK_THRESHOLD, 20, soloUlduar), 10u);
+
+    // Lich King: Valkyr safe release carry timer (DATA_THE_LICH_KING, 2, 9), drop threshold (1, 7)
+    EncounterContext soloIcc;
+    soloIcc.mapId = 631;
+    soloIcc.encounterId = 12;
+    soloIcc.mechanicParticipants = 1;
+    soloIcc.intendedPlayers = 25;
+    soloIcc.isMechanicSolo = true;
+    EXPECT_EQ(sAdaptiveEncounterMgr->ResolveMechanic(631, 12, 1, EncounterMechanicType::STACK_THRESHOLD, 50, soloIcc), 85u);
+    EXPECT_EQ(sAdaptiveEncounterMgr->ResolveMechanic(631, 12, 2, EncounterMechanicType::TIMER_MS, 0, soloIcc), 4000u);
+}
+
+
 
 
 
