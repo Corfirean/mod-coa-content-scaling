@@ -83,6 +83,39 @@ enum class ItemModCategory : uint8
     }
 }
 
+enum class ItemScalingPolicy : uint8
+{
+    STANDARD       = 0, // Normal stat normalization
+    TIER_ALIGNED   = 1, // Scaled strictly according to authoritative ContentTier
+    PRESERVE       = 2, // Do not mutate combat fields or metadata
+    REVIEW_SPECIAL = 3  // Base stats scale, special proc/use/socket preserved untouched
+};
+
+constexpr std::string_view ItemScalingPolicyToString(ItemScalingPolicy policy)
+{
+    switch (policy)
+    {
+        case ItemScalingPolicy::STANDARD:       return "STANDARD";
+        case ItemScalingPolicy::TIER_ALIGNED:   return "TIER_ALIGNED";
+        case ItemScalingPolicy::PRESERVE:       return "PRESERVE";
+        case ItemScalingPolicy::REVIEW_SPECIAL: return "REVIEW_SPECIAL";
+        default:                                return "UNKNOWN";
+    }
+}
+
+struct ItemScalingContext
+{
+    ContentEra era{ContentEra::Classic};
+    ContentTier tier{ContentTier::WORLD};
+    ItemScalingPolicy policy{ItemScalingPolicy::STANDARD};
+    uint32 sourceMap{0};
+    uint8 specialFlags{0};
+    bool hasGeneratedProfile{false};
+    bool fallbackTierInference{false};
+
+    static ItemScalingContext Resolve(ItemTemplate const* proto);
+};
+
 struct ScaledItemBudget
 {
     uint32 effectiveRequiredLevel{1};
@@ -101,15 +134,22 @@ public:
 
     // Reconcile and calculate scaled budget for an item
     ScaledItemBudget CalculateItemBudget(ItemTemplate const* proto, ProgressionLayout const& layout) const;
+    ScaledItemBudget CalculateItemBudget(ItemTemplate const* proto, ProgressionLayout const& layout,
+                                         ItemScalingContext const& context) const;
 
     // Apply scaled budget onto ItemTemplate in-memory (called post ObjectMgr load)
     void ScaleItemTemplate(ItemTemplate* proto, ProgressionLayout const& layout) const;
 
-    // Process all loaded items in ObjectMgr
+    // Process all loaded items in ObjectMgr (one-time idempotent execution)
     void ScaleAllItems(ProgressionLayout const& layout);
+
+    [[nodiscard]] bool AreItemsScaled() const { return _itemsScaled; }
+    void ResetScaledState() { _itemsScaled = false; }
 
 private:
     ItemBudgetScaler() = default;
+
+    bool _itemsScaled{false};
 };
 
 #define sItemBudgetScaler ItemBudgetScaler::Instance()

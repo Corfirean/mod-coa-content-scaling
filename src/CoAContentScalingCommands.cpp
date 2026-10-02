@@ -218,13 +218,15 @@ private:
         }
 
         ProgressionLayout const& layout = sCoAContentScaling->GetLayout();
-        ScaledItemBudget const budget = sItemBudgetScaler->CalculateItemBudget(item, layout);
-        EraResolutionResult const eraRes = sContentPackRegistry->ResolveEraDetailsForItem(
-            itemId, item->ItemLevel, item->RequiredLevel);
+        ItemScalingContext const ctx = ItemScalingContext::Resolve(item);
+        ScaledItemBudget const budget = sItemBudgetScaler->CalculateItemBudget(item, layout, ctx);
 
         handler->PSendSysMessage("=== Item Scaling: %s (ID: %u) ===", item->Name1.c_str(), itemId);
-        handler->PSendSysMessage("Era: %s | Resolved by: %s",
-            ContentEraToString(eraRes.era).data(), EraResolutionSourceToString(eraRes.source).data());
+        handler->PSendSysMessage("Generated Profile: %s | Fallback Tier Inference: %s",
+            ctx.hasGeneratedProfile ? "Yes" : "No", ctx.fallbackTierInference ? "Yes" : "No");
+        handler->PSendSysMessage("Era: %s | Tier: %s | Policy: %s",
+            ContentEraToString(ctx.era).data(), ContentTierToString(ctx.tier).data(), ItemScalingPolicyToString(ctx.policy).data());
+        handler->PSendSysMessage("Source Map: %u | Special Flags: 0x%02X", ctx.sourceMap, uint32(ctx.specialFlags));
         handler->PSendSysMessage("Authored ReqLevel: %u | Effective ReqLevel: %u", item->RequiredLevel, budget.effectiveRequiredLevel);
         handler->PSendSysMessage("Authored ItemLevel: %u | Effective ItemLevel: %u", item->ItemLevel, budget.effectiveItemLevel);
         handler->PSendSysMessage("Multipliers: Stats x%.2f | Ratings x%.2f | Armor x%.2f | DPS x%.2f",

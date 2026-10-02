@@ -1191,6 +1191,207 @@ TEST(ContentCensusIntegrityTest, ItemSourceTiersAndOutlierClassification)
     EXPECT_EQ(iccTrinket->tier, ContentTier::RAID_PINNACLE);
 }
 
+// =============================================================================
+// Round 3.2: Item Runtime Authority & Policy Enforcement Tests
+// =============================================================================
+
+TEST(ItemRuntimeAuthorityTest, GeneratedTierWinsOverMisleadingIlvl)
+{
+    ItemTemplate fakeItem;
+    fakeItem.ItemId = 32837; // Warglaive of Azzinoth in census (BT, RAID_PINNACLE)
+    fakeItem.ItemLevel = 156;
+    fakeItem.RequiredLevel = 70;
+
+    ItemScalingContext ctx = ItemScalingContext::Resolve(&fakeItem);
+    EXPECT_TRUE(ctx.hasGeneratedProfile);
+    EXPECT_FALSE(ctx.fallbackTierInference);
+    EXPECT_EQ(ctx.era, ContentEra::TBC);
+    EXPECT_EQ(ctx.tier, ContentTier::RAID_PINNACLE);
+    EXPECT_EQ(ctx.policy, ItemScalingPolicy::REVIEW_SPECIAL); // Has proc / use flags
+}
+
+TEST(ItemRuntimeAuthorityTest, WotLKTierProgressionMonotonicAtCap60)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+    // Classic: 1-45, TBC: 45-55, WotLK: 55-60
+
+    // Representative real items from current census:
+    // Naxxramas: Item 39291 (RAID_ENTRY, auth ilvl 200, req 80)
+    // Ulduar: Item 44005 (RAID_MID, auth ilvl 226, req 80)
+    // ToC: Item 45086 (RAID_END, auth ilvl 232, req 80)
+    // ICC: Item 50351 (RAID_PINNACLE, auth ilvl 264, req 80)
+
+    ItemTemplate naxxItem;
+    naxxItem.ItemId = 39291;
+    naxxItem.ItemLevel = 200;
+    naxxItem.RequiredLevel = 80;
+
+    ItemTemplate ulduarItem;
+    ulduarItem.ItemId = 44005;
+    ulduarItem.ItemLevel = 226;
+    ulduarItem.RequiredLevel = 80;
+
+    ItemTemplate tocItem;
+    tocItem.ItemId = 45086;
+    tocItem.ItemLevel = 232;
+    tocItem.RequiredLevel = 80;
+
+    ItemTemplate iccItem;
+    iccItem.ItemId = 50351;
+    iccItem.ItemLevel = 264;
+    iccItem.RequiredLevel = 80;
+
+    ScaledItemBudget bNaxx = sItemBudgetScaler->CalculateItemBudget(&naxxItem, layout);
+    ScaledItemBudget bUlduar = sItemBudgetScaler->CalculateItemBudget(&ulduarItem, layout);
+    ScaledItemBudget bToc = sItemBudgetScaler->CalculateItemBudget(&tocItem, layout);
+    ScaledItemBudget bIcc = sItemBudgetScaler->CalculateItemBudget(&iccItem, layout);
+
+    // Strict monotonic effective power progression
+    EXPECT_LT(bNaxx.effectiveItemLevel, bUlduar.effectiveItemLevel);
+    EXPECT_LT(bUlduar.effectiveItemLevel, bToc.effectiveItemLevel);
+    EXPECT_LT(bToc.effectiveItemLevel, bIcc.effectiveItemLevel);
+
+    EXPECT_GT(bNaxx.statMultiplier, 0.20f);
+    EXPECT_GT(bUlduar.statMultiplier, 0.20f);
+    EXPECT_GT(bToc.statMultiplier, 0.20f);
+    EXPECT_GT(bIcc.statMultiplier, 0.20f);
+}
+
+TEST(ItemRuntimeAuthorityTest, TBCTierProgressionMonotonicAtCap60)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    // Representative real items from current census:
+    // Karazhan: Item 24079 (RAID_ENTRY, ilvl 115)
+    // SSC/TK: Item 30105 (RAID_MID, ilvl 128)
+    // BT/Hyjal: Item 32505 (RAID_END, ilvl 141)
+    // Sunwell: Item 30311 (RAID_PINNACLE, ilvl 159)
+
+    ItemTemplate karaItem;
+    karaItem.ItemId = 24079;
+    karaItem.ItemLevel = 115;
+    karaItem.RequiredLevel = 70;
+
+    ItemTemplate sscItem;
+    sscItem.ItemId = 30105;
+    sscItem.ItemLevel = 128;
+    sscItem.RequiredLevel = 70;
+
+    ItemTemplate btItem;
+    btItem.ItemId = 32505;
+    btItem.ItemLevel = 141;
+    btItem.RequiredLevel = 70;
+
+    ItemTemplate sunwellItem;
+    sunwellItem.ItemId = 30311;
+    sunwellItem.ItemLevel = 159;
+    sunwellItem.RequiredLevel = 70;
+
+    ScaledItemBudget bKara = sItemBudgetScaler->CalculateItemBudget(&karaItem, layout);
+    ScaledItemBudget bSsc = sItemBudgetScaler->CalculateItemBudget(&sscItem, layout);
+    ScaledItemBudget bBt = sItemBudgetScaler->CalculateItemBudget(&btItem, layout);
+    ScaledItemBudget bSunwell = sItemBudgetScaler->CalculateItemBudget(&sunwellItem, layout);
+
+    EXPECT_LE(bKara.effectiveItemLevel, bSsc.effectiveItemLevel);
+    EXPECT_LT(bSsc.effectiveItemLevel, bBt.effectiveItemLevel);
+    EXPECT_LT(bBt.effectiveItemLevel, bSunwell.effectiveItemLevel);
+}
+
+TEST(ItemRuntimeAuthorityTest, CustomItemSafetyAndPreservePolicies)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    // 1. CUSTOM_COSMETIC (100000..200000): e.g. Wizened Wizard (100002)
+    ItemTemplate cosmetic;
+    cosmetic.ItemId = 100002;
+    cosmetic.ItemLevel = 20;
+    cosmetic.RequiredLevel = 0;
+    cosmetic.Armor = 0;
+
+    ItemScalingContext ctxCosmetic = ItemScalingContext::Resolve(&cosmetic);
+    EXPECT_EQ(ctxCosmetic.policy, ItemScalingPolicy::PRESERVE);
+    EXPECT_TRUE(ctxCosmetic.specialFlags & ITEM_SPECIAL_PRESERVE);
+
+    ScaledItemBudget bCosmetic = sItemBudgetScaler->CalculateItemBudget(&cosmetic, layout, ctxCosmetic);
+    EXPECT_EQ(bCosmetic.effectiveItemLevel, cosmetic.ItemLevel);
+    EXPECT_EQ(bCosmetic.effectiveRequiredLevel, cosmetic.RequiredLevel);
+    EXPECT_FLOAT_EQ(bCosmetic.statMultiplier, 1.0f);
+
+    // 2. CUSTOM_CLASS_ITEM (200001..350000): e.g. Race Change Potion (200001)
+    ItemTemplate classItem;
+    classItem.ItemId = 200001;
+    classItem.ItemLevel = 64;
+    classItem.RequiredLevel = 0;
+
+    ItemScalingContext ctxClass = ItemScalingContext::Resolve(&classItem);
+    EXPECT_EQ(ctxClass.policy, ItemScalingPolicy::PRESERVE);
+    ScaledItemBudget bClass = sItemBudgetScaler->CalculateItemBudget(&classItem, layout, ctxClass);
+    EXPECT_EQ(bClass.effectiveItemLevel, classItem.ItemLevel);
+    EXPECT_FLOAT_EQ(bClass.statMultiplier, 1.0f);
+
+    // 3. CUSTOM_GAMEPLAY (350001..600000): e.g. Havoc's Call (350012)
+    ItemTemplate gameplayItem;
+    gameplayItem.ItemId = 350012;
+    gameplayItem.ItemLevel = 287;
+    gameplayItem.RequiredLevel = 80;
+
+    ItemScalingContext ctxGameplay = ItemScalingContext::Resolve(&gameplayItem);
+    EXPECT_EQ(ctxGameplay.policy, ItemScalingPolicy::TIER_ALIGNED);
+    EXPECT_FALSE(ctxGameplay.specialFlags & ITEM_SPECIAL_PRESERVE);
+}
+
+TEST(ItemRuntimeAuthorityTest, MissingGeneratedProfileSafelyFallsBack)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    ItemTemplate unprofiled;
+    unprofiled.ItemId = 999999;
+    unprofiled.ItemLevel = 200;
+    unprofiled.RequiredLevel = 80;
+
+    ItemScalingContext ctx = ItemScalingContext::Resolve(&unprofiled);
+    EXPECT_FALSE(ctx.hasGeneratedProfile);
+    EXPECT_TRUE(ctx.fallbackTierInference);
+    EXPECT_EQ(ctx.era, ContentEra::WotLK);
+    EXPECT_EQ(ctx.tier, ContentTier::RAID_ENTRY);
+
+    ScaledItemBudget budget = sItemBudgetScaler->CalculateItemBudget(&unprofiled, layout, ctx);
+    EXPECT_LE(budget.effectiveRequiredLevel, 60u);
+    EXPECT_LT(budget.effectiveItemLevel, 200u);
+}
+
+TEST(ItemRuntimeAuthorityTest, StockCap80IdentityPreserved)
+{
+    ProgressionLayout layoutCap80 = ProgressionLayout::Create(80, true, true);
+
+    ItemTemplate iccItem;
+    iccItem.ItemId = 50351;
+    iccItem.ItemLevel = 264;
+    iccItem.RequiredLevel = 80;
+
+    ScaledItemBudget budget = sItemBudgetScaler->CalculateItemBudget(&iccItem, layoutCap80);
+    EXPECT_EQ(budget.effectiveRequiredLevel, 80u);
+    EXPECT_EQ(budget.effectiveItemLevel, 264u);
+    EXPECT_FLOAT_EQ(budget.statMultiplier, 1.0f);
+    EXPECT_FLOAT_EQ(budget.ratingMultiplier, 1.0f);
+    EXPECT_FLOAT_EQ(budget.armorMultiplier, 1.0f);
+    EXPECT_FLOAT_EQ(budget.weaponDpsMultiplier, 1.0f);
+}
+
+TEST(ItemRuntimeAuthorityTest, ScaleAllItemsIdempotenceProtection)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+    sItemBudgetScaler->ResetScaledState();
+    EXPECT_FALSE(sItemBudgetScaler->AreItemsScaled());
+
+    sItemBudgetScaler->ScaleAllItems(layout);
+    EXPECT_TRUE(sItemBudgetScaler->AreItemsScaled());
+
+    // Second call must no-op without crashing or multiplying stats twice
+    sItemBudgetScaler->ScaleAllItems(layout);
+    EXPECT_TRUE(sItemBudgetScaler->AreItemsScaled());
+}
+
 
 
 
