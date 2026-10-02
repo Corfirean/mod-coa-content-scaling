@@ -61,6 +61,9 @@ public:
     [[nodiscard]] bool IsAdaptiveMechanicsEnabled() const { return _adaptiveMechanicsEnabled; }
     [[nodiscard]] bool IsDebugEnabled() const { return _debug; }
 
+    void SetEnabled(bool enabled) { _enabled = enabled; }
+    void SetAdaptiveMechanicsEnabled(bool enabled) { _adaptiveMechanicsEnabled = enabled; }
+
     [[nodiscard]] ProgressionLayout const& GetLayout() const { return _layout; }
 
     // Effective Level Mapping

@@ -319,3 +319,237 @@ TEST_F(EncounterAdaptationTest, LichKingSoloValkyrThreshold)
     EXPECT_EQ(fullDropPct, 50u); // Preserves authored 50% threshold
 }
 
+// 10. FlameLeviathanGatheringSpeedStackCap
+TEST_F(EncounterAdaptationTest, FlameLeviathanGatheringSpeedStackCap)
+{
+    // Solo context (Gathering Speed max stacks should be capped lower than authored 20)
+    EncounterContext soloCtx;
+    soloCtx.mapId = 603;
+    soloCtx.encounterId = 0; // BOSS_LEVIATHAN
+    soloCtx.actualParticipants = 1;
+    soloCtx.combatEffectivePlayers = 1.0f;
+    soloCtx.mechanicParticipants = 1;
+    soloCtx.intendedPlayers = 10;
+    soloCtx.challengeSize = 0;
+    soloCtx.isPhysicallySolo = true;
+    soloCtx.isMechanicSolo = true;
+
+    uint32 const soloSpeedCap = sAdaptiveEncounterMgr->ResolveMechanic(
+        603, 0, 2, EncounterMechanicType::STACK_THRESHOLD, 20, soloCtx);
+    EXPECT_EQ(soloSpeedCap, 10u); // Authored 20 / 2 = 10 stacks cap for solo
+
+    // Full raid parity
+    EncounterContext fullCtx;
+    fullCtx.mapId = 603;
+    fullCtx.encounterId = 0;
+    fullCtx.actualParticipants = 10;
+    fullCtx.combatEffectivePlayers = 10.0f;
+    fullCtx.mechanicParticipants = 10;
+    fullCtx.intendedPlayers = 10;
+    fullCtx.challengeSize = 0;
+    fullCtx.isPhysicallySolo = false;
+    fullCtx.isMechanicSolo = false;
+
+    uint32 const fullSpeedCap = sAdaptiveEncounterMgr->ResolveMechanic(
+        603, 0, 2, EncounterMechanicType::STACK_THRESHOLD, 20, fullCtx);
+    EXPECT_EQ(fullSpeedCap, 20u); // Unchanged authored cap
+}
+
+// 11. ValithriaCorrectHealProgressionAndCompletion
+TEST_F(EncounterAdaptationTest, ValithriaCorrectHealProgressionAndCompletion)
+{
+    EncounterContext soloCtx;
+    soloCtx.mapId = 631;
+    soloCtx.encounterId = 10; // DATA_VALITHRIA_DREAMWALKER
+    soloCtx.actualParticipants = 1;
+    soloCtx.combatEffectivePlayers = 1.0f;
+    soloCtx.mechanicParticipants = 1;
+    soloCtx.intendedPlayers = 10;
+    soloCtx.challengeSize = 0;
+    soloCtx.isPhysicallySolo = true;
+    soloCtx.isMechanicSolo = true;
+
+    uint32 const healPctPerKill = sAdaptiveEncounterMgr->ResolveMechanic(
+        631, 10, 2, EncounterMechanicType::HEALING_CONTRIBUTION, 0, soloCtx);
+    EXPECT_EQ(healPctPerKill, 8u);
+
+    // Simulate Valithria health starting at 50%
+    uint32 const maxHealth = 1000000;
+    uint32 curHealth = maxHealth / 2; // 50%
+    bool completed = false;
+
+    auto ProcessAddKill = [&](uint32 addHealPct)
+    {
+        uint32 heal = (maxHealth * addHealPct) / 100;
+        // In DealHeal: gain = victim->ModifyHealth(addhealth); then check completion
+        if (curHealth + heal >= maxHealth)
+        {
+            curHealth = maxHealth;
+            completed = true;
+        }
+        else
+        {
+            curHealth += heal;
+        }
+    };
+
+    // Kill 1: 50% + 8% = 58%
+    ProcessAddKill(healPctPerKill);
+    EXPECT_FALSE(completed);
+    EXPECT_EQ(curHealth, 580000u);
+
+    // Kill 2: 58% + 8% = 66%
+    ProcessAddKill(healPctPerKill);
+    EXPECT_FALSE(completed);
+    EXPECT_EQ(curHealth, 660000u);
+
+    // Kill 3: 66% + 8% = 74%
+    ProcessAddKill(healPctPerKill);
+    EXPECT_FALSE(completed);
+    EXPECT_EQ(curHealth, 740000u);
+
+    // Kill 4: 74% + 8% = 82%
+    ProcessAddKill(healPctPerKill);
+    EXPECT_FALSE(completed);
+    EXPECT_EQ(curHealth, 820000u);
+
+    // Kill 5: 82% + 8% = 90% -> still NOT done
+    ProcessAddKill(healPctPerKill);
+    EXPECT_FALSE(completed);
+    EXPECT_EQ(curHealth, 900000u);
+
+    // Kill 6: 90% + 8% = 98% -> still NOT done
+    ProcessAddKill(healPctPerKill);
+    EXPECT_FALSE(completed);
+    EXPECT_EQ(curHealth, 980000u);
+
+    // Kill 7: 98% + 8% = 106% -> clamped to 100% and marks completed
+    ProcessAddKill(healPctPerKill);
+    EXPECT_TRUE(completed);
+    EXPECT_EQ(curHealth, maxHealth);
+}
+
+// 12. LichKingGuaranteedSoloValkyrRelease
+TEST_F(EncounterAdaptationTest, LichKingGuaranteedSoloValkyrRelease)
+{
+    // Solo context
+    EncounterContext soloCtx;
+    soloCtx.mapId = 631;
+    soloCtx.encounterId = 12; // DATA_THE_LICH_KING
+    soloCtx.actualParticipants = 1;
+    soloCtx.combatEffectivePlayers = 1.0f;
+    soloCtx.mechanicParticipants = 1;
+    soloCtx.intendedPlayers = 25;
+    soloCtx.challengeSize = 0;
+    soloCtx.isPhysicallySolo = true;
+    soloCtx.isMechanicSolo = true;
+
+    // Solo safe release carry duration window (mechanicId 2) should return 4000ms
+    uint32 const soloCarryWindowMs = sAdaptiveEncounterMgr->ResolveMechanic(
+        631, 12, 2, EncounterMechanicType::TIMER_MS, 0, soloCtx);
+    EXPECT_EQ(soloCarryWindowMs, 4000u); // 4 seconds before safe ejection
+
+    // Full group parity: return authored 0ms (no timer-based safe ejection, requires killing or dropping)
+    EncounterContext fullCtx;
+    fullCtx.mapId = 631;
+    fullCtx.encounterId = 12;
+    fullCtx.actualParticipants = 25;
+    fullCtx.combatEffectivePlayers = 25.0f;
+    fullCtx.mechanicParticipants = 25;
+    fullCtx.intendedPlayers = 25;
+    fullCtx.challengeSize = 0;
+    fullCtx.isPhysicallySolo = false;
+    fullCtx.isMechanicSolo = false;
+
+    uint32 const fullCarryWindowMs = sAdaptiveEncounterMgr->ResolveMechanic(
+        631, 12, 2, EncounterMechanicType::TIMER_MS, 0, fullCtx);
+    EXPECT_EQ(fullCarryWindowMs, 0u);
+}
+
+// 13. EndToEndHookIntegrationTest
+// Simulates the exact call chain:
+// InstanceScript::ResolveEncounterMechanic -> ScriptMgr::OnResolveEncounterMechanic -> AllMapScript::OnResolveEncounterMechanic
+// -> mod-coa-content-scaling (coa_content_scaling_map) -> AdaptiveEncounterMgr -> Adapter
+TEST_F(EncounterAdaptationTest, EndToEndHookIntegrationTest)
+{
+    // Mock minimal map script behavior mirroring coa_content_scaling_map
+    struct MockScalingMapScript
+    {
+        bool enabled{true};
+        bool adaptiveMechanicsEnabled{true};
+        EncounterContext activeContext;
+
+        void OnResolveEncounterMechanic(uint32 mapId, uint32 encounterId, uint32 mechanicId,
+                                        uint8 mechanicType, uint32 authoredValue, uint32& resolvedValue)
+        {
+            if (!enabled || !adaptiveMechanicsEnabled)
+                return; // Authored value unchanged
+
+            resolvedValue = sAdaptiveEncounterMgr->ResolveMechanic(
+                mapId, encounterId, mechanicId, static_cast<EncounterMechanicType>(mechanicType), authoredValue, activeContext);
+        }
+    };
+
+    // Simulated InstanceScript caller
+    struct MockInstanceScript
+    {
+        MockScalingMapScript* mapScript;
+        uint32 mapId;
+
+        uint32 ResolveEncounterMechanic(uint32 encounterId, uint32 mechanicId, uint8 mechanicType, uint32 authoredValue)
+        {
+            uint32 resolved = authoredValue;
+            if (mapScript)
+                mapScript->OnResolveEncounterMechanic(mapId, encounterId, mechanicId, mechanicType, authoredValue, resolved);
+            return resolved;
+        }
+    };
+
+    MockScalingMapScript mapScript;
+    MockInstanceScript instance{ &mapScript, 533 /*Naxxramas*/ };
+
+    // Setup Solo context for Four Horsemen (BOSS_HORSEMAN = 12)
+    mapScript.activeContext.mapId = 533;
+    mapScript.activeContext.encounterId = 12;
+    mapScript.activeContext.actualParticipants = 1;
+    mapScript.activeContext.combatEffectivePlayers = 1.0f;
+    mapScript.activeContext.mechanicParticipants = 1;
+    mapScript.activeContext.intendedPlayers = 10;
+    mapScript.activeContext.challengeSize = 0;
+    mapScript.activeContext.isPhysicallySolo = true;
+    mapScript.activeContext.isMechanicSolo = true;
+
+    // A. Solo with Adaptive Mechanics Enabled:
+    // Four Horsemen mark timer (authored 12000ms) should be adapted to 36000ms
+    uint32 const soloMarkTimer = instance.ResolveEncounterMechanic(
+        12, 1 /*TIMER_MS*/, static_cast<uint8>(EncounterMechanicType::TIMER_MS), 12000);
+    EXPECT_EQ(soloMarkTimer, 36000u);
+
+    // Four Horsemen unattended corner punishment (authored 1) should be suppressed (0)
+    uint32 const soloPunishment = instance.ResolveEncounterMechanic(
+        12, 2 /*FAIL_THRESHOLD*/, static_cast<uint8>(EncounterMechanicType::FAIL_THRESHOLD), 1);
+    EXPECT_EQ(soloPunishment, 0u);
+
+    // B. Adaptive Mechanics Disabled (AdaptiveMechanics.Enable = 0):
+    // Both mechanics must return exact authored values 1:1
+    mapScript.adaptiveMechanicsEnabled = false;
+
+    uint32 const disabledMarkTimer = instance.ResolveEncounterMechanic(
+        12, 1 /*TIMER_MS*/, static_cast<uint8>(EncounterMechanicType::TIMER_MS), 12000);
+    EXPECT_EQ(disabledMarkTimer, 12000u);
+
+    uint32 const disabledPunishment = instance.ResolveEncounterMechanic(
+        12, 2 /*FAIL_THRESHOLD*/, static_cast<uint8>(EncounterMechanicType::FAIL_THRESHOLD), 1);
+    EXPECT_EQ(disabledPunishment, 1u);
+
+    // C. Module Disabled entirely (Enable = 0):
+    mapScript.adaptiveMechanicsEnabled = true;
+    mapScript.enabled = false;
+
+    uint32 const moduleDisabledTimer = instance.ResolveEncounterMechanic(
+        12, 1 /*TIMER_MS*/, static_cast<uint8>(EncounterMechanicType::TIMER_MS), 12000);
+    EXPECT_EQ(moduleDisabledTimer, 12000u);
+}
+
+
+

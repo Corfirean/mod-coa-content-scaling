@@ -42,6 +42,14 @@ public:
             }
             case EncounterMechanicType::TIMER_MS:
             {
+                // mechanicId 2: Solo Valkyr safe release carry duration window (authored: 0 ms = no auto release)
+                if (mechanicId == 2)
+                {
+                    if (ctx.isMechanicSolo)
+                        return 4000; // 4 seconds of carry before safe release
+                    return 0; // authored: carry until edge or damage threshold
+                }
+
                 // Cast/respawn timers for mechanics like Defile or Harvest Soul
                 if (ctx.isMechanicSolo)
                     return static_cast<uint32>(authoredValue * 1.25f);
