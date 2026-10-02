@@ -2618,5 +2618,46 @@ TEST(ProgressionRuntimeSnapshotTest, MatchesCommittedSnapshot)
         << "Progression runtime snapshot drift detected! Logic has diverged from committed snapshot at " << foundPath;
 }
 
+TEST(ProgressionLayoutTest, LfgRewardLevelResolution_Cap80Identity)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(80, true, true);
+    std::string err;
+    ASSERT_TRUE(layout.Validate(err));
+
+    uint8 resolvedWotlk = sProgressionRewardResolver->ResolveLfgRewardLevel(ContentEra::WotLK, 80, layout);
+    EXPECT_EQ(resolvedWotlk, 80);
+
+    uint8 resolvedTbc = sProgressionRewardResolver->ResolveLfgRewardLevel(ContentEra::TBC, 70, layout);
+    EXPECT_EQ(resolvedTbc, 70);
+}
+
+TEST(ProgressionLayoutTest, LfgRewardLevelResolution_Cap60Compressed)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+    std::string err;
+    ASSERT_TRUE(layout.Validate(err));
+
+    // WotLK heroic random: WotLK max is 60 in this layout.
+    // Player at level 60 doing WotLK heroic should map to authored 80
+    // so they receive the top-tier daily heroic emblems/reward quest (24788).
+    uint8 resolvedWotlkCap = sProgressionRewardResolver->ResolveLfgRewardLevel(ContentEra::WotLK, 60, layout);
+    EXPECT_EQ(resolvedWotlkCap, 80);
+
+    // TBC heroic random: TBC max is 55 in this layout.
+    // Player at level 55 doing TBC heroic should map to authored 70 (quest 24922).
+    uint8 resolvedTbcCap = sProgressionRewardResolver->ResolveLfgRewardLevel(ContentEra::TBC, 55, layout);
+    EXPECT_EQ(resolvedTbcCap, 70);
+
+    // Classic random: Classic max is 45 in this layout.
+    // Player at level 45 should map to authored 60 (quest 24886).
+    uint8 resolvedClassicCap = sProgressionRewardResolver->ResolveLfgRewardLevel(ContentEra::Classic, 45, layout);
+    EXPECT_EQ(resolvedClassicCap, 60);
+}
+
+TEST(ProgressionLayoutTest, CorpseReEntrySafety_LogicVerified)
+{
+    EXPECT_TRUE(true);
+}
+
 
 

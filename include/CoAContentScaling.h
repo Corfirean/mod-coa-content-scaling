@@ -53,6 +53,7 @@ public:
     static CoAContentScaling* Instance();
 
     void LoadConfig();
+    void LoadReloadableConfig();
     void FinalizeAndInitialize();
     void InitializeLayout();
 
@@ -88,6 +89,9 @@ public:
 
     // Map access validation
     [[nodiscard]] bool CanPlayerEnterMap(Player const* player, uint32 mapId, uint8 difficulty = 0) const;
+
+    // LFG Reward Level Resolution
+    [[nodiscard]] uint8 ResolveLfgRewardLevel(Player const* player, uint32 dungeonId, uint8 playerLevel) const;
 
     // LFG Policy & Composition Integration
     void SetPlayerLfgMode(ObjectGuid guid, lfg::LfgCompositionMode mode);

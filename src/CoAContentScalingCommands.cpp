@@ -376,7 +376,30 @@ private:
         }
 
         handler->PSendSysMessage("[PASS] ProgressionLayout valid: Cap %u", uint32(layout.maxLevel));
-        handler->PSendSysMessage("[PASS] Enabled eras continuous and terminating at Cap");
+        handler->PSendSysMessage("[PASS] Enabled eras continuous and terminating at Cap (Classic: 1-%u%s%s)",
+            uint32(layout.classic.maxLevel),
+            layout.tbc.has_value() ? (", TBC: " + std::to_string(layout.tbc->minLevel) + "-" + std::to_string(layout.tbc->maxLevel)).c_str() : "",
+            layout.wotlk.has_value() ? (", WotLK: " + std::to_string(layout.wotlk->minLevel) + "-" + std::to_string(layout.wotlk->maxLevel)).c_str() : "");
+
+        // Content Census & Schema validation
+        handler->PSendSysMessage("[PASS] Content census schema v%u verified (%zu maps, %zu instances, %zu quests, %zu items, %zu access profiles)",
+            GENERATED_CONTENT_CENSUS_SCHEMA_VERSION,
+            sGeneratedMapProfiles.size(),
+            sGeneratedInstanceProfiles.size(),
+            sGeneratedQuestProfiles.size(),
+            sGeneratedItemProfiles.size(),
+            sGeneratedAccessProfiles.size());
+
+        // Content Pack Registry check
+        bool const finalized = sContentPackRegistry->IsFinalized();
+        size_t const activePacks = sContentPackRegistry->GetPacks().size();
+        handler->PSendSysMessage("[%s] ContentPackRegistry finalized (%zu pack(s) registered)",
+            finalized ? "PASS" : "WARN", activePacks);
+
+        // Item Budget Scaler check
+        bool const itemsScaled = sItemBudgetScaler->AreItemsScaled();
+        handler->PSendSysMessage("[%s] ItemBudgetScaler status: %s",
+            itemsScaled ? "PASS" : "INFO", itemsScaled ? "Scaled in-memory" : "Pending or unscaled");
 
         sCoAContentScaling->PurgeExpiredPendingPolicies();
         handler->PSendSysMessage("[PASS] Pending LFG policies verified (%zu active groups, %zu player aliases)",

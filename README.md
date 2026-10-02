@@ -40,9 +40,9 @@ Classic is the base world. Expansion content packs are strictly independent:
 The module never hardcodes max level to 60 or 80. It reads `CONFIG_MAX_PLAYER_LEVEL` from the world configuration.
 - **Level 60 layout**: Classic `1-45`, TBC `45-55`, WotLK `55-60`.
 - **Level 70 layout**: Classic `1-53`, TBC `53-63`, WotLK `63-70`.
-- **Level 80 layout**: Classic `1-60`, TBC `60-70`, WotLK `70-80`.
+- **Level 80 layout (Authentic Stock Identity)**: Classic `1-60`, TBC `58-70`, WotLK `68-80`.
 - **Interpolated layouts**: Any cap between 60 and 80 interpolates monotonically using reference anchors.
-- **Fail-safe validation**: Unsafe caps (>80) fail-fast with clean logging and safe Classic fallback.
+- **Fail-safe validation**: Unsafe caps (<60 or >80) fail-fast with clean logging and safe Classic fallback.
 
 ### 2. Combat Budget Normalization (Creature Stats)
 In AzerothCore, `CreatureBaseStats` indexes health and damage by `expansion`. Simply lowering a creature's level in memory still uses the WotLK expansion multiplier table.

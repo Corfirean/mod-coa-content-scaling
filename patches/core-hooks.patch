@@ -1,470 +1,460 @@
-diff --git a/src/server/game/DungeonFinding/LFG.h b/src/server/game/DungeonFinding/LFG.h
-index 7941d7988..9268934f7 100644
---- a/src/server/game/DungeonFinding/LFG.h
-+++ b/src/server/game/DungeonFinding/LFG.h
-@@ -108,6 +108,23 @@ namespace lfg
-         RANDOM_DUNGEON_HEROIC_WOTLK                  = 262
-     };
- 
-+    enum class LfgCompositionMode : uint8
-+    {
-+        MATCHMAKING   = 0,
-+        BOT_FILL      = 1,
-+        CURRENT_PARTY = 2
-+    };
-+
-+    struct LfgQueuePolicy
-+    {
-+        LfgCompositionMode compositionMode{LfgCompositionMode::MATCHMAKING};
-+        uint8 challengeSize{0}; // 0 = Adaptive
-+        bool bypassMatchmaking{false};
-+        bool requireStandardRoles{true};
-+        uint8 minPlayers{5};
-+        uint8 targetPlayers{5};
-+    };
-+
-     class Lfg5Guids;
- 
-     typedef std::list<Lfg5Guids> Lfg5GuidsList;
-diff --git a/src/server/game/DungeonFinding/LFGMgr.cpp b/src/server/game/DungeonFinding/LFGMgr.cpp
-index e67d9038f..d941554b1 100644
+﻿diff --git a/src/server/game/DungeonFinding/LFGMgr.cpp b/src/server/game/DungeonFinding/LFGMgr.cpp
+index d941554b1..3b510470f 100644
 --- a/src/server/game/DungeonFinding/LFGMgr.cpp
 +++ b/src/server/game/DungeonFinding/LFGMgr.cpp
-@@ -619,6 +619,17 @@ namespace lfg
-         if (grp && (grp->isBGGroup() || grp->isBFGroup()))
-             return;
+@@ -27,6 +27,7 @@
+ #include "Group.h"
+ #include "GroupMgr.h"
+ #include "InstanceSaveMgr.h"
++#include "LocalLevelScaling.h"
+ #include "LFGGroupData.h"
+ #include "LFGPlayerData.h"
+ #include "LFGQueue.h"
+@@ -140,10 +141,11 @@ namespace lfg
+                 continue;
+             }
  
-+        if (grp && guid != grp->GetLeaderGUID())
+-            if (!maxLevel || maxLevel > sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL))
++            uint32 allowedMaxLevel = (LocalLevelScaling::ContentScalingActive.load(std::memory_order_relaxed) ? 80 : sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL));
++            if (!maxLevel || maxLevel > allowedMaxLevel)
+             {
+                 LOG_ERROR("lfg", "Level {} specified for dungeon {} in table `lfg_dungeon_rewards` can never be reached!", maxLevel, dungeonId);
+-                maxLevel = sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL);
++                maxLevel = allowedMaxLevel;
+             }
+ 
+             if (!firstQuestId || !sObjectMgr->GetQuestTemplate(firstQuestId))
+@@ -2423,7 +2425,7 @@ namespace lfg
+                 if (uint8 count = GetRandomPlayersCount(player->GetGUID()))
+                     player->UpdateAchievementCriteria(ACHIEVEMENT_CRITERIA_TYPE_USE_LFD_TO_GROUP_WITH_PLAYERS, count);
+ 
+-            LfgReward const* reward = GetRandomDungeonReward(rDungeonId, player->GetLevel());
++            LfgReward const* reward = GetRandomDungeonReward(rDungeonId, player->GetLevel(), player);
+             if (!reward)
+                 continue;
+ 
+@@ -2480,15 +2482,21 @@ namespace lfg
+        @param[in]     level Player level
+        @returns Reward
+     */
+-    LfgReward const* LFGMgr::GetRandomDungeonReward(uint32 dungeon, uint8 level)
++    LfgReward const* LFGMgr::GetRandomDungeonReward(uint32 dungeon, uint8 level, Player const* player)
+     {
++        uint8 effectiveRewardLevel = level;
++        if (player)
 +        {
-+            LfgQueuePolicy policy;
-+            sScriptMgr->OnResolveLfgQueuePolicy(guid, policy);
-+            if (policy.compositionMode == LfgCompositionMode::CURRENT_PARTY)
-+            {
-+                ChatHandler(player->GetSession()).SendNotification("Only the group leader can initiate a Current Party dungeon queue.");
-+                return;
-+            }
++            sScriptMgr->OnResolveLfgRewardLevel(player, dungeon, effectiveRewardLevel);
 +        }
 +
-         if (!sScriptMgr->OnPlayerCanJoinLfg(player, roles, dungeons, comment))
-             return;
- 
-@@ -1519,7 +1530,13 @@ namespace lfg
- 
-             if (itRoles == roleCheck.roles.end())
-             {
--                roleCheck.state = CheckGroupRoles(roleCheck.roles) ? LFG_ROLECHECK_FINISHED : LFG_ROLECHECK_WRONG_ROLES;
-+                LfgQueuePolicy policy;
-+                sScriptMgr->OnResolveLfgQueuePolicy(roleCheck.leader, policy);
-+
-+                if (!policy.requireStandardRoles)
-+                    roleCheck.state = LFG_ROLECHECK_FINISHED;
-+                else
-+                    roleCheck.state = CheckGroupRoles(roleCheck.roles) ? LFG_ROLECHECK_FINISHED : LFG_ROLECHECK_WRONG_ROLES;
-             }
+         LfgReward const* rew = nullptr;
+         LfgRewardContainerBounds bounds = RewardMapStore.equal_range(dungeon & 0x00FFFFFF);
+         for (LfgRewardContainer::const_iterator itr = bounds.first; itr != bounds.second; ++itr)
+         {
+             rew = itr->second;
+             // ordered properly at loading
+-            if (itr->second->maxLevel >= level)
++            if (itr->second->maxLevel >= effectiveRewardLevel)
+                 break;
          }
  
-@@ -1819,6 +1836,8 @@ namespace lfg
- 
-         _SaveToDB(gguid);
- 
-+        sScriptMgr->OnLfgProposalMadeGroup(proposal, grp);
-+
-         // Select a player inside to be teleported to
-         WorldLocation const* teleportLocation = nullptr;
-         bool leaderTeleportIncluded = false;
 diff --git a/src/server/game/DungeonFinding/LFGMgr.h b/src/server/game/DungeonFinding/LFGMgr.h
-index fd4cf41b5..37e9a6e22 100644
+index 37e9a6e22..8b3436abc 100644
 --- a/src/server/game/DungeonFinding/LFGMgr.h
 +++ b/src/server/game/DungeonFinding/LFGMgr.h
-@@ -368,6 +368,7 @@ namespace lfg
-         Lfg5Guids queues;                                      ///< Queue Ids to remove/readd
-         LfgGuidList showorder;                                 ///< Show order in update window
-         LfgProposalPlayerContainer players;                    ///< Players data
-+        LfgQueuePolicy policy;                                 ///< Queue policy (composition & challenge size)
-     };
- 
-     // Stores all rolecheck info of a group that wants to join
-diff --git a/src/server/game/DungeonFinding/LFGQueue.cpp b/src/server/game/DungeonFinding/LFGQueue.cpp
-index 85f92d1f5..96da380f6 100644
---- a/src/server/game/DungeonFinding/LFGQueue.cpp
-+++ b/src/server/game/DungeonFinding/LFGQueue.cpp
-@@ -107,7 +107,9 @@ namespace lfg
-     void LFGQueue::AddQueueData(ObjectGuid guid, time_t joinTime, LfgDungeonSet const& dungeons, LfgRolesMap const& rolesMap)
-     {
-         LOG_DEBUG("lfg", "JOINED AddQueueData: {}", guid.ToString());
--        QueueDataStore[guid] = LfgQueueData(joinTime, dungeons, rolesMap);
-+        LfgQueueData data(joinTime, dungeons, rolesMap);
-+        sScriptMgr->OnResolveLfgQueuePolicy(guid, data.policy);
-+        QueueDataStore[guid] = std::move(data);
-         AddToQueue(guid);
-     }
- 
-@@ -187,7 +189,12 @@ namespace lfg
- 
-             FindNewGroups(newGuid);
- 
--            CompatibleList.splice((pushCompatiblesToFront ? CompatibleList.begin() : CompatibleList.end()), CompatibleTempList);
-+            LfgQueueDataContainer::const_iterator itNewQueue = QueueDataStore.find(newGuid);
-+            bool const bypassMatchmaking = (itNewQueue != QueueDataStore.end() && itNewQueue->second.policy.bypassMatchmaking);
-+            if (!bypassMatchmaking)
-+            {
-+                CompatibleList.splice((pushCompatiblesToFront ? CompatibleList.begin() : CompatibleList.end()), CompatibleTempList);
-+            }
-             CompatibleTempList.clear();
- 
-             return newGroupsProcessed; // pussywizard: only one per update, shouldn't be a problem
-@@ -197,6 +204,16 @@ namespace lfg
- 
-     LfgCompatibility LFGQueue::FindNewGroups(ObjectGuid const& newGuid)
-     {
-+        LfgQueueDataContainer::const_iterator itNewQueue = QueueDataStore.find(newGuid);
-+        bool const bypassMatchmaking = (itNewQueue != QueueDataStore.end() && itNewQueue->second.policy.bypassMatchmaking);
-+        if (bypassMatchmaking)
-+        {
-+            uint64 foundMask = 0;
-+            uint32 foundCount = 0;
-+            std::set<Lfg5Guids> emptyCompatibles;
-+            return CheckCompatibility(Lfg5Guids(), newGuid, foundMask, foundCount, emptyCompatibles);
-+        }
-+
-         // each combination of dps+heal+tank (tank*8 + heal+4 + dps) has a value assigned 0..15
-         // first 16 bits of the mask are for marking if such combination was found once, second 16 bits for marking second occurence of that combination, etc
-         uint64 foundMask = 0;
-@@ -255,6 +272,18 @@ namespace lfg
-         if (!currentCompatibles.empty() && currentCompatibles.find(strGuids) != currentCompatibles.end())
-             return LFG_INCOMPATIBLES_TOO_MUCH_PLAYERS;
- 
-+        // Ensure bypassMatchmaking queue entries never match with other groups
-+        auto itNewQueueData = QueueDataStore.find(newGuid);
-+        if (itNewQueueData != QueueDataStore.end() && itNewQueueData->second.policy.bypassMatchmaking && !checkWith.empty())
-+            return LFG_INCOMPATIBLES_TOO_MUCH_PLAYERS;
-+
-+        for (uint8 i = 0; i < 5 && checkWith.guids[i]; ++i)
-+        {
-+            auto itCheckData = QueueDataStore.find(checkWith.guids[i]);
-+            if (itCheckData != QueueDataStore.end() && itCheckData->second.policy.bypassMatchmaking)
-+                return LFG_INCOMPATIBLES_TOO_MUCH_PLAYERS;
-+        }
-+
-         LfgProposal proposal;
-         LfgDungeonSet proposalDungeons;
-         LfgGroupsMap proposalGroups;
-@@ -293,15 +322,21 @@ namespace lfg
-         if (numLfgGroups > 1)
-             return LFG_INCOMPATIBLES_MULTIPLE_LFG_GROUPS;
- 
--        // Group with less that MAXGROUPSIZE members always compatible
--        if (!sLFGMgr->IsTesting() && check.size() == 1 && numPlayers < MAXGROUPSIZE)
-+        LfgQueueDataContainer::iterator itFrontQueue = QueueDataStore.find(check.front());
-+        LfgQueuePolicy const& policy = itFrontQueue->second.policy;
-+
-+        // Group with less that MAXGROUPSIZE members always compatible (unless bypassMatchmaking reached target/min players)
-+        if (policy.bypassMatchmaking && numPlayers >= policy.minPlayers && numPlayers <= policy.targetPlayers)
-         {
--            LfgQueueDataContainer::iterator itQueue = QueueDataStore.find(check.front());
--            LfgRolesMap roles = itQueue->second.roles;
-+            // Bypass matchmaking: do not wait for MAXGROUPSIZE, proceed to proposal creation below!
-+        }
-+        else if (!sLFGMgr->IsTesting() && check.size() == 1 && numPlayers < MAXGROUPSIZE)
-+        {
-+            LfgRolesMap roles = itFrontQueue->second.roles;
-             uint8 roleCheckResult = LFGMgr::CheckGroupRoles(roles);
-             strGuids.addRoles(roles);
--            itQueue->second.bestCompatible.clear(); // this may be left after a failed proposal (not cleared, because UpdateQueueTimers would try to generate it with every update)
--            //UpdateBestCompatibleInQueue(itQueue, strGuids);
-+            itFrontQueue->second.bestCompatible.clear(); // this may be left after a failed proposal (not cleared, because UpdateQueueTimers would try to generate it with every update)
-+            //UpdateBestCompatibleInQueue(itFrontQueue, strGuids);
-             AddToCompatibles(strGuids);
-             if (roleCheckResult && roleCheckResult <= 15)
-                 foundMask |= ( (((uint64)1) << (roleCheckResult - 1)) | (((uint64)1) << (16 + roleCheckResult - 1)) | (((uint64)1) << (32 + roleCheckResult - 1)) | (((uint64)1) << (48 + roleCheckResult - 1)));
-@@ -387,11 +422,26 @@ namespace lfg
-             LfgQueueData const& queue = QueueDataStore[gguid];
-             proposalDungeons = queue.dungeons;
-             proposalRoles = queue.roles;
--            LFGMgr::CheckGroupRoles(proposalRoles);          // assing new roles
-+            if (queue.policy.requireStandardRoles)
-+            {
-+                LFGMgr::CheckGroupRoles(proposalRoles);          // assign new roles
-+            }
-+            else
-+            {
-+                for (auto& [pguid, pRole] : proposalRoles)
-+                {
-+                    if (pRole == 0 || pRole == PLAYER_ROLE_NONE)
-+                        pRole = PLAYER_ROLE_DAMAGE;
-+                }
-+            }
-         }
- 
-         // Enough players?
--        if (!sLFGMgr->IsTesting() && numPlayers != MAXGROUPSIZE)
-+        bool const enoughPlayers = policy.bypassMatchmaking ?
-+            (numPlayers >= policy.minPlayers && numPlayers <= policy.targetPlayers) :
-+            (numPlayers == MAXGROUPSIZE);
-+
-+        if (!sLFGMgr->IsTesting() && !enoughPlayers)
-         {
-             strGuids.addRoles(proposalRoles);
-             for (uint8 i = 0; i < 5 && check.guids[i]; ++i)
-@@ -400,7 +450,8 @@ namespace lfg
-                 if (!itr->second.bestCompatible.empty()) // update if groups don't have it empty (for empty it will be generated in UpdateQueueTimers)
-                     UpdateBestCompatibleInQueue(itr, strGuids);
-             }
--            AddToCompatibles(strGuids);
-+            if (!policy.bypassMatchmaking)
-+                AddToCompatibles(strGuids);
-             foundMask |= addToFoundMask;
-             ++foundCount;
-             return LFG_COMPATIBLES_WITH_LESS_PLAYERS;
-@@ -408,6 +459,7 @@ namespace lfg
- 
-         proposal.queues = strGuids;
-         proposal.isNew = numLfgGroups != 1;
-+        proposal.policy = policy;
- 
-         if (!sLFGMgr->AllQueued(check)) // can't create proposal
-             return LFG_COMPATIBILITY_PENDING;
-diff --git a/src/server/game/DungeonFinding/LFGQueue.h b/src/server/game/DungeonFinding/LFGQueue.h
-index 7c6183582..cef6e5b7e 100644
---- a/src/server/game/DungeonFinding/LFGQueue.h
-+++ b/src/server/game/DungeonFinding/LFGQueue.h
-@@ -53,6 +53,7 @@ namespace lfg
-         LfgDungeonSet dungeons;                                // Selected Player/Group Dungeon/s
-         LfgRolesMap roles;                                     // Selected Player Role/s
-         Lfg5Guids bestCompatible;                              // Best compatible combination of people queued
-+        LfgQueuePolicy policy;                                 // Policy snapshotted on queue join
-     };
- 
-     struct LfgWaitTime
-diff --git a/src/server/game/Entities/Player/PlayerQuest.cpp b/src/server/game/Entities/Player/PlayerQuest.cpp
-index b87f9a041..950cd43f3 100644
---- a/src/server/game/Entities/Player/PlayerQuest.cpp
-+++ b/src/server/game/Entities/Player/PlayerQuest.cpp
-@@ -55,9 +55,12 @@ int32 Player::GetQuestLevel(Quest const* quest) const
- {
-     if (!quest)
-         return GetLevel();
-+
-+    int32 const baseLevel = LocalLevelScaling::GetEffectiveQuestBaseLevel(quest);
-     if (LocalLevelScaling::QuestScalingEnabled(this))
--        return LocalLevelScaling::ScaleQuestLevel(quest->GetQuestLevel(), GetLevel());
--    return quest->GetQuestLevel() > 0 ? quest->GetQuestLevel() : GetLevel();
-+        return LocalLevelScaling::ScaleQuestLevel(baseLevel, GetLevel());
-+
-+    return baseLevel > 0 ? baseLevel : GetLevel();
+@@ -534,7 +534,7 @@ namespace lfg
+         /// Checks if given dungeon map is disabled
+         bool IsDungeonDisabled(uint32 mapId, Difficulty difficulty) const;
+         /// Gets the random dungeon reward corresponding to given dungeon and player level
+-        LfgReward const* GetRandomDungeonReward(uint32 dungeon, uint8 level);
++        LfgReward const* GetRandomDungeonReward(uint32 dungeon, uint8 level, Player const* player = nullptr);
+         /// Returns all random and seasonal dungeons for given level and expansion
+         LfgDungeonSet GetRandomAndSeasonalDungeons(uint8 level, uint8 expansion);
+         /// Teleport a player to/from selected dungeon
+diff --git a/src/server/game/Entities/Player/Player.cpp b/src/server/game/Entities/Player/Player.cpp
+index c5318ed52..ebb611223 100644
+--- a/src/server/game/Entities/Player/Player.cpp
++++ b/src/server/game/Entities/Player/Player.cpp
+@@ -58,6 +58,7 @@
+ #include "InstanceScript.h"
+ #include "LFGMgr.h"
+ #include "LiveClassResourcePolicy.h"
++#include "LocalLevelScaling.h"
+ #include "Log.h"
+ #include "LootItemStorage.h"
+ #include "MapMgr.h"
+@@ -17058,10 +17059,12 @@ uint16 Player::GetMaxSkillValueForLevel() const
+     return result;
  }
  
- void Player::PrepareQuestMenu(ObjectGuid guid)
-diff --git a/src/server/game/Maps/MapInstanced.cpp b/src/server/game/Maps/MapInstanced.cpp
-index 3fe8e7f6a..d0bddbbf1 100644
---- a/src/server/game/Maps/MapInstanced.cpp
-+++ b/src/server/game/Maps/MapInstanced.cpp
-@@ -227,6 +227,7 @@ InstanceMap* MapInstanced::CreateInstance(uint32 InstanceId, InstanceSave* save,
-         map->SetScriptedPrivateOwner(player->GetScriptedPrivateOwner(), player->GetScriptedPrivateMembers());
-     ASSERT(map->IsDungeon());
-     m_InstancedMaps[InstanceId] = map;
-+    sScriptMgr->OnInstanceMapCreated(map, player);
+-float Player::GetQuestRate(bool isDFQuest, int32 questLevel)
++float Player::GetQuestRate(bool isDFQuest, int32 questLevel, Quest const* quest)
+ {
+     float result = Acore::XP::QuestRate(isDFQuest, questLevel, GetLevel());
  
-     if (!privateInstance)
++    result = LocalLevelScaling::GetEffectiveQuestRewardRate(this, quest, result);
++
+     sScriptMgr->OnPlayerGetQuestRate(this, result);
+ 
+     return result;
+diff --git a/src/server/game/Entities/Player/Player.h b/src/server/game/Entities/Player/Player.h
+index 42647f0e1..96754553f 100644
+--- a/src/server/game/Entities/Player/Player.h
++++ b/src/server/game/Entities/Player/Player.h
+@@ -1508,7 +1508,7 @@ public:
+     void RemoveRewardedQuest(uint32 questId, bool update = true);
+     void SendQuestUpdate(uint32 questId);
+     QuestGiverStatus GetQuestDialogStatus(Object* questGiver);
+-    float GetQuestRate(bool isDFQuest = false, int32 questLevel = 0);
++    float GetQuestRate(bool isDFQuest = false, int32 questLevel = 0, Quest const* quest = nullptr);
+     void SetDailyQuestStatus(uint32 quest_id);
+     bool IsDailyQuestDone(uint32 quest_id);
+     void SetWeeklyQuestStatus(uint32 quest_id);
+diff --git a/src/server/game/Entities/Player/PlayerQuest.cpp b/src/server/game/Entities/Player/PlayerQuest.cpp
+index 950cd43f3..7e88c3a8c 100644
+--- a/src/server/game/Entities/Player/PlayerQuest.cpp
++++ b/src/server/game/Entities/Player/PlayerQuest.cpp
+@@ -272,7 +272,7 @@ bool Player::CanSeeStartQuest(Quest const* quest)
+         SatisfyQuestPrevChain(quest, false) && SatisfyQuestBreadcrumb(quest, false) && SatisfyQuestDay(quest, false) && SatisfyQuestWeek(quest, false) &&
+         SatisfyQuestMonth(quest, false) && SatisfyQuestSeasonal(quest, false))
      {
-diff --git a/src/server/game/Miscellaneous/LocalLevelScaling.cpp b/src/server/game/Miscellaneous/LocalLevelScaling.cpp
-new file mode 100644
-index 000000000..0241fa3ba
---- /dev/null
-+++ b/src/server/game/Miscellaneous/LocalLevelScaling.cpp
-@@ -0,0 +1,37 @@
-+/*
-+ * This file is part of the AzerothCore Project. See AUTHORS file for Copyright information.
-+ *
-+ * This program is free software; you can redistribute it and/or modify it under the terms of the GNU GPL.
-+ */
+-        return GetLevel() + sWorld->getIntConfig(CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF) >= quest->GetMinLevel();
++        return GetLevel() + sWorld->getIntConfig(CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF) >= LocalLevelScaling::GetEffectiveQuestMinLevel(quest);
+     }
+ 
+     return false;
+@@ -1045,7 +1045,8 @@ bool Player::SatisfyQuestSkill(Quest const* qInfo, bool msg) const
+ 
+ bool Player::SatisfyQuestLevel(Quest const* qInfo, bool msg) const
+ {
+-    if (GetLevel() < qInfo->GetMinLevel())
++    uint32 const minLevel = LocalLevelScaling::GetEffectiveQuestMinLevel(qInfo);
++    if (GetLevel() < minLevel)
+     {
+         if (msg)
+             SendCanTakeQuestResponse(INVALIDREASON_QUEST_FAILED_LOW_LEVEL);
+@@ -1516,7 +1517,7 @@ uint32 Player::CalculateQuestRewardXP(Quest const* quest)
+     sScriptMgr->OnPlayerBeforeGetLevelForXPGain(this, level);
+ 
+     // apply world quest rate
+-    uint32 xp = uint32(quest->XPValue(level, LocalLevelScaling::QuestScalingEnabled(this)) * GetQuestRate(quest->IsDFQuest(), quest->GetQuestLevel()));
++    uint32 xp = uint32(quest->XPValue(level, LocalLevelScaling::QuestScalingEnabled(this)) * GetQuestRate(quest->IsDFQuest(), quest->GetQuestLevel(), quest));
+ 
+     // handle SPELL_AURA_MOD_XP_QUEST_PCT auras; a NO_BONUS_EXPERIENCE challenge drops
+     // the positive bonuses but keeps penalties.
+diff --git a/src/server/game/Entities/Player/PlayerStorage.cpp b/src/server/game/Entities/Player/PlayerStorage.cpp
+index 81fa5cde8..869b9f5c4 100644
+--- a/src/server/game/Entities/Player/PlayerStorage.cpp
++++ b/src/server/game/Entities/Player/PlayerStorage.cpp
+@@ -6891,11 +6891,13 @@ bool Player::Satisfy(DungeonProgressionRequirements const* ar, uint32 target_map
+         if (!mapEntry)
+             return false;
+ 
++        Difficulty target_difficulty = GetDifficulty(mapEntry->IsRaid());
 +
+         if (!sWorld->getBoolConfig(CONFIG_INSTANCE_IGNORE_LEVEL))
+         {
+             uint8 minLevel = ar->levelMin;
+             uint8 maxLevel = ar->levelMax;
+-            sScriptMgr->OnResolveDungeonAccessLevels(this, target_map, minLevel, maxLevel);
++            sScriptMgr->OnResolveDungeonAccessLevels(this, target_map, target_difficulty, minLevel, maxLevel);
+             if (minLevel && GetLevel() < minLevel)
+                 LevelMin = minLevel;
+             if (maxLevel && GetLevel() > maxLevel)
+@@ -7000,7 +7002,7 @@ bool Player::Satisfy(DungeonProgressionRequirements const* ar, uint32 target_map
+             }
+         }
+ 
+-        Difficulty target_difficulty = GetDifficulty(mapEntry->IsRaid());
++        target_difficulty = GetDifficulty(mapEntry->IsRaid());
+         MapDifficulty const* mapDiff = GetDownscaledMapDifficultyData(target_map, target_difficulty);
+         if (LevelMin || LevelMax || ilvlRequirementNotMet
+             || missingPlayerItems.size() || missingPlayerQuests.size() || missingPlayerAchievements.size()
+diff --git a/src/server/game/Handlers/LFGHandler.cpp b/src/server/game/Handlers/LFGHandler.cpp
+index e73708797..c902f5da5 100644
+--- a/src/server/game/Handlers/LFGHandler.cpp
++++ b/src/server/game/Handlers/LFGHandler.cpp
+@@ -173,7 +173,7 @@ void WorldSession::HandleLfgPlayerLockInfoRequestOpcode(WorldPacket& /*recvData*
+     for (lfg::LfgDungeonSet::const_iterator it = randomDungeons.begin(); it != randomDungeons.end(); ++it)
+     {
+         data << uint32(*it);                               // Dungeon Entry (id + type)
+-        lfg::LfgReward const* reward = sLFGMgr->GetRandomDungeonReward(*it, level);
++        lfg::LfgReward const* reward = sLFGMgr->GetRandomDungeonReward(*it, level, GetPlayer());
+         Quest const* quest = nullptr;
+         bool done = false;
+         if (reward)
+diff --git a/src/server/game/Miscellaneous/Formulas.cpp b/src/server/game/Miscellaneous/Formulas.cpp
+index 8c2a6f9db..e234221ca 100644
+--- a/src/server/game/Miscellaneous/Formulas.cpp
++++ b/src/server/game/Miscellaneous/Formulas.cpp
+@@ -19,6 +19,7 @@
+ #include "AreaDefines.h"
+ #include "Battleground.h"
+ #include "Creature.h"
 +#include "LocalLevelScaling.h"
-+#include "Creature.h"
-+#include "CreatureData.h"
-+#include "QuestDef.h"
-+
-+namespace LocalLevelScaling
-+{
-+std::int32_t GetEffectiveQuestBaseLevel(Quest const* quest)
+ #include "Log.h"
+ #include "Player.h"
+ #include "ScriptMgr.h"
+@@ -118,7 +119,9 @@ uint32 Acore::XP::Gain(Player* player, Unit* unit, bool isBattleGround /*= false
+         // The level the killer is fighting, not the object's own: a character with open-world scaling
+         // on is fighting their version of this creature, and reward has to follow the fight, or
+         // every scaled kill in an old zone is a gray kill and the promise dies.
+-        ContentLevels const content = GetContentLevelsForMapAndZone(unit->GetMapId(), unit->GetZoneId());
++        ContentLevels const rawContent = GetContentLevelsForMapAndZone(unit->GetMapId(), unit->GetZoneId());
++        ContentLevels const content = static_cast<ContentLevels>(
++            LocalLevelScaling::GetEffectiveKillContentLevel(player, unit, static_cast<uint8>(rawContent)));
+         gain = BaseGain(playerLevel, unit->getLevelForTarget(player), content);
+ 
+         if (gain && creature)
+diff --git a/src/server/game/Miscellaneous/LocalLevelScaling.cpp b/src/server/game/Miscellaneous/LocalLevelScaling.cpp
+index 0241fa3ba..1f001a385 100644
+--- a/src/server/game/Miscellaneous/LocalLevelScaling.cpp
++++ b/src/server/game/Miscellaneous/LocalLevelScaling.cpp
+@@ -23,6 +23,48 @@ std::int32_t GetEffectiveQuestBaseLevel(Quest const* quest)
+     return quest->GetQuestLevel();
+ }
+ 
++std::uint32_t GetEffectiveQuestMinLevel(Quest const* quest)
 +{
 +    if (!quest)
 +        return 0;
 +
-+    QuestBaseLevelResolver const owner = QuestBaseLevelOwner.load(std::memory_order_relaxed);
++    QuestMinLevelResolver const owner = QuestMinLevelOwner.load(std::memory_order_relaxed);
 +    if (owner)
 +        return owner(quest);
 +
-+    return quest->GetQuestLevel();
++    return quest->GetMinLevel();
 +}
 +
-+std::uint8_t GetEffectiveCreatureBaseLevel(CreatureTemplate const* cinfo, Creature const* creature)
++std::uint32_t GetEffectiveQuestMoneyMaxLevel(Quest const* quest, uint32 defaultRewardMoney)
 +{
-+    if (!cinfo)
-+        return 1;
++    if (!quest)
++        return defaultRewardMoney;
 +
-+    CreatureBaseLevelResolver const owner = CreatureBaseLevelOwner.load(std::memory_order_relaxed);
++    QuestMoneyMaxLevelResolver const owner = QuestMoneyMaxLevelOwner.load(std::memory_order_relaxed);
 +    if (owner)
-+        return owner(cinfo, creature);
++        return owner(quest, defaultRewardMoney);
 +
-+    return cinfo->maxlevel;
++    return defaultRewardMoney;
 +}
++
++std::uint8_t GetEffectiveKillContentLevel(Player const* player, Unit const* victim, std::uint8_t defaultContentLevel)
++{
++    KillContentLevelResolver const owner = KillContentLevelOwner.load(std::memory_order_relaxed);
++    if (owner)
++        return owner(player, victim, defaultContentLevel);
++
++    return defaultContentLevel;
 +}
++
++float GetEffectiveQuestRewardRate(Player const* player, Quest const* quest, float defaultRate)
++{
++    QuestRewardRateResolver const owner = QuestRewardRateOwner.load(std::memory_order_relaxed);
++    if (owner)
++        return owner(player, quest, defaultRate);
++
++    return defaultRate;
++}
++
+ std::uint8_t GetEffectiveCreatureBaseLevel(CreatureTemplate const* cinfo, Creature const* creature)
+ {
+     if (!cinfo)
 diff --git a/src/server/game/Miscellaneous/LocalLevelScaling.h b/src/server/game/Miscellaneous/LocalLevelScaling.h
-index 9437c65b5..263998494 100644
+index 263998494..3d6a89826 100644
 --- a/src/server/game/Miscellaneous/LocalLevelScaling.h
 +++ b/src/server/game/Miscellaneous/LocalLevelScaling.h
-@@ -13,11 +13,24 @@
- #include <optional>
- 
- class Creature;
-+class CreatureTemplate;
+@@ -16,6 +16,7 @@ class Creature;
+ class CreatureTemplate;
  class Player;
-+class Quest;
+ class Quest;
++class Unit;
  
  namespace LocalLevelScaling
  {
-+using QuestBaseLevelResolver = std::int32_t (*)(Quest const*);
-+inline std::atomic<QuestBaseLevelResolver> QuestBaseLevelOwner{nullptr};
-+
-+std::int32_t GetEffectiveQuestBaseLevel(Quest const* quest);
-+
-+using CreatureBaseLevelResolver = std::uint8_t (*)(CreatureTemplate const*, Creature const*);
-+inline std::atomic<CreatureBaseLevelResolver> CreatureBaseLevelOwner{nullptr};
-+
-+std::uint8_t GetEffectiveCreatureBaseLevel(CreatureTemplate const* cinfo, Creature const* creature = nullptr);
-+
- inline std::atomic<bool> QuestEnabled{false};
-+inline std::atomic<bool> ContentScalingActive{false};
- inline std::atomic<std::uint8_t> CreatureOffset{3};
+@@ -24,6 +25,26 @@ inline std::atomic<QuestBaseLevelResolver> QuestBaseLevelOwner{nullptr};
  
- /// How much of the level-scaled reward a quest keeps when it is lifted from its own level to the
+ std::int32_t GetEffectiveQuestBaseLevel(Quest const* quest);
+ 
++using QuestMinLevelResolver = std::uint32_t (*)(Quest const*);
++inline std::atomic<QuestMinLevelResolver> QuestMinLevelOwner{nullptr};
++
++std::uint32_t GetEffectiveQuestMinLevel(Quest const* quest);
++
++using QuestMoneyMaxLevelResolver = std::uint32_t (*)(Quest const*, uint32 /*defaultRewardMoney*/);
++inline std::atomic<QuestMoneyMaxLevelResolver> QuestMoneyMaxLevelOwner{nullptr};
++
++std::uint32_t GetEffectiveQuestMoneyMaxLevel(Quest const* quest, uint32 defaultRewardMoney);
++
++using KillContentLevelResolver = std::uint8_t (*)(Player const*, Unit const*, std::uint8_t /*defaultContentLevel*/);
++inline std::atomic<KillContentLevelResolver> KillContentLevelOwner{nullptr};
++
++std::uint8_t GetEffectiveKillContentLevel(Player const* player, Unit const* victim, std::uint8_t defaultContentLevel);
++
++using QuestRewardRateResolver = float (*)(Player const*, Quest const*, float /*defaultRate*/);
++inline std::atomic<QuestRewardRateResolver> QuestRewardRateOwner{nullptr};
++
++float GetEffectiveQuestRewardRate(Player const* player, Quest const* quest, float defaultRate);
++
+ using CreatureBaseLevelResolver = std::uint8_t (*)(CreatureTemplate const*, Creature const*);
+ inline std::atomic<CreatureBaseLevelResolver> CreatureBaseLevelOwner{nullptr};
+ 
 diff --git a/src/server/game/Quests/QuestDef.cpp b/src/server/game/Quests/QuestDef.cpp
-index 7d2239d8e..9d43761f0 100644
+index 9d43761f0..5459d5fe6 100644
 --- a/src/server/game/Quests/QuestDef.cpp
 +++ b/src/server/game/Quests/QuestDef.cpp
-@@ -199,8 +199,9 @@ void Quest::LoadQuestTemplateAddon(Field* fields)
+@@ -197,18 +197,26 @@ void Quest::LoadQuestTemplateAddon(Field* fields)
+     }
+ }
  
- uint32 Quest::XPValue(uint8 playerLevel, bool levelScaling) const
+-uint32 Quest::XPValue(uint8 playerLevel, bool levelScaling) const
++uint32 Quest::RoundQuestXP(uint32 rawXp)
  {
-+    int32 const baseLevel = LocalLevelScaling::GetEffectiveQuestBaseLevel(this);
-     int32 quest_level = levelScaling && LocalLevelScaling::QuestEnabled.load(std::memory_order_relaxed) ?
--        LocalLevelScaling::ScaleQuestLevel(Level, playerLevel) : (Level == -1 ? playerLevel : Level);
-+        LocalLevelScaling::ScaleQuestLevel(baseLevel, playerLevel) : (baseLevel == -1 ? playerLevel : baseLevel);
-     QuestXPEntry const* xpentry = sQuestXPStore.LookupEntry(quest_level);
-     if (!xpentry)
+-    int32 const baseLevel = LocalLevelScaling::GetEffectiveQuestBaseLevel(this);
+-    int32 quest_level = levelScaling && LocalLevelScaling::QuestEnabled.load(std::memory_order_relaxed) ?
+-        LocalLevelScaling::ScaleQuestLevel(baseLevel, playerLevel) : (baseLevel == -1 ? playerLevel : baseLevel);
+-    QuestXPEntry const* xpentry = sQuestXPStore.LookupEntry(quest_level);
+-    if (!xpentry)
++    if (rawXp <= 100)
      {
-@@ -238,7 +239,7 @@ uint32 Quest::XPValue(uint8 playerLevel, bool levelScaling) const
+-        return 0;
++        return 5 * ((rawXp + 2) / 5);
++    }
++    if (rawXp <= 500)
++    {
++        return 10 * ((rawXp + 5) / 10);
++    }
++    if (rawXp <= 1000)
++    {
++        return 25 * ((rawXp + 12) / 25);
+     }
++    return 50 * ((rawXp + 25) / 50);
++}
+ 
+-    int32 diffFactor = 2 * (quest_level - playerLevel) + 20;
++uint32 Quest::CalculateQuestXP(uint32 baseExp, int32 questLevel, uint8 playerLevel)
++{
++    int32 diffFactor = 2 * (questLevel - playerLevel) + 20;
+     if (diffFactor < 1)
+     {
+         diffFactor = 1;
+@@ -218,24 +226,23 @@ uint32 Quest::XPValue(uint8 playerLevel, bool levelScaling) const
+         diffFactor = 10;
+     }
+ 
+-    uint32 xp = diffFactor * xpentry->Exp[RewardXPDifficulty] / 10;
+-    if (xp <= 100)
+-    {
+-        xp = 5 * ((xp + 2) / 5);
+-    }
+-    else if (xp <= 500)
+-    {
+-        xp = 10 * ((xp + 5) / 10);
+-    }
+-    else if (xp <= 1000)
+-    {
+-        xp = 25 * ((xp + 12) / 25);
+-    }
+-    else
++    uint32 const rawXp = diffFactor * baseExp / 10;
++    return RoundQuestXP(rawXp);
++}
++
++uint32 Quest::XPValue(uint8 playerLevel, bool levelScaling) const
++{
++    int32 const baseLevel = LocalLevelScaling::GetEffectiveQuestBaseLevel(this);
++    int32 quest_level = levelScaling && LocalLevelScaling::QuestEnabled.load(std::memory_order_relaxed) ?
++        LocalLevelScaling::ScaleQuestLevel(baseLevel, playerLevel) : (baseLevel == -1 ? playerLevel : baseLevel);
++    QuestXPEntry const* xpentry = sQuestXPStore.LookupEntry(quest_level);
++    if (!xpentry)
+     {
+-        xp = 50 * ((xp + 25) / 50);
++        return 0;
+     }
+ 
++    uint32 xp = CalculateQuestXP(xpentry->Exp[RewardXPDifficulty], quest_level, playerLevel);
++
      // Optional discount on experience, off by default: levelling through content far below the
      // character is what the scaling system exists to allow. See QuestXpKeepSharePercent.
      uint32 const xpFloor = LocalLevelScaling::QuestXpKeepSharePercent.load(std::memory_order_relaxed);
--    if (uint32 const keep = LocalLevelScaling::RewardKeepPercent(xpFloor, Level, uint8(quest_level));
-+    if (uint32 const keep = LocalLevelScaling::RewardKeepPercent(xpFloor, baseLevel, uint8(quest_level));
-         keep < 100)
-     {
-         xp = xp * keep / 100;
-diff --git a/src/server/game/Scripting/ScriptDefines/GlobalScript.cpp b/src/server/game/Scripting/ScriptDefines/GlobalScript.cpp
-index b995cb573..69e5384f5 100644
---- a/src/server/game/Scripting/ScriptDefines/GlobalScript.cpp
-+++ b/src/server/game/Scripting/ScriptDefines/GlobalScript.cpp
-@@ -144,6 +144,35 @@ void ScriptMgr::AfterInstanceGameObjectCreate(Map* instance, GameObject* go)
-     CALL_ENABLED_HOOKS(GlobalScript, GLOBALHOOK_AFTER_INSTANCE_GAME_OBJECT_CREATE, script->AfterInstanceGameObjectCreate(instance, go));
+@@ -351,7 +358,8 @@ uint32 Quest::GetRewMoneyMaxLevel(bool levelScaling) const
+ 
+     rewMoney = (XPValue(sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL), levelScaling) * (6 * COPPER));
+     // https://wowpedia.fandom.com/wiki/Quest?oldid=1035002 Formula is XP gained * 6c
+-    return static_cast<int32>(rewMoney * sWorld->getRate(RATE_REWARD_BONUS_MONEY));
++    uint32 const finalMoney = static_cast<int32>(rewMoney * sWorld->getRate(RATE_REWARD_BONUS_MONEY));
++    return LocalLevelScaling::GetEffectiveQuestMoneyMaxLevel(this, finalMoney);
  }
  
-+void ScriptMgr::OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::LfgQueuePolicy& policy)
-+{
-+    CALL_ENABLED_HOOKS(GlobalScript, GLOBALHOOK_ON_RESOLVE_LFG_QUEUE_POLICY, script->OnResolveLfgQueuePolicy(guid, policy));
-+}
-+
-+void ScriptMgr::OnLfgProposalMadeGroup(lfg::LfgProposal const& proposal, Group* group)
-+{
-+    CALL_ENABLED_HOOKS(GlobalScript, GLOBALHOOK_ON_LFG_PROPOSAL_MADE_GROUP, script->OnLfgProposalMadeGroup(proposal, group));
-+}
-+
-+void ScriptMgr::OnInstanceMapCreated(InstanceMap* instanceMap, Player* player)
-+{
-+    CALL_ENABLED_HOOKS(GlobalScript, GLOBALHOOK_ON_INSTANCE_MAP_CREATED, script->OnInstanceMapCreated(instanceMap, player));
-+}
-+
-+bool ScriptMgr::HasLfgAutoFillProvider() const
-+{
-+    bool hasProvider = false;
-+    CALL_ENABLED_HOOKS(GlobalScript, GLOBALHOOK_HAS_LFG_AUTO_FILL_PROVIDER,
-+    {
-+        if (script->HasLfgAutoFillProvider())
-+        {
-+            hasProvider = true;
-+            break;
-+        }
-+    });
-+    return hasProvider;
-+}
-+
- GlobalScript::GlobalScript(char const* name, std::vector<uint16> enabledHooks)
-     : ScriptObject(name, GLOBALHOOK_END)
- {
-diff --git a/src/server/game/Scripting/ScriptDefines/GlobalScript.h b/src/server/game/Scripting/ScriptDefines/GlobalScript.h
-index cd3dc1406..94b1cbed0 100644
---- a/src/server/game/Scripting/ScriptDefines/GlobalScript.h
-+++ b/src/server/game/Scripting/ScriptDefines/GlobalScript.h
-@@ -25,6 +25,15 @@
- #include <map>
- #include <vector>
+ bool Quest::IsAutoAccept() const
+diff --git a/src/server/game/Quests/QuestDef.h b/src/server/game/Quests/QuestDef.h
+index 73f557c71..f0dd31840 100644
+--- a/src/server/game/Quests/QuestDef.h
++++ b/src/server/game/Quests/QuestDef.h
+@@ -220,6 +220,11 @@ public:
+     /// it is only consulted while the realm-wide quest scaling is on.
+     [[nodiscard]] uint32 XPValue(uint8 playerLevel = 0, bool levelScaling = true) const;
  
-+class Group;
-+class InstanceMap;
-+class Player;
-+namespace lfg
-+{
-+    struct LfgQueuePolicy;
-+    struct LfgProposal;
++    /// Calculates scaled and rounded quest XP from DBC baseExp, questLevel, and playerLevel.
++    /// Pure reusable helper that clamps diffFactor to 10 and applies standard Blizzard rounding.
++    static uint32 CalculateQuestXP(uint32 baseExp, int32 questLevel, uint8 playerLevel);
++    static uint32 RoundQuestXP(uint32 rawXp);
++
+     [[nodiscard]] bool HasFlag(uint32 flag) const { return (Flags & flag) != 0; }
+     void SetFlag(uint32 flag) { Flags |= flag; }
+ 
+diff --git a/src/server/game/Scripting/ScriptDefines/PlayerScript.cpp b/src/server/game/Scripting/ScriptDefines/PlayerScript.cpp
+index 900206a87..aa480e653 100644
+--- a/src/server/game/Scripting/ScriptDefines/PlayerScript.cpp
++++ b/src/server/game/Scripting/ScriptDefines/PlayerScript.cpp
+@@ -834,9 +834,14 @@ bool ScriptMgr::OnPlayerCanEnterMap(Player* player, MapEntry const* entry, Insta
+     CALL_ENABLED_BOOLEAN_HOOKS(PlayerScript, PLAYERHOOK_CAN_ENTER_MAP, !script->OnPlayerCanEnterMap(player, entry, instance, mapDiff, loginCheck));
+ }
+ 
+-void ScriptMgr::OnResolveDungeonAccessLevels(Player const* player, uint32 mapId, uint8& minLevel, uint8& maxLevel)
++void ScriptMgr::OnResolveDungeonAccessLevels(Player const* player, uint32 mapId, Difficulty difficulty, uint8& minLevel, uint8& maxLevel)
+ {
+-    CALL_ENABLED_HOOKS(PlayerScript, PLAYERHOOK_ON_RESOLVE_DUNGEON_ACCESS_LEVELS, script->OnResolveDungeonAccessLevels(player, mapId, minLevel, maxLevel));
++    CALL_ENABLED_HOOKS(PlayerScript, PLAYERHOOK_ON_RESOLVE_DUNGEON_ACCESS_LEVELS, script->OnResolveDungeonAccessLevels(player, mapId, difficulty, minLevel, maxLevel));
 +}
 +
- enum GlobalHook
- {
-     GLOBALHOOK_ON_ITEM_DEL_FROM_DB,
-@@ -47,6 +56,10 @@ enum GlobalHook
-     GLOBALHOOK_ON_INSTANCEID_REMOVED,
-     GLOBALHOOK_ON_BEFORE_SET_BOSS_STATE,
-     GLOBALHOOK_AFTER_INSTANCE_GAME_OBJECT_CREATE,
-+    GLOBALHOOK_ON_RESOLVE_LFG_QUEUE_POLICY,
-+    GLOBALHOOK_ON_LFG_PROPOSAL_MADE_GROUP,
-+    GLOBALHOOK_ON_INSTANCE_MAP_CREATED,
-+    GLOBALHOOK_HAS_LFG_AUTO_FILL_PROVIDER,
-     GLOBALHOOK_END
++void ScriptMgr::OnResolveLfgRewardLevel(Player const* player, uint32 dungeonId, uint8& level)
++{
++    CALL_ENABLED_HOOKS(PlayerScript, PLAYERHOOK_ON_RESOLVE_LFG_REWARD_LEVEL, script->OnResolveLfgRewardLevel(player, dungeonId, level));
+ }
+ 
+ bool ScriptMgr::OnPlayerCanInitTrade(Player* player, Player* target)
+diff --git a/src/server/game/Scripting/ScriptDefines/PlayerScript.h b/src/server/game/Scripting/ScriptDefines/PlayerScript.h
+index 682140031..f02c54e3a 100644
+--- a/src/server/game/Scripting/ScriptDefines/PlayerScript.h
++++ b/src/server/game/Scripting/ScriptDefines/PlayerScript.h
+@@ -252,6 +252,7 @@ enum PlayerHook
+     PLAYERHOOK_ON_COA_PROGRESS,
+     PLAYERHOOK_ON_GET_GAME_MODE_MASK,
+     PLAYERHOOK_ON_RESOLVE_DUNGEON_ACCESS_LEVELS,
++    PLAYERHOOK_ON_RESOLVE_LFG_REWARD_LEVEL,
+     PLAYERHOOK_END
  };
  
-@@ -102,6 +115,18 @@ public:
+@@ -713,7 +714,8 @@ public:
+     [[nodiscard]] virtual bool OnPlayerCanJoinLfg(Player* /*player*/, uint8 /*roles*/, std::set<uint32>& /*dungeons*/, std::string const& /*comment*/) { return true; }
  
-     // Called when a gameobject is created by an instance
-     virtual void AfterInstanceGameObjectCreate(Map* /*instance*/, GameObject* /*go*/) { }
-+
-+    // Called when LFG queue policy is resolved for a player or group
-+    virtual void OnResolveLfgQueuePolicy(ObjectGuid const& /*guid*/, lfg::LfgQueuePolicy& /*policy*/) { }
-+
-+    // Called when an LFG proposal successfully forms a group and creates an instance
-+    virtual void OnLfgProposalMadeGroup(lfg::LfgProposal const& /*proposal*/, Group* /*group*/) { }
-+
-+    // Called when an instance map is created for a player before grids are loaded
-+    virtual void OnInstanceMapCreated(InstanceMap* /*instanceMap*/, Player* /*player*/) { }
-+
-+    // Returns true if an auto-fill bot provider is active for LFG
-+    virtual bool HasLfgAutoFillProvider() const { return false; }
- };
+     [[nodiscard]] virtual bool OnPlayerCanEnterMap(Player* /*player*/, MapEntry const* /*entry*/, InstanceTemplate const* /*instance*/, MapDifficulty const* /*mapDiff*/, bool /*loginCheck*/) { return true; }
+-    virtual void OnResolveDungeonAccessLevels(Player const* /*player*/, uint32 /*mapId*/, uint8& /*minLevel*/, uint8& /*maxLevel*/) { }
++    virtual void OnResolveDungeonAccessLevels(Player const* /*player*/, uint32 /*mapId*/, Difficulty /*difficulty*/, uint8& /*minLevel*/, uint8& /*maxLevel*/) { }
++    virtual void OnResolveLfgRewardLevel(Player const* /*player*/, uint32 /*dungeonId*/, uint8& /*level*/) { }
  
- #endif
+     [[nodiscard]] virtual bool OnPlayerCanInitTrade(Player* /*player*/, Player* /*target*/) { return true; }
+ 
 diff --git a/src/server/game/Scripting/ScriptMgr.h b/src/server/game/Scripting/ScriptMgr.h
-index 6d0fa41c9..9e35f0749 100644
+index c16b9bb5a..1a9e2e15f 100644
 --- a/src/server/game/Scripting/ScriptMgr.h
 +++ b/src/server/game/Scripting/ScriptMgr.h
-@@ -589,6 +589,10 @@ public: /* GlobalScript */
-     void OnInstanceIdRemoved(uint32 instanceId);
-     void OnBeforeSetBossState(uint32 id, EncounterState newState, EncounterState oldState, Map* instance);
-     void AfterInstanceGameObjectCreate(Map* instance, GameObject* go);
-+    void OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::LfgQueuePolicy& policy);
-+    void OnLfgProposalMadeGroup(lfg::LfgProposal const& proposal, Group* group);
-+    void OnInstanceMapCreated(InstanceMap* instanceMap, Player* player);
-+    bool HasLfgAutoFillProvider() const;
- 
- public: /* Scheduled scripts */
-     uint32 IncreaseScheduledScriptsCount() { return ++_scheduledScripts; }
+@@ -477,7 +477,8 @@ public: /* PlayerScript */
+     bool OnPlayerNotSetArenaTeamInfoField(Player* player, uint8 slot, ArenaTeamInfoType type, uint32 value);
+     bool OnPlayerCanJoinLfg(Player* player, uint8 roles, lfg::LfgDungeonSet& dungeons, std::string const& comment);
+     bool OnPlayerCanEnterMap(Player* player, MapEntry const* entry, InstanceTemplate const* instance, MapDifficulty const* mapDiff, bool loginCheck);
+-    void OnResolveDungeonAccessLevels(Player const* player, uint32 mapId, uint8& minLevel, uint8& maxLevel);
++    void OnResolveDungeonAccessLevels(Player const* player, uint32 mapId, Difficulty difficulty, uint8& minLevel, uint8& maxLevel);
++    void OnResolveLfgRewardLevel(Player const* player, uint32 dungeonId, uint8& level);
+     bool OnPlayerCanInitTrade(Player* player, Player* target);
+     bool OnPlayerCanSetTradeItem(Player* player, Item* tradedItem, uint8 tradeSlot);
+     void OnPlayerSetServerSideVisibility(Player* player, ServerSideVisibilityType& type, AccountTypes& sec);

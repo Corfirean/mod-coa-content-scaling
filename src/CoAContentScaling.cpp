@@ -92,6 +92,41 @@ void CoAContentScaling::LoadConfig()
     sSoloAssistPolicy->SetMode(CoAContentScalingConfig::ParseSoloAssistMode(soloMode));
 }
 
+void CoAContentScaling::LoadReloadableConfig()
+{
+    _debug = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::Debug, false);
+    _groupScalingEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingEnable, true);
+    _lockOnEncounterStart = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingLockOnEncounterStart, true);
+    _allowSoloRaids = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingAllowSoloRaids, true);
+    _adaptiveMechanicsEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::AdaptiveMechanicsEnable, true);
+    _scaleLootCount = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::RewardsScaleLootCount, true);
+
+    std::string const defaultModeStr = sConfigMgr->GetOption<std::string>(CoAContentScalingConfigKeys::LfgDefaultMode, "Matchmaking");
+    _defaultLfgCompositionMode = CoAContentScalingConfig::ParseLfgCompositionMode(defaultModeStr);
+    if (_defaultLfgCompositionMode == lfg::LfgCompositionMode::BOT_FILL && !sScriptMgr->HasLfgAutoFillProvider())
+    {
+        LOG_WARN("module.coa_content_scaling", "CoAContentScaling: LFG default mode configured as BotFill, but no bot fill provider is registered! Falling back to Matchmaking.");
+        _defaultLfgCompositionMode = lfg::LfgCompositionMode::MATCHMAKING;
+    }
+
+    uint32 const rawChallenge = sConfigMgr->GetOption<uint32>(CoAContentScalingConfigKeys::LfgDefaultChallengeSize, 0);
+    if (rawChallenge > 40)
+    {
+        LOG_WARN("module.coa_content_scaling",
+                 "CoAContentScaling: Invalid LFG.DefaultChallengeSize {} (must be 0..40). Falling back to 0 (Adaptive).", rawChallenge);
+        _defaultLfgChallengeSize = 0;
+    }
+    else
+    {
+        _defaultLfgChallengeSize = rawChallenge;
+    }
+
+    std::string const soloMode = sConfigMgr->GetOption<std::string>(CoAContentScalingConfigKeys::SoloAssistMode, "0");
+    sSoloAssistPolicy->SetMode(CoAContentScalingConfig::ParseSoloAssistMode(soloMode));
+
+    LOG_INFO("module.coa_content_scaling", "CoAContentScaling: Reloaded runtime settings (GroupScaling, AdaptiveMechanics, LFG defaults, SoloAssist, Debug)");
+}
+
 void CoAContentScaling::FinalizeAndInitialize()
 {
     if (sContentPackRegistry->IsFinalized())
@@ -441,6 +476,20 @@ bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId, ui
     if (!player || player->IsGameMaster())
         return true;
 
+    // Corpse / ghost re-entry safety: dead players retrieving corpse in their instance must NEVER be locked out
+    if (!player->IsAlive() && player->HasCorpse())
+    {
+        uint32 corpseMap = player->GetCorpseLocation().GetMapId();
+        do
+        {
+            if (corpseMap == mapId)
+                return true;
+
+            InstanceTemplate const* corpseInstance = sObjectMgr->GetInstanceTemplate(corpseMap);
+            corpseMap = corpseInstance ? corpseInstance->Parent : 0;
+        } while (corpseMap);
+    }
+
     ContentEra const era = sContentPackRegistry->ResolveEraForMap(mapId);
     if (!_layout.IsEraEnabled(era))
         return false;
@@ -467,6 +516,28 @@ bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId, ui
     }
 
     return true;
+}
+
+uint8 CoAContentScaling::ResolveLfgRewardLevel(Player const* /*player*/, uint32 dungeonId, uint8 playerLevel) const
+{
+    if (!_enabled)
+        return playerLevel;
+
+    // Look up census profile for dungeon to determine target era
+    auto const* lfgProf = FindGeneratedLfgProfile(dungeonId);
+    ContentEra era = ContentEra::Classic;
+    if (lfgProf)
+    {
+        era = lfgProf->era;
+    }
+    else
+    {
+        // Fallback: check map era if dungeon not directly profiled
+        if (lfg::LFGDungeonData const* dungeon = sLFGMgr->GetLFGDungeon(dungeonId))
+            era = sContentPackRegistry->ResolveEraForMap(dungeon->map);
+    }
+
+    return sProgressionRewardResolver->ResolveLfgRewardLevel(era, playerLevel, _layout);
 }
 
 void CoAContentScaling::SetPlayerLfgMode(ObjectGuid guid, lfg::LfgCompositionMode mode)
@@ -855,6 +926,7 @@ namespace
             {
                 LOG_WARN("module.coa_content_scaling",
                          "UniversalContentScaling: Progression layout, expansion packs and MaxPlayerLevel cannot be changed at runtime! Server restart required.");
+                sCoAContentScaling->LoadReloadableConfig();
                 return;
             }
 
@@ -1203,6 +1275,24 @@ namespace
             if (!sCoAContentScaling->IsEnabled() || !player)
                 return;
 
+            // Corpse / ghost re-entry safety: dead players retrieving corpse in their instance must NEVER be locked out
+            if (!player->IsAlive() && player->HasCorpse())
+            {
+                uint32 corpseMap = player->GetCorpseLocation().GetMapId();
+                do
+                {
+                    if (corpseMap == mapId)
+                    {
+                        minLevel = 0;
+                        maxLevel = 0;
+                        return;
+                    }
+
+                    InstanceTemplate const* corpseInstance = sObjectMgr->GetInstanceTemplate(corpseMap);
+                    corpseMap = corpseInstance ? corpseInstance->Parent : 0;
+                } while (corpseMap);
+            }
+
             uint8 const diff = static_cast<uint8>(difficulty);
             auto const* accessProf = FindGeneratedAccessProfile(mapId, diff);
             if (!accessProf && diff != 0)
@@ -1239,6 +1329,14 @@ namespace
                 if (maxLevel < minLevel)
                     maxLevel = std::max(minLevel, layout.maxLevel);
             }
+        }
+
+        void OnResolveLfgRewardLevel(Player const* player, uint32 dungeonId, uint8& level) override
+        {
+            if (!sCoAContentScaling->IsEnabled() || !player)
+                return;
+
+            level = sCoAContentScaling->ResolveLfgRewardLevel(player, dungeonId, level);
         }
 
         void OnPlayerLogin(Player* player) override
