@@ -6,6 +6,7 @@
 #include "InstanceProfile.h"
 #include "CoAContentScaling.h"
 #include "DBCEnums.h"
+#include "GeneratedContentCensus.h"
 
 InstanceProfileRegistry* InstanceProfileRegistry::Instance()
 {
@@ -133,6 +134,29 @@ void InstanceProfileRegistry::Initialize()
     add(650, "Trial of the Champion",     ContentEra::WotLK, false, 5);
     add(658, "Pit of Saron",              ContentEra::WotLK, false, 5);
     add(668, "Halls of Reflection",       ContentEra::WotLK, false, 5);
+
+    // Merge generated census profiles for maps not explicitly listed or to calibrate tiers
+    for (auto const& gp : sGeneratedInstanceProfiles)
+    {
+        auto it = _profiles.find(gp.mapId);
+        if (it != _profiles.end())
+        {
+            it->second.tier = gp.tier;
+        }
+        else
+        {
+            _profiles[gp.mapId] = InstanceProfile{
+                .mapId = gp.mapId,
+                .name = gp.name,
+                .era = gp.era,
+                .tier = gp.tier,
+                .defaultGroupSize = gp.intendedPlayers,
+                .raid10Size = gp.intendedPlayers == 10 ? 10u : 10u,
+                .raid25Size = gp.intendedPlayers >= 20 ? gp.intendedPlayers : 25u,
+                .isRaid = gp.isRaid
+            };
+        }
+    }
 }
 
 InstanceProfile const* InstanceProfileRegistry::GetProfile(uint32 mapId) const
@@ -161,6 +185,17 @@ std::optional<ContentEra> InstanceProfileRegistry::GetEraForMap(uint32 mapId, ui
     if (auto const* profile = GetProfile(mapId))
         return profile->era;
     return std::nullopt;
+}
+
+ContentTier InstanceProfileRegistry::GetTierForMap(uint32 mapId, uint8 difficulty) const
+{
+    if (auto const* profile = GetProfile(mapId))
+    {
+        if (!profile->isRaid && (difficulty == DUNGEON_DIFFICULTY_HEROIC))
+            return ContentTier::DUNGEON_HEROIC;
+        return profile->tier;
+    }
+    return ContentTier::WORLD;
 }
 
 uint32 InstanceProfileRegistry::GetIntendedPlayers(uint32 mapId, uint8 difficulty) const

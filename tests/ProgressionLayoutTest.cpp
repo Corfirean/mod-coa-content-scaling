@@ -8,6 +8,7 @@
 #include "ContentPackRegistry.h"
 #include "CoAContentScalingConfig.h"
 #include "DungeonFinding/LFG.h"
+#include "GeneratedContentCensus.h"
 #include "InstanceProfile.h"
 #include "InstanceScaleContext.h"
 #include "ItemBudgetScaler.h"
@@ -950,6 +951,115 @@ TEST(BotRoleSolverTest, FlexibleRolesThreeMembers)
     uint32 totalGroup = 3u + res.tankBotsNeeded + res.healerBotsNeeded + res.dpsBotsNeeded;
     EXPECT_EQ(totalGroup, 5u);
 }
+
+// =============================================================================
+// Round 3: Census, Instance Profiles & Calibration Tests
+// =============================================================================
+
+TEST(ContentCensusTest, StaticCensusProfilesPopulated)
+{
+    EXPECT_GE(sGeneratedInstanceProfiles.size(), 90u);
+
+    // Verify key landmark instances
+    auto const* deadmines = FindGeneratedInstanceProfile(36);
+    ASSERT_NE(deadmines, nullptr);
+    EXPECT_EQ(deadmines->era, ContentEra::Classic);
+    EXPECT_FALSE(deadmines->isRaid);
+    EXPECT_EQ(deadmines->tier, ContentTier::DUNGEON_NORMAL);
+
+    auto const* moltenCore = FindGeneratedInstanceProfile(409);
+    ASSERT_NE(moltenCore, nullptr);
+    EXPECT_EQ(moltenCore->era, ContentEra::Classic);
+    EXPECT_TRUE(moltenCore->isRaid);
+    EXPECT_EQ(moltenCore->tier, ContentTier::RAID_MID);
+    EXPECT_EQ(moltenCore->intendedPlayers, 40u);
+
+    auto const* karazhan = FindGeneratedInstanceProfile(532);
+    ASSERT_NE(karazhan, nullptr);
+    EXPECT_EQ(karazhan->era, ContentEra::TBC);
+    EXPECT_TRUE(karazhan->isRaid);
+    EXPECT_EQ(karazhan->tier, ContentTier::RAID_ENTRY);
+    EXPECT_EQ(karazhan->intendedPlayers, 10u);
+
+    auto const* naxx = FindGeneratedInstanceProfile(533);
+    ASSERT_NE(naxx, nullptr);
+    EXPECT_EQ(naxx->era, ContentEra::WotLK);
+    EXPECT_TRUE(naxx->isRaid);
+    EXPECT_EQ(naxx->tier, ContentTier::RAID_ENTRY);
+
+    auto const* icc = FindGeneratedInstanceProfile(631);
+    ASSERT_NE(icc, nullptr);
+    EXPECT_EQ(icc->era, ContentEra::WotLK);
+    EXPECT_TRUE(icc->isRaid);
+    EXPECT_EQ(icc->tier, ContentTier::RAID_PINNACLE);
+}
+
+TEST(ContentCensusTest, InstanceProfileRegistryTiersCalibrated)
+{
+    sInstanceProfileRegistry->Initialize();
+
+    std::vector<std::string> issues;
+    EXPECT_TRUE(sInstanceProfileRegistry->ValidateAll(issues));
+
+    // Check tier resolution
+    EXPECT_EQ(sInstanceProfileRegistry->GetTierForMap(36), ContentTier::DUNGEON_NORMAL);
+    EXPECT_EQ(sInstanceProfileRegistry->GetTierForMap(36, 1), ContentTier::DUNGEON_HEROIC); // Heroic difficulty = 1
+    EXPECT_EQ(sInstanceProfileRegistry->GetTierForMap(409), ContentTier::RAID_MID);
+    EXPECT_EQ(sInstanceProfileRegistry->GetTierForMap(531), ContentTier::RAID_PINNACLE);
+    EXPECT_EQ(sInstanceProfileRegistry->GetTierForMap(631), ContentTier::RAID_PINNACLE);
+}
+
+TEST(ProgressionCalibrationTest, Cap60AllEras_MonotonicZoneCompression)
+{
+    // Cap 60 with Classic, TBC, and WotLK:
+    // Classic authored: 1-60 -> effective 1-45
+    // TBC authored: 58-70 -> effective 45-55
+    // WotLK authored: 68-80 -> effective 55-60
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+    std::string err;
+    ASSERT_TRUE(layout.Validate(err)) << err;
+
+    // Classic zone (e.g. Westfall authored ~15, Plaguelands authored ~55)
+    uint8 const effWestfall = layout.MapAuthoredToEffective(ContentEra::Classic, 15);
+    uint8 const effPlaguelands = layout.MapAuthoredToEffective(ContentEra::Classic, 55);
+    EXPECT_GE(effWestfall, 1);
+    EXPECT_LE(effPlaguelands, 45);
+    EXPECT_LT(effWestfall, effPlaguelands);
+
+    // TBC zone (e.g. Hellfire Peninsula authored ~60, Shadowmoon authored ~70)
+    uint8 const effHellfire = layout.MapAuthoredToEffective(ContentEra::TBC, 60);
+    uint8 const effShadowmoon = layout.MapAuthoredToEffective(ContentEra::TBC, 70);
+    EXPECT_GE(effHellfire, 45);
+    EXPECT_EQ(effShadowmoon, 55);
+    EXPECT_LE(effHellfire, effShadowmoon);
+
+    // WotLK zone (e.g. Borean Tundra authored ~70, Icecrown authored ~80)
+    uint8 const effBorean = layout.MapAuthoredToEffective(ContentEra::WotLK, 70);
+    uint8 const effIcecrown = layout.MapAuthoredToEffective(ContentEra::WotLK, 80);
+    EXPECT_GE(effBorean, 55);
+    EXPECT_EQ(effIcecrown, 60);
+    EXPECT_LE(effBorean, effIcecrown);
+}
+
+TEST(ProgressionCalibrationTest, QuestChainMonotonicity_NeverInverts)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    // Chain: Q1 (authored 12) -> Q2 (authored 14) -> Q3 (authored 16)
+    uint8 q1 = layout.MapAuthoredToEffective(ContentEra::Classic, 12);
+    uint8 q2 = layout.MapAuthoredToEffective(ContentEra::Classic, 14);
+    uint8 q3 = layout.MapAuthoredToEffective(ContentEra::Classic, 16);
+
+    EXPECT_LE(q1, q2);
+    EXPECT_LE(q2, q3);
+
+    // Cross-era transition: End of Classic Q (authored 60) -> Intro TBC Q (authored 58)
+    uint8 qClassicEnd = layout.MapAuthoredToEffective(ContentEra::Classic, 60);
+    uint8 qTbcStart = layout.MapAuthoredToEffective(ContentEra::TBC, 58);
+    EXPECT_EQ(qClassicEnd, 45);
+    EXPECT_GE(qTbcStart, 45);
+}
+
 
 
 

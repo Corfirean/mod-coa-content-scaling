@@ -20,6 +20,7 @@ struct InstanceProfile
     uint32 mapId{0};
     std::string_view name;
     ContentEra era{ContentEra::Classic};
+    ContentTier tier{ContentTier::DUNGEON_NORMAL};
     uint32 defaultGroupSize{5};
     uint32 raid10Size{10};
     uint32 raid25Size{25};
@@ -34,6 +35,7 @@ public:
     void Initialize();
     [[nodiscard]] InstanceProfile const* GetProfile(uint32 mapId) const;
     [[nodiscard]] std::optional<ContentEra> GetEraForMap(uint32 mapId, uint8 difficulty = 0) const;
+    [[nodiscard]] ContentTier GetTierForMap(uint32 mapId, uint8 difficulty = 0) const;
     [[nodiscard]] uint32 GetIntendedPlayers(uint32 mapId, uint8 difficulty) const;
 
     [[nodiscard]] bool ValidateAll(std::vector<std::string>& issues) const;
