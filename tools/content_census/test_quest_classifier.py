@@ -95,5 +95,48 @@ class TestQuestChainClassifier(unittest.TestCase):
         self.assertEqual(status, "CONFLICT")
         self.assertIn("disabled in active layout", reason)
 
+    def test_simultaneous_prev_and_next_quest_semantics(self):
+        # Regression test for quest with both PrevQuestID and NextQuestID (e.g. Quest 2)
+        # Authored data:
+        # Quest 2: Level 30, MinLevel 20
+        # NextQuest 247: Level 30, MinLevel 20
+        # PrevQuest 6383: Level 20, MinLevel 20
+        # Under UNION ALL, two distinct rows are produced with distinct LinkTypes:
+        row_next = (2, 30, 20, 247, 30, 20, "NextQuest")
+        row_prev = (2, 30, 20, 6383, 20, 20, "PrevQuest")
+
+        # 1. Verify distinct link types
+        self.assertNotEqual(row_next[6], row_prev[6])
+        self.assertEqual(row_next[6], "NextQuest")
+        self.assertEqual(row_prev[6], "PrevQuest")
+
+        # 2. Verify NextQuest direction (2 -> 247, Level 30 -> 30) evaluates to PASS
+        status_next, reason_next = classify_chain_link(
+            row_next[0], row_next[1], row_next[2],
+            row_next[3], row_next[4], row_next[5],
+            row_next[6], self.mappings, max_cap=60
+        )
+        self.assertEqual(status_next, "PASS")
+        self.assertIn("monotonic and reachable", reason_next)
+
+        # 3. Verify PrevQuest direction (6383 -> 2, Level 20 -> 30) evaluates to PASS
+        # (PrevQuest reverses Q1/Q2 so predecessor is 6383 and successor is 2)
+        status_prev, reason_prev = classify_chain_link(
+            row_prev[0], row_prev[1], row_prev[2],
+            row_prev[3], row_prev[4], row_prev[5],
+            row_prev[6], self.mappings, max_cap=60
+        )
+        self.assertEqual(status_prev, "PASS")
+        self.assertIn("monotonic and reachable", reason_prev)
+
+        # 4. Verify that mislabeling PrevQuest as NextQuest would have produced an incorrect regression warning
+        status_mislabelled, reason_mislabelled = classify_chain_link(
+            row_prev[0], row_prev[1], row_prev[2],
+            row_prev[3], row_prev[4], row_prev[5],
+            "NextQuest", self.mappings, max_cap=60
+        )
+        self.assertEqual(status_mislabelled, "WARNING")
+        self.assertIn("regression gap", reason_mislabelled)
+
 if __name__ == "__main__":
     unittest.main()

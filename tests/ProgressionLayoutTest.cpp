@@ -17,6 +17,7 @@
 #include "LocalLevelScaling.h"
 #include "ProgressionContext.h"
 #include "ProgressionRewardResolver.h"
+#include "QuestDef.h"
 #include <fstream>
 #include <sstream>
 #include "gtest/gtest.h"
@@ -1880,6 +1881,25 @@ TEST(ProgressionRewardTest, ProgressionContext_ConstructionAndMetrics)
     EXPECT_FLOAT_EQ(ctx.eraProgress, 0.7f);
 }
 
+TEST(ProgressionRewardTest, QuestXPEqualLevelFactorClamped)
+{
+    // Production Quest::CalculateQuestXP must clamp diffFactor to 10 for equal-level quests
+    // and must not duplicate or double the base DBC XP.
+    constexpr uint32 lvl80Diff5BaseExp = 22050;
+    uint32 const xpEqualLevel = Quest::CalculateQuestXP(lvl80Diff5BaseExp, 80, 80);
+    EXPECT_EQ(xpEqualLevel, 22050u);
+
+    // Verify when player is underlevel, diffFactor is clamped to 10 (not 20+)
+    uint32 const xpUnderlevel = Quest::CalculateQuestXP(lvl80Diff5BaseExp, 80, 70);
+    EXPECT_EQ(xpUnderlevel, 22050u);
+
+    // Verify when player is overlevel, diffFactor scales down
+    // questLevel 80, playerLevel 86: diffFactor = 2*(80-86) + 20 = 8 -> 8 * 22050 / 10 = 17640
+    // RoundQuestXP(17640) rounds to nearest 50 -> 17650
+    uint32 const xpOverlevel = Quest::CalculateQuestXP(lvl80Diff5BaseExp, 80, 86);
+    EXPECT_EQ(xpOverlevel, 17650u);
+}
+
 // =================================================================================================
 // Production Path Integration Tests: Real Item, Creature XP, and Access Wiring
 // =================================================================================================
@@ -2328,14 +2348,7 @@ namespace
         {
             if (rec.level == questLevel)
             {
-                uint32 const rawXp = 20 * rec.exp[diffIdx] / 10;
-                if (rawXp <= 100)
-                    return 5 * ((rawXp + 2) / 5);
-                if (rawXp <= 500)
-                    return 10 * ((rawXp + 5) / 10);
-                if (rawXp <= 1000)
-                    return 25 * ((rawXp + 12) / 25);
-                return 50 * ((rawXp + 25) / 50);
+                return Quest::CalculateQuestXP(rec.exp[diffIdx], questLevel, static_cast<uint8>(questLevel));
             }
         }
         return 0;

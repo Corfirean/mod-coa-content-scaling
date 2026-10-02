@@ -203,22 +203,36 @@ def generate_reports(repo_root, cmd_base):
     # =========================================================================
     sql = (
         "SELECT q1.ID, q1.QuestLevel, q1.MinLevel, "
-        "q2.ID, q2.QuestLevel, q2.MinLevel, "
-        "CASE "
-        "  WHEN a1.NextQuestID > 0 THEN 'NextQuest' "
-        "  WHEN a1.BreadcrumbForQuestId > 0 THEN 'Breadcrumb' "
-        "  ELSE 'PrevQuest' "
-        "END AS LinkType "
+        "q2.ID, q2.QuestLevel, q2.MinLevel, 'NextQuest' AS LinkType "
         "FROM quest_template q1 "
         "JOIN quest_template_addon a1 ON q1.ID = a1.ID "
-        "JOIN quest_template q2 ON ( "
-        "    (a1.NextQuestID > 0 AND q2.ID = a1.NextQuestID) OR "
-        "    (a1.BreadcrumbForQuestId > 0 AND q2.ID = a1.BreadcrumbForQuestId) OR "
-        "    (a1.PrevQuestID != 0 AND q2.ID = ABS(a1.PrevQuestID)) "
-        ") "
-        "ORDER BY q1.ID, q2.ID;"
+        "JOIN quest_template q2 ON q2.ID = a1.NextQuestID "
+        "WHERE a1.NextQuestID > 0 "
+        "UNION ALL "
+        "SELECT q1.ID, q1.QuestLevel, q1.MinLevel, "
+        "q2.ID, q2.QuestLevel, q2.MinLevel, 'Breadcrumb' AS LinkType "
+        "FROM quest_template q1 "
+        "JOIN quest_template_addon a1 ON q1.ID = a1.ID "
+        "JOIN quest_template q2 ON q2.ID = a1.BreadcrumbForQuestId "
+        "WHERE a1.BreadcrumbForQuestId > 0 "
+        "UNION ALL "
+        "SELECT q1.ID, q1.QuestLevel, q1.MinLevel, "
+        "q2.ID, q2.QuestLevel, q2.MinLevel, 'PrevQuest' AS LinkType "
+        "FROM quest_template q1 "
+        "JOIN quest_template_addon a1 ON q1.ID = a1.ID "
+        "JOIN quest_template q2 ON q2.ID = ABS(a1.PrevQuestID) "
+        "WHERE a1.PrevQuestID != 0 "
+        "ORDER BY 1, 4, 7;"
     )
-    rows = run_query(cmd_base, sql) if cmd_base else []
+    raw_rows = run_query(cmd_base, sql) if cmd_base else []
+    # Deduplicate only by (sourceId, targetId, linkType) to preserve distinct relationship types
+    seen = set()
+    rows = []
+    for r in raw_rows:
+        key = (int(r[0]), int(r[3]), r[6])
+        if key not in seen:
+            seen.add(key)
+            rows.append(r)
 
     conflicts_md = header + "# Quest Progression Conflicts & Reachability Scan\n\n"
     conflicts_md += "## 1. Scope & Methodology\n\n"
