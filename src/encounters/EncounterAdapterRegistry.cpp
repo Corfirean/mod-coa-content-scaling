@@ -13,6 +13,7 @@ std::shared_ptr<IEncounterAdapter> CreateChessEventAdapter();
 std::shared_ptr<IEncounterAdapter> CreateFourHorsemenAdapter();
 std::shared_ptr<IEncounterAdapter> CreateFlameLeviathanAdapter();
 std::shared_ptr<IEncounterAdapter> CreateValithriaAdapter();
+std::shared_ptr<IEncounterAdapter> CreateLichKingAdapter();
 
 void RegisterCuratedEncounterAdapters()
 {
@@ -22,4 +23,5 @@ void RegisterCuratedEncounterAdapters()
     sAdaptiveEncounterMgr->RegisterAdapter(CreateFourHorsemenAdapter());
     sAdaptiveEncounterMgr->RegisterAdapter(CreateFlameLeviathanAdapter());
     sAdaptiveEncounterMgr->RegisterAdapter(CreateValithriaAdapter());
+    sAdaptiveEncounterMgr->RegisterAdapter(CreateLichKingAdapter());
 }

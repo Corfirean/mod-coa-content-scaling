@@ -21,6 +21,7 @@ set_property(GLOBAL APPEND PROPERTY ACORE_MODULE_TEST_SOURCES
     "${CMAKE_SOURCE_DIR}/modules/mod-coa-content-scaling/src/encounters/wotlk/FourHorsemenAdapter.cpp"
     "${CMAKE_SOURCE_DIR}/modules/mod-coa-content-scaling/src/encounters/wotlk/FlameLeviathanAdapter.cpp"
     "${CMAKE_SOURCE_DIR}/modules/mod-coa-content-scaling/src/encounters/wotlk/ValithriaAdapter.cpp"
+    "${CMAKE_SOURCE_DIR}/modules/mod-coa-content-scaling/src/encounters/wotlk/LichKingAdapter.cpp"
     "${CMAKE_SOURCE_DIR}/modules/mod-coa-content-scaling/tests/ProgressionLayoutTest.cpp"
     "${CMAKE_SOURCE_DIR}/modules/mod-coa-content-scaling/tests/EncounterAdaptationTest.cpp")
 

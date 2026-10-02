@@ -281,3 +281,41 @@ TEST_F(EncounterAdaptationTest, ValithriaSoloDreamPortalsAndHeal)
         631, 10, 0, EncounterMechanicType::HEALING_CONTRIBUTION, 0, soloCtx);
     EXPECT_GT(healPerKill, 0u); // Alternative heal contribution enabled for solo non-healer
 }
+
+// 9. LichKingSoloValkyrThreshold
+TEST_F(EncounterAdaptationTest, LichKingSoloValkyrThreshold)
+{
+    // Solo context
+    EncounterContext soloCtx;
+    soloCtx.mapId = 631;
+    soloCtx.encounterId = 12; // DATA_THE_LICH_KING
+    soloCtx.actualParticipants = 1;
+    soloCtx.combatEffectivePlayers = 1.0f;
+    soloCtx.mechanicParticipants = 1;
+    soloCtx.intendedPlayers = 25;
+    soloCtx.challengeSize = 0;
+    soloCtx.isPhysicallySolo = true;
+    soloCtx.isMechanicSolo = true;
+
+    // Solo drop threshold should be generous (e.g. 85%) so solo player can easily break Valkyr grab
+    uint32 const soloDropPct = sAdaptiveEncounterMgr->ResolveMechanic(
+        631, 12, 1, EncounterMechanicType::STACK_THRESHOLD, 50, soloCtx);
+    EXPECT_EQ(soloDropPct, 85u);
+
+    // Full raid parity: 25 participants, intended 25
+    EncounterContext fullCtx;
+    fullCtx.mapId = 631;
+    fullCtx.encounterId = 12;
+    fullCtx.actualParticipants = 25;
+    fullCtx.combatEffectivePlayers = 25.0f;
+    fullCtx.mechanicParticipants = 25;
+    fullCtx.intendedPlayers = 25;
+    fullCtx.challengeSize = 0;
+    fullCtx.isPhysicallySolo = false;
+    fullCtx.isMechanicSolo = false;
+
+    uint32 const fullDropPct = sAdaptiveEncounterMgr->ResolveMechanic(
+        631, 12, 1, EncounterMechanicType::STACK_THRESHOLD, 50, fullCtx);
+    EXPECT_EQ(fullDropPct, 50u); // Preserves authored 50% threshold
+}
+

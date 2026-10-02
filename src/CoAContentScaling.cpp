@@ -1140,14 +1140,14 @@ namespace
     public:
         coa_content_scaling_map() : AllMapScript("coa_content_scaling_map") { }
 
-        void OnResolveEncounterMechanic(Map* map, uint32 encounterId, uint8 mechanicType, uint32 authoredValue, uint32& resolvedValue) override
+        void OnResolveEncounterMechanic(Map* map, uint32 encounterId, uint32 mechanicId, uint8 mechanicType, uint32 authoredValue, uint32& resolvedValue) override
         {
             if (!sCoAContentScaling->IsEnabled() || !sCoAContentScaling->IsAdaptiveMechanicsEnabled() || !map)
                 return;
 
             EncounterContext ctx = sInstanceScalingMgr->BuildEncounterContext(map, encounterId);
             resolvedValue = sAdaptiveEncounterMgr->ResolveMechanic(
-                map->GetId(), encounterId, 0, static_cast<EncounterMechanicType>(mechanicType), authoredValue, ctx);
+                map->GetId(), encounterId, mechanicId, static_cast<EncounterMechanicType>(mechanicType), authoredValue, ctx);
         }
     };
 }
