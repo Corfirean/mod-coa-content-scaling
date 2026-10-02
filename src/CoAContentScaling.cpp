@@ -17,6 +17,8 @@
 #include "Field.h"
 #include "GameTime.h"
 #include "Group.h"
+#include "GeneratedContentCensus.h"
+#include "InstanceProfile.h"
 #include "InstanceScaleContext.h"
 #include "ItemBudgetScaler.h"
 #include "LFGMgr.h"
@@ -763,6 +765,45 @@ namespace
             sCoAContentScaling->OnResolveLfgQueuePolicy(guid, policy);
         }
 
+        void OnInitializeLockedDungeons(Player* player, uint8& /*level*/, uint32& lockData, lfg::LFGDungeonData const* dungeon) override
+        {
+            if (!sCoAContentScaling->IsEnabled() || !player || !dungeon)
+                return;
+
+            auto const* lfgProf = FindGeneratedLfgProfile(dungeon->id);
+            if (!lfgProf)
+                return;
+
+            // Check if era is disabled
+            if ((lfgProf->era == ContentEra::TBC && !sCoAContentScaling->IsTbcEnabled()) ||
+                (lfgProf->era == ContentEra::WotLK && !sCoAContentScaling->IsWotlkEnabled()))
+            {
+                lockData = lfg::LFG_LOCKSTATUS_INSUFFICIENT_EXPANSION;
+                return;
+            }
+
+            // Compute effective min and max levels
+            auto const& layout = sCoAContentScaling->GetLayout();
+            uint8 const effMin = layout.MapAuthoredToEffective(lfgProf->era, lfgProf->authoredMin);
+            uint8 const effMax = layout.MapAuthoredToEffective(lfgProf->era, lfgProf->authoredMax);
+            uint8 const playerLevel = player->GetLevel();
+
+            if (playerLevel < effMin)
+            {
+                lockData = lfg::LFG_LOCKSTATUS_TOO_LOW_LEVEL;
+            }
+            else if (playerLevel > effMax)
+            {
+                lockData = lfg::LFG_LOCKSTATUS_TOO_HIGH_LEVEL;
+            }
+            else
+            {
+                // If level requirement is satisfied under effective progression, clear level locks
+                if (lockData == lfg::LFG_LOCKSTATUS_TOO_LOW_LEVEL || lockData == lfg::LFG_LOCKSTATUS_TOO_HIGH_LEVEL)
+                    lockData = 0;
+            }
+        }
+
         void OnLfgProposalMadeGroup(lfg::LfgProposal const& proposal, Group* group) override
         {
             sCoAContentScaling->OnLfgProposalMadeGroup(proposal, group);
@@ -997,6 +1038,30 @@ namespace
                 return true;
 
             return sCoAContentScaling->CanPlayerEnterMap(player, entry->MapID);
+        }
+
+        void OnResolveDungeonAccessLevels(Player const* player, uint32 mapId, uint8& minLevel, uint8& maxLevel) override
+        {
+            if (!sCoAContentScaling->IsEnabled() || !player)
+                return;
+
+            auto const* accessProf = FindGeneratedAccessProfile(mapId);
+            if (!accessProf)
+                return;
+
+            // Check if era is disabled
+            if ((accessProf->era == ContentEra::TBC && !sCoAContentScaling->IsTbcEnabled()) ||
+                (accessProf->era == ContentEra::WotLK && !sCoAContentScaling->IsWotlkEnabled()))
+            {
+                minLevel = 255; // Lock out
+                return;
+            }
+
+            auto const& layout = sCoAContentScaling->GetLayout();
+            if (minLevel > 0)
+                minLevel = layout.MapAuthoredToEffective(accessProf->era, minLevel);
+            if (maxLevel > 0)
+                maxLevel = layout.MapAuthoredToEffective(accessProf->era, maxLevel);
         }
 
         void OnPlayerLogin(Player* player) override

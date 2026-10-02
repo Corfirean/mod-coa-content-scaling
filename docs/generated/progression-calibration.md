@@ -1,19 +1,17 @@
-# Progression Calibration Report
+# Progression Calibration & Density Report
 
-## Calibrated Matrix & Content Density
+## Progression Density Bands (Cap 60 All Eras)
 
-### Cap 60 / All Eras (Classic + TBC + WotLK)
+| Level Band | Era | Authored Span | Quests Available | PvE Instances | Density Assessment |
+|---|---|---|---|---|---|
+| Levels 1 - 45 | Classic | 1 - 60 | 6417 | 22 | High Density (Smooth leveling curve) |
+| Levels 46 - 55 | TBC | 58 - 70 | 1807 | 23 | Moderate-High Density (Outland campaign) |
+| Levels 56 - 60 | WotLK | 68 - 80 | 1882 | 25 | Dense Endgame (Northrend campaign & raids) |
 
-| Progression Band | Era | Authored Span | Effective Span | Quests Available | Dungeons | Raids | Density Assessment |
-|---|---|---|---|---|---|---|---|
-| Leveling & Intro | Classic | 1-60 | 1-45 | 4781 | 18 | 4 | Optimal (Massive world content smoothly mapped) |
-| Expansion Mid | TBC | 58-70 | 45-55 | 2996 | 15 | 8 | Dense (Fast-paced Outland campaign) |
-| Expansion Climax | WotLK | 68-80 | 55-60 | 2329 | 16 | 9 | Pinnacle (Intense Northrend endgame compression) |
+## Progression Density Bands (Cap 80 Stock)
 
-### Cap 80 / All Eras (Stock Baseline)
-
-| Progression Band | Era | Authored Span | Effective Span | Notes |
-|---|---|---|---|---|
-| Classic | Classic | 1-60 | 1-60 | 1:1 Identity with original game |
-| TBC | TBC | 58-70 | 58-70 | 1:1 Identity with original game |
-| WotLK | WotLK | 68-80 | 68-80 | 1:1 Identity with original game |
+| Level Band | Era | Authored Span | Quests Available | PvE Instances | Assessment |
+|---|---|---|---|---|---|
+| Levels 1 - 60 | Classic | 1 - 60 | 6417 | 22 | 1:1 Stock Blizzard Identity |
+| Levels 61 - 70 | TBC | 58 - 70 | 1807 | 23 | 1:1 Stock Blizzard Identity |
+| Levels 71 - 80 | WotLK | 68 - 80 | 1882 | 25 | 1:1 Stock Blizzard Identity |

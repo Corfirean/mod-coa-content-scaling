@@ -33,12 +33,13 @@ enum class EraResolutionSource : uint8
 {
     ExplicitOverride       = 0,
     ExplicitAreaOverride   = 1,
-    InstanceProfile        = 2,
-    ContentPack            = 3,
-    AuthoredExpansion      = 4,
-    ZoneSortMetadata       = 5,
-    AuthoredLevelHeuristic = 6,
-    SafeFallback           = 7
+    ContentCensus          = 2,
+    InstanceProfile        = 3,
+    ContentPack            = 4,
+    AuthoredExpansion      = 5,
+    ZoneSortMetadata       = 6,
+    AuthoredLevelHeuristic = 7,
+    SafeFallback           = 8
 };
 
 constexpr std::string_view EraResolutionSourceToString(EraResolutionSource source)
@@ -47,6 +48,7 @@ constexpr std::string_view EraResolutionSourceToString(EraResolutionSource sourc
     {
         case EraResolutionSource::ExplicitOverride:       return "ExplicitOverride";
         case EraResolutionSource::ExplicitAreaOverride:   return "ExplicitAreaOverride";
+        case EraResolutionSource::ContentCensus:          return "ContentCensus";
         case EraResolutionSource::InstanceProfile:        return "InstanceProfile";
         case EraResolutionSource::ContentPack:            return "ContentPack";
         case EraResolutionSource::AuthoredExpansion:      return "AuthoredExpansion";
@@ -63,5 +65,35 @@ struct EraResolutionResult
     EraResolutionSource source{EraResolutionSource::SafeFallback};
     float confidence{1.0f};
 };
+
+enum class MapContentKind : uint8
+{
+    WORLD        = 0,
+    DUNGEON      = 1,
+    RAID         = 2,
+    BATTLEGROUND = 3,
+    ARENA        = 4,
+    CUSTOM_PVE   = 5,
+    UNKNOWN      = 6
+};
+
+constexpr std::string_view MapContentKindToString(MapContentKind kind)
+{
+    switch (kind)
+    {
+        case MapContentKind::WORLD:        return "WORLD";
+        case MapContentKind::DUNGEON:      return "DUNGEON";
+        case MapContentKind::RAID:         return "RAID";
+        case MapContentKind::BATTLEGROUND: return "BATTLEGROUND";
+        case MapContentKind::ARENA:        return "ARENA";
+        case MapContentKind::CUSTOM_PVE:   return "CUSTOM_PVE";
+        default:                           return "UNKNOWN";
+    }
+}
+
+constexpr bool IsPvEInstanceKind(MapContentKind kind)
+{
+    return kind == MapContentKind::DUNGEON || kind == MapContentKind::RAID || kind == MapContentKind::CUSTOM_PVE;
+}
 
 #endif // COA_CONTENT_ERA_H

@@ -1,0 +1,26 @@
+[
+  {
+    "category": "CUSTOM_COSMETIC",
+    "entry_range": [100000, 200000],
+    "description": "Ascension vanity, illusions, mounts, pets, and visual cosmetics",
+    "scaling_policy": "EXEMPT_PRESERVE",
+    "reason": "Cosmetic items do not possess combat stat budgets and must not be altered",
+    "source": "Ascension item_template entries >= 100000"
+  },
+  {
+    "category": "CUSTOM_CLASS_ITEM",
+    "entry_range": [200001, 350000],
+    "description": "CoA class-less skill books, trait scrolls, and ability unlockers",
+    "scaling_policy": "EXEMPT_PRESERVE",
+    "reason": "Ability consumables operate outside standard stat-budget normalization",
+    "source": "CoA ability unlock database"
+  },
+  {
+    "category": "CUSTOM_GAMEPLAY",
+    "entry_range": [350001, 600000],
+    "description": "Mystic enchants, custom equipment caches, and seasonal event gear",
+    "scaling_policy": "TIER_ALIGNED",
+    "reason": "Custom gear intended for endgame PvE must align to the corresponding tier curve",
+    "source": "CoA custom loot and progression tables"
+  }
+]

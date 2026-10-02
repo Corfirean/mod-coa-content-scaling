@@ -4,6 +4,7 @@
  */
 
 #include "ContentPackRegistry.h"
+#include "GeneratedContentCensus.h"
 #include "InstanceProfile.h"
 #include "Log.h"
 #include <algorithm>
@@ -171,6 +172,13 @@ EraResolutionResult ContentPackRegistry::ResolveEraDetailsForCreature(uint32 cre
             return EraResolutionResult{ait->second, EraResolutionSource::ExplicitAreaOverride, 1.0f};
     }
 
+    // Priority 2.5: Placement-Aware Generated Creature Census Profile
+    if (mapId != MAP_UNSPECIFIED)
+    {
+        if (auto const* gc = FindGeneratedCreaturePlacement(creatureEntry, mapId))
+            return EraResolutionResult{gc->era, EraResolutionSource::ContentCensus, static_cast<float>(gc->confidence) / 100.0f};
+    }
+
     // Priority 3: Explicit instance/map profile
     // If creature is placed on a map with clear era ownership, map ownership takes precedence over level
     if (mapId != MAP_UNSPECIFIED)
@@ -235,6 +243,12 @@ EraResolutionResult ContentPackRegistry::ResolveEraDetailsForQuest(uint32 questI
             return EraResolutionResult{pack->GetEra(), EraResolutionSource::ContentPack, 1.0f};
     }
 
+    // Priority 2.5: Generated Quest Census Profile
+    if (auto const* gq = FindGeneratedQuestProfile(questId))
+    {
+        return EraResolutionResult{gq->era, EraResolutionSource::ContentCensus, static_cast<float>(gq->confidence) / 100.0f};
+    }
+
     // Priority 3: Zone/Sort explicit area override
     if (zoneOrSort > 0)
     {
@@ -289,6 +303,12 @@ EraResolutionResult ContentPackRegistry::ResolveEraDetailsForItem(uint32 itemId,
     {
         if (pack->HandlesItem(itemId))
             return EraResolutionResult{pack->GetEra(), EraResolutionSource::ContentPack, 1.0f};
+    }
+
+    // Priority 2.5: Generated Item Source Profile
+    if (auto const* gi = FindGeneratedItemProfile(itemId))
+    {
+        return EraResolutionResult{gi->era, EraResolutionSource::InstanceProfile, 0.95f};
     }
 
     // Priority 3: Authored expansion metadata (ItemTemplate.RequiredExpansion)

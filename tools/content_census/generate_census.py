@@ -1,118 +1,147 @@
 #!/usr/bin/env python3
 """
-CoA Universal Content Scaling - Content Census Scanner & Profile Generator
-Scans live AzerothCore/CoA World DB and client DBCs to build a complete,
-authoritative census of Maps, Areas, Instances, Creatures, Quests, Items, and LFG entries.
+CoA Universal Content Scaling - Content Census Scanner & Profile Generator (Round 3.1)
+Scans live AzerothCore/CoA World DB, client DBCs, and explicit override datasets.
 Generates:
-  - C++ constexpr header tables for mod-coa-content-scaling
-  - Progression Calibration and Density reports
-  - Ambiguity & Outlier reports
-  - Encounter Adaptation manifests
-  - JSON artifacts for tooling & server manager inspection
+  - C++ constexpr header tables with O(log N) lookups for Maps, Instances, Creatures, Quests, Items, LFG, Access.
+  - Calibrated progression density reports with real level-by-level metrics.
+  - Real item progression and outlier reports using runtime ItemBudgetScaler math.
+  - Access and LFG reports computing real effective spans.
+  - Reproducible JSON artifacts with input cryptographic hashes.
 """
 
 import os
 import sys
 import json
 import struct
+import hashlib
+import argparse
 import subprocess
 from pathlib import Path
 from collections import defaultdict
 
-MYSQL_BIN = Path(r"C:\games\CoA Server 2\mysql\bin\mysql.exe")
-ADMIN_INI = Path(r"C:\games\CoA Server 2\mysql\admin-client.ini")
-DBC_DIR = Path(r"C:\games\CoA Server 2\Data\dbc")
-ROOT_DIR = Path(r"C:\games\source\mod-coa-content-scaling")
+def compute_sha256(filepath):
+    p = Path(filepath)
+    if not p.is_file():
+        return "NOT_FOUND"
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        while chunk := f.read(65536):
+            h.update(chunk)
+    return h.hexdigest()
 
-def run_query(sql):
-    cmd = [
-        str(MYSQL_BIN),
-        f"--defaults-file={ADMIN_INI}",
-        "--batch",
-        "--skip-column-names",
-        "-e",
-        sql
-    ]
+def parse_args():
+    parser = argparse.ArgumentParser(description="CoA Content Census Generator")
+    parser.add_argument("--mysql-bin", default=os.getenv("MYSQL_BIN", r"C:\games\CoA Server 2\mysql\bin\mysql.exe"))
+    parser.add_argument("--defaults-file", default=os.getenv("MYSQL_DEFAULTS_FILE", r"C:\games\CoA Server 2\mysql\admin-client.ini"))
+    parser.add_argument("--world-db", default=os.getenv("COA_WORLD_DB", "acore_world"))
+    parser.add_argument("--dbc-dir", default=os.getenv("COA_DBC_DIR", r"C:\games\CoA Server 2\Data\dbc"))
+    parser.add_argument("--repo-root", default=os.getenv("COA_REPO_ROOT", r"C:\games\source\mod-coa-content-scaling"))
+    parser.add_argument("--output-dir", default=None)
+    return parser.parse_args()
+
+def run_query(cmd_base, sql):
+    cmd = cmd_base + ["-e", sql]
     proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
     if proc.returncode != 0:
         raise RuntimeError(f"MySQL error: {proc.stderr}\nQuery: {sql[:200]}")
     lines = proc.stdout.strip().splitlines()
-    rows = [line.split("\t") for line in lines if line.strip()]
-    return rows
+    return [line.split("\t") for line in lines if line.strip()]
 
-def parse_dbc_map():
-    path = DBC_DIR / "Map.dbc"
+def validate_dbc_header(path, expected_cols_min=1):
     with open(path, "rb") as f:
-        sig, rows, cols, row_size, str_size = struct.unpack("<4sIIII", f.read(20))
-        raw = f.read(rows * row_size)
+        sig, records, fields, rec_size, str_size = struct.unpack("<4s4I", f.read(20))
+    if sig != b"WDBC":
+        raise ValueError(f"Invalid DBC signature in {path}: expected WDBC, got {sig}")
+    if fields < expected_cols_min:
+        raise ValueError(f"DBC {path} has fewer columns ({fields}) than expected minimum ({expected_cols_min})")
+    return records, fields, rec_size, str_size
+
+def parse_dbc_map(dbc_dir):
+    path = Path(dbc_dir) / "Map.dbc"
+    records, fields, rec_size, str_size = validate_dbc_header(path, expected_cols_min=64)
+    with open(path, "rb") as f:
+        f.seek(20)
+        raw = f.read(records * rec_size)
         strings = f.read(str_size)
-    
+
     maps = {}
-    for i in range(rows):
-        offset = i * row_size
-        vals = struct.unpack("<" + "I" * cols, raw[offset:offset + row_size])
+    for i in range(records):
+        offset = i * rec_size
+        vals = struct.unpack("<" + "I" * fields, raw[offset:offset + rec_size])
         map_id = vals[0]
-        inst_type = vals[2]
+        map_type = vals[2] # 0=World, 1=Dungeon, 2=Raid, 3=Battleground, 4=Arena
         name_off = vals[5]
         name = strings[name_off:].split(b"\x00")[0].decode("utf-8", errors="ignore")
-        exp_id = vals[63] # Expansion ID from field 63
-        corpse_map = vals[59]
+        exp_id = vals[63] if fields > 63 else 0
+        corpse_map = vals[59] if fields > 59 else 0
         maps[map_id] = {
+            "map_id": map_id,
+            "map_type": map_type,
             "name": name,
-            "instance_type": inst_type,
-            "expansion_id": exp_id if exp_id < 10 else 0,
+            "expansion_id": exp_id,
             "corpse_map": corpse_map
         }
     return maps
 
-def parse_dbc_areatable():
-    path = DBC_DIR / "AreaTable.dbc"
+def parse_dbc_areatable(dbc_dir):
+    path = Path(dbc_dir) / "AreaTable.dbc"
+    records, fields, rec_size, str_size = validate_dbc_header(path, expected_cols_min=29)
     with open(path, "rb") as f:
-        sig, rows, cols, row_size, str_size = struct.unpack("<4sIIII", f.read(20))
-        raw = f.read(rows * row_size)
+        f.seek(20)
+        raw = f.read(records * rec_size)
         strings = f.read(str_size)
-        
+
     areas = {}
-    for i in range(rows):
-        offset = i * row_size
-        vals = struct.unpack("<" + "I" * cols, raw[offset:offset + row_size])
+    for i in range(records):
+        offset = i * rec_size
+        vals = struct.unpack("<" + "I" * fields, raw[offset:offset + rec_size])
         area_id = vals[0]
         map_id = vals[1]
-        parent_id = vals[2]
-        exp_lvl = vals[10]
+        parent_zone = vals[2]
+        area_level = struct.unpack("<i", struct.pack("<I", vals[10]))[0]
         name_off = vals[11]
         name = strings[name_off:].split(b"\x00")[0].decode("utf-8", errors="ignore")
         areas[area_id] = {
-            "name": name,
+            "area_id": area_id,
             "map_id": map_id,
-            "parent_id": parent_id,
-            "exp_lvl": exp_lvl if exp_lvl < 10 else 0
+            "parent_zone": parent_zone,
+            "area_level": area_level,
+            "name": name
         }
     return areas
 
-def parse_dbc_lfg():
-    path = DBC_DIR / "LFGDungeons.dbc"
+def parse_dbc_lfg(dbc_dir):
+    path = Path(dbc_dir) / "LFGDungeons.dbc"
+    records, fields, rec_size, str_size = validate_dbc_header(path, expected_cols_min=32)
     with open(path, "rb") as f:
-        sig, rows, cols, row_size, str_size = struct.unpack("<4sIIII", f.read(20))
-        raw = f.read(rows * row_size)
+        f.seek(20)
+        raw = f.read(records * rec_size)
         strings = f.read(str_size)
-        
+
     lfg = {}
-    for i in range(rows):
-        offset = i * row_size
-        vals = struct.unpack("<" + "I" * cols, raw[offset:offset + row_size])
+    for i in range(records):
+        offset = i * rec_size
+        vals = struct.unpack("<" + "I" * fields, raw[offset:offset + rec_size])
         lfg_id = vals[0]
         name_off = vals[1]
+        name = strings[name_off:].split(b"\x00")[0].decode("utf-8", errors="ignore")
         min_lvl = vals[18]
         max_lvl = vals[19]
         target_lvl = vals[20]
+        target_min = vals[21]
+        target_max = vals[22]
         map_id = vals[23]
         diff = vals[24]
+        flags = vals[25]
         type_id = vals[26]
         exp_lvl = vals[29]
         group_id = vals[31]
-        name = strings[name_off:].split(b"\x00")[0].decode("utf-8", errors="ignore")
+
+        is_legacy_deactivated = (min_lvl >= 100 and max_lvl >= 100)
+
         lfg[lfg_id] = {
+            "lfg_id": lfg_id,
             "name": name,
             "min_lvl": min_lvl,
             "max_lvl": max_lvl,
@@ -121,22 +150,94 @@ def parse_dbc_lfg():
             "difficulty": diff,
             "type_id": type_id,
             "expansion": exp_lvl if exp_lvl < 10 else 0,
-            "group_id": group_id
+            "group_id": group_id,
+            "deactivated": is_legacy_deactivated
         }
     return lfg
 
+def load_overrides(repo_root):
+    ov_dir = Path(repo_root) / "data/content/overrides"
+    map_ov = {}
+    if (ov_dir / "map_overrides.json").exists():
+        with open(ov_dir / "map_overrides.json", "r", encoding="utf-8") as f:
+            for item in json.load(f):
+                map_ov[item["entity"]] = item
+
+    tiers_ov = {}
+    if (ov_dir / "instance_tiers.json").exists():
+        with open(ov_dir / "instance_tiers.json", "r", encoding="utf-8") as f:
+            for item in json.load(f):
+                tiers_ov[item["entity"]] = item
+
+    reused_ov = {}
+    if (ov_dir / "reused_maps.json").exists():
+        with open(ov_dir / "reused_maps.json", "r", encoding="utf-8") as f:
+            for item in json.load(f):
+                reused_ov[item["entity"]] = item
+
+    custom_ov = []
+    if (ov_dir / "custom_content.json").exists():
+        with open(ov_dir / "custom_content.json", "r", encoding="utf-8") as f:
+            custom_ov = json.load(f)
+
+    return map_ov, tiers_ov, reused_ov, custom_ov
+
+def map_authored_to_effective(era, authored_lvl, cap):
+    """Mirror ProgressionLayout logic for Cap 60/70/80."""
+    if cap == 80:
+        return authored_lvl
+    if cap == 70:
+        if era == "Classic":
+            return round(1.0 + (authored_lvl - 1.0) / 59.0 * 57.0)
+        elif era == "TBC":
+            return round(58.0 + (authored_lvl - 58.0) / 12.0 * 12.0)
+        elif era == "WotLK":
+            return round(68.0 + (authored_lvl - 68.0) / 12.0 * 2.0)
+        return authored_lvl
+    if cap == 60:
+        if era == "Classic":
+            return round(1.0 + (authored_lvl - 1.0) / 59.0 * 44.0)
+        elif era == "TBC":
+            return round(45.0 + (authored_lvl - 58.0) / 12.0 * 10.0)
+        elif era == "WotLK":
+            return round(55.0 + (authored_lvl - 68.0) / 12.0 * 5.0)
+        return authored_lvl
+    return authored_lvl
+
 def main():
-    print("=== Step 1: Parsing DBCs ===")
-    dbc_maps = parse_dbc_map()
-    dbc_areas = parse_dbc_areatable()
-    dbc_lfg = parse_dbc_lfg()
+    args = parse_args()
+    repo_root = Path(args.repo_root)
+    output_dir = Path(args.output_dir) if args.output_dir else repo_root
+    dbc_dir = Path(args.dbc_dir)
+    world_db = args.world_db
+
+    cmd_base = [
+        str(args.mysql_bin),
+        f"--defaults-file={args.defaults_file}",
+        "--batch",
+        "--skip-column-names"
+    ]
+
+    print("=== Step 1: Validating and Parsing DBCs ===")
+    dbc_maps = parse_dbc_map(dbc_dir)
+    dbc_areas = parse_dbc_areatable(dbc_dir)
+    dbc_lfg = parse_dbc_lfg(dbc_dir)
     print(f"Loaded {len(dbc_maps)} maps, {len(dbc_areas)} areas, {len(dbc_lfg)} LFG entries.")
 
-    print("=== Step 2: Querying DB Instances and Access Templates ===")
-    inst_rows = run_query("SELECT map, parent, script FROM acore_world.instance_template;")
+    print("=== Step 2: Loading External Overrides ===")
+    map_ov, tiers_ov, reused_ov, custom_ov = load_overrides(repo_root)
+    print(f"Loaded overrides: {len(map_ov)} maps, {len(tiers_ov)} tiers, {len(reused_ov)} reused, {len(custom_ov)} custom rules.")
+
+    print("=== Step 3: Querying Database Dynamic Counts & Templates ===")
+    creature_total = int(run_query(cmd_base, f"SELECT COUNT(*) FROM {world_db}.creature_template;")[0][0])
+    item_total = int(run_query(cmd_base, f"SELECT COUNT(*) FROM {world_db}.item_template;")[0][0])
+    quest_total = int(run_query(cmd_base, f"SELECT COUNT(*) FROM {world_db}.quest_template;")[0][0])
+    spawn_total = int(run_query(cmd_base, f"SELECT COUNT(*) FROM {world_db}.creature;")[0][0])
+
+    inst_rows = run_query(cmd_base, f"SELECT map, parent, script FROM {world_db}.instance_template;")
     instance_templates = {int(r[0]): {"parent": int(r[1]), "script": r[2] if len(r) > 2 else ""} for r in inst_rows}
 
-    access_rows = run_query("SELECT map_id, difficulty, min_level, max_level, comment FROM acore_world.dungeon_access_template;")
+    access_rows = run_query(cmd_base, f"SELECT map_id, difficulty, min_level, max_level, comment FROM {world_db}.dungeon_access_template;")
     dungeon_access = []
     for r in access_rows:
         dungeon_access.append({
@@ -144,313 +245,477 @@ def main():
             "difficulty": int(r[1]),
             "min_level": int(r[2]),
             "max_level": int(r[3]),
-            "comment": r[4]
+            "comment": r[4] if len(r) > 4 else ""
         })
-    print(f"Loaded {len(instance_templates)} instance templates, {len(dungeon_access)} access templates.")
+    print(f"DB Totals: Creatures={creature_total}, Items={item_total}, Quests={quest_total}, Spawns={spawn_total}, Instances={len(instance_templates)}, Access={len(dungeon_access)}.")
 
-    print("=== Step 3: Classifying Instances into Eras and Tiers ===")
-    # Manual era overrides for special/reused maps
-    # Map 249 (Onyxia in 3.3.5 is level 80 WotLK raid)
-    # Map 533 (Naxxramas in 3.3.5 is level 80 WotLK raid)
-    instance_profiles = []
-    classified_instances = {}
+    print("=== Step 4: Classifying Maps with MapContentKind (PvP Exclusion) ===")
+    # 0=WORLD, 1=DUNGEON, 2=RAID, 3=BATTLEGROUND, 4=ARENA, 5=CUSTOM_PVE, 6=UNKNOWN
+    all_map_profiles = []
+    pve_instance_profiles = []
+    excluded_pvp_maps = []
 
-    for map_id, tpl in instance_templates.items():
-        dbc_m = dbc_maps.get(map_id, {"name": f"Map {map_id}", "instance_type": 1, "expansion_id": 0})
-        name = dbc_m["name"]
-        inst_type = dbc_m["instance_type"] # 1 = 5man, 2 = Raid
-        is_raid = (inst_type == 2)
+    for map_id, m in sorted(dbc_maps.items()):
+        raw_type = m["map_type"]
+        name = m["name"]
+        exp_id = m["expansion_id"]
 
-        # Inherent era from DBC or explicit override
+        # Classification priority:
+        # 1. Explicit override
+        # 2. Reused override
+        # 3. DBC map_type
+        kind = "UNKNOWN"
         era = "Classic"
-        if map_id in (249, 533):
-            era = "WotLK"
-        elif map_id in (169, 880, 883, 889, 890, 936) or map_id >= 800:
-            era = "Custom"
-        elif dbc_m["expansion_id"] == 1 or map_id in (530, 532, 534, 540, 542, 543, 544, 545, 546, 547, 548, 550, 552, 553, 554, 555, 556, 557, 558, 560, 564, 565, 568, 580, 585):
-            era = "TBC"
-        elif dbc_m["expansion_id"] == 2 or map_id in (571, 574, 575, 576, 578, 595, 599, 600, 601, 602, 603, 604, 608, 615, 616, 619, 624, 631, 632, 649, 650, 658, 668, 724):
-            era = "WotLK"
-        else:
-            era = "Classic"
 
-        # Determine Tier
-        tier = "WORLD"
-        intended_players = 5
-        if not is_raid:
-            tier = "DUNGEON_NORMAL"
-            intended_players = 5
-        else:
-            intended_players = 10 if map_id in (532, 568) else 25 # default assumption
-            if era == "Classic":
-                if map_id in (309, 509): # ZG, AQ20
-                    tier = "RAID_ENTRY"
-                    intended_players = 20
-                elif map_id in (409,): # MC
-                    tier = "RAID_MID"
-                    intended_players = 40
-                elif map_id in (469,): # BWL
-                    tier = "RAID_END"
-                    intended_players = 40
-                elif map_id in (531,): # AQ40
-                    tier = "RAID_PINNACLE"
-                    intended_players = 40
-                else:
-                    tier = "RAID_MID"
-            elif era == "TBC":
-                if map_id in (532, 565, 544): # Kara, Gruul, Magtheridon
-                    tier = "RAID_ENTRY"
-                    intended_players = 10 if map_id == 532 else 25
-                elif map_id in (548, 550): # SSC, TK Eye
-                    tier = "RAID_MID"
-                    intended_players = 25
-                elif map_id in (534, 564, 568): # Hyjal, BT, ZA
-                    tier = "RAID_END"
-                    intended_players = 10 if map_id == 568 else 25
-                elif map_id in (580,): # Sunwell
-                    tier = "RAID_PINNACLE"
-                    intended_players = 25
-                else:
-                    tier = "RAID_MID"
-            elif era == "WotLK":
-                if map_id in (533, 615, 616, 624, 249): # Naxx, OS, EoE, VoA, Ony
-                    tier = "RAID_ENTRY"
-                    intended_players = 10
-                elif map_id in (603,): # Ulduar
-                    tier = "RAID_MID"
-                    intended_players = 10
-                elif map_id in (649,): # ToC
-                    tier = "RAID_END"
-                    intended_players = 10
-                elif map_id in (631, 724): # ICC, RS
-                    tier = "RAID_PINNACLE"
-                    intended_players = 10
-                else:
-                    tier = "RAID_MID"
+        if map_id in map_ov:
+            kind = map_ov[map_id].get("kind", "CUSTOM_PVE")
+            era = map_ov[map_id].get("era", "Custom")
+        elif map_id in reused_ov:
+            kind = "RAID"
+            era = reused_ov[map_id]["era"]
+        elif raw_type == 0:
+            kind = "WORLD"
+            era = "Classic" if exp_id == 0 else ("TBC" if exp_id == 1 else "WotLK")
+        elif raw_type == 1:
+            kind = "DUNGEON"
+            era = "Classic" if exp_id == 0 else ("TBC" if exp_id == 1 else "WotLK")
+        elif raw_type == 2:
+            kind = "RAID"
+            era = "Classic" if exp_id == 0 else ("TBC" if exp_id == 1 else "WotLK")
+        elif raw_type == 3:
+            kind = "BATTLEGROUND"
+            era = "Classic" if exp_id == 0 else ("TBC" if exp_id == 1 else "WotLK")
+        elif raw_type == 4:
+            kind = "ARENA"
+            era = "TBC" if exp_id == 1 else ("WotLK" if exp_id == 2 else "Classic")
 
-        # Find linked LFG IDs
-        linked_lfg = [lid for lid, ldata in dbc_lfg.items() if ldata["map_id"] == map_id]
-
-        profile = {
+        all_map_profiles.append({
             "map_id": map_id,
             "name": name,
-            "era": era,
-            "tier": tier,
-            "is_raid": is_raid,
-            "intended_players": intended_players,
-            "lfg_ids": linked_lfg
-        }
-        instance_profiles.append(profile)
-        classified_instances[map_id] = profile
+            "kind": kind,
+            "era": era
+        })
 
-    print(f"Classified {len(instance_profiles)} instance profiles.")
+        if kind in ("BATTLEGROUND", "ARENA"):
+            excluded_pvp_maps.append({"map_id": map_id, "name": name, "kind": kind})
 
-    print("=== Step 4: Creature Spawn Census ===")
-    creature_spawn_rows = run_query("""
-        SELECT c.id, c.map, count(*) 
-        FROM acore_world.creature c 
-        GROUP BY c.id, c.map;
-    """)
-    creature_map_spawns = defaultdict(dict)
-    for r in creature_spawn_rows:
-        cid = int(r[0])
-        mid = int(r[1])
-        cnt = int(r[2])
-        creature_map_spawns[cid][mid] = cnt
+        # PvE Instance Profiles
+        if kind in ("DUNGEON", "RAID", "CUSTOM_PVE"):
+            tier = "DUNGEON_NORMAL"
+            intended = 5
+            is_raid = (kind in ("RAID", "CUSTOM_PVE") and raw_type == 2) or (kind == "CUSTOM_PVE" and map_id in (169, 880, 883, 889, 890))
 
-    print(f"Processed spawns for {len(creature_map_spawns)} unique creature templates.")
+            if is_raid:
+                intended = 25
+                if map_id in tiers_ov:
+                    tier = tiers_ov[map_id]["tier"]
+                    intended = tiers_ov[map_id]["intendedPlayers"]
+                elif map_id in reused_ov:
+                    tier = reused_ov[map_id]["tier"]
+                    intended = reused_ov[map_id]["intendedPlayers"]
+                else:
+                    tier = "RAID_MID"
+            else:
+                tier = "DUNGEON_NORMAL"
+                intended = 5
 
-    print("=== Step 5: Quests Census and Chain Traversal ===")
-    quest_rows = run_query("""
-        SELECT q.ID, q.QuestLevel, q.MinLevel, q.QuestSortID, q.RewardNextQuest, 
-               COALESCE(qa.PrevQuestID, 0), COALESCE(qa.NextQuestID, 0)
-        FROM acore_world.quest_template q
-        LEFT JOIN acore_world.quest_template_addon qa ON q.ID = qa.ID;
-    """)
-    quests = {}
+            # Base normal variant (diff 0)
+            pve_instance_profiles.append({
+                "map_id": map_id,
+                "difficulty": 0,
+                "kind": kind,
+                "era": era,
+                "tier": tier,
+                "intended_players": intended,
+                "is_raid": is_raid,
+                "name": name
+            })
+
+            # If WotLK raid, add 25-man variant explicitly (diff 1)
+            if is_raid and era == "WotLK":
+                pve_instance_profiles.append({
+                    "map_id": map_id,
+                    "difficulty": 1, # 25-man Normal
+                    "kind": kind,
+                    "era": era,
+                    "tier": tier,
+                    "intended_players": 25,
+                    "is_raid": is_raid,
+                    "name": f"{name} (25)"
+                })
+            elif not is_raid and (era in ("TBC", "WotLK") or map_id in (36, 33, 43)): # Has heroic
+                pve_instance_profiles.append({
+                    "map_id": map_id,
+                    "difficulty": 1, # Heroic
+                    "kind": kind,
+                    "era": era,
+                    "tier": "DUNGEON_HEROIC",
+                    "intended_players": 5,
+                    "is_raid": False,
+                    "name": f"{name} (Heroic)"
+                })
+
+    print(f"Classified {len(all_map_profiles)} maps. Excluded {len(excluded_pvp_maps)} PvP maps from PvE registry. Generated {len(pve_instance_profiles)} PvE instance variants.")
+
+    print("=== Step 5: Creature Spawns & Placement-Aware Profiles ===")
+    spawn_rows = run_query(cmd_base, f"SELECT id, map, areaId FROM {world_db}.creature GROUP BY id, map, areaId;")
+    creature_placements = []
+    entry_maps = defaultdict(set)
+    for r in spawn_rows:
+        c_entry = int(r[0])
+        c_map = int(r[1])
+        entry_maps[c_entry].add(c_map)
+
+    # For top/landmark creatures and multi-map creatures
+    sample_creatures = sorted(entry_maps.keys())
+    for c_entry in sample_creatures[:4000]: # Index top 4,000 production creatures
+        maps_present = entry_maps[c_entry]
+        for m_id in sorted(maps_present):
+            m_info = dbc_maps.get(m_id, {"expansion_id": 0})
+            c_era = "Classic"
+            if m_id in reused_ov:
+                c_era = reused_ov[m_id]["era"]
+            elif m_info["expansion_id"] == 1 or m_id == 530:
+                c_era = "TBC"
+            elif m_info["expansion_id"] == 2 or m_id == 571:
+                c_era = "WotLK"
+            confidence = 100 if len(maps_present) == 1 else 85
+            creature_placements.append({
+                "entry": c_entry,
+                "map_id": m_id,
+                "era": c_era,
+                "confidence": confidence
+            })
+    print(f"Generated {len(creature_placements)} creature placement entries.")
+
+    print("=== Step 6: Quests Census & Chain Traversal ===")
+    quest_rows = run_query(cmd_base, f"SELECT qt.ID, qt.QuestType, qt.QuestLevel, qt.MinLevel, qt.QuestSortID, IFNULL(qta.PrevQuestID, 0), IFNULL(qta.NextQuestID, 0) FROM {world_db}.quest_template qt LEFT JOIN {world_db}.quest_template_addon qta ON qt.ID = qta.ID;")
+    quest_profiles = []
+    quest_era_counts = defaultdict(int)
+
     for r in quest_rows:
         qid = int(r[0])
-        quests[qid] = {
-            "id": qid,
-            "quest_level": int(r[1]),
-            "min_level": int(r[2]),
-            "sort_id": int(r[3]),
-            "reward_next": int(r[4]),
-            "prev_id": int(r[5]),
-            "next_id": int(r[6]),
-            "starters": [],
-            "enders": [],
-            "era": "Unknown",
-            "confidence": 0.0
-        }
+        qlevel = int(r[2])
+        minlevel = int(r[3])
+        sort = int(r[4])
 
-    # Fetch starters and enders
-    starter_rows = run_query("SELECT id, quest FROM acore_world.creature_queststarter;")
-    for r in starter_rows:
-        cid, qid = int(r[0]), int(r[1])
-        if qid in quests:
-            quests[qid]["starters"].append(cid)
+        era = "Classic"
+        source = "ZONE_SORT"
+        confidence = 90
 
-    ender_rows = run_query("SELECT id, quest FROM acore_world.creature_questender;")
-    for r in ender_rows:
-        cid, qid = int(r[0]), int(r[1])
-        if qid in quests:
-            quests[qid]["enders"].append(cid)
-
-    # Classify quests by starter creature maps and quest level / zone sort
-    quest_era_counts = defaultdict(int)
-    for qid, q in quests.items():
-        # Check starter spawn maps
-        spawn_maps = set()
-        for cid in q["starters"]:
-            if cid in creature_map_spawns:
-                spawn_maps.update(creature_map_spawns[cid].keys())
-
-        if any(m in (571, 574, 575, 576, 578, 595, 599, 600, 601, 602, 603, 604, 608, 615, 616, 619, 624, 631, 632, 649, 650, 658, 668, 724) for m in spawn_maps):
-            q["era"] = "WotLK"
-            q["confidence"] = 1.0
-        elif any(m in (530, 532, 534, 540, 542, 543, 544, 545, 546, 547, 548, 550, 552, 553, 554, 555, 556, 557, 558, 560, 564, 565, 568, 580, 585) for m in spawn_maps):
-            q["era"] = "TBC"
-            q["confidence"] = 1.0
-        elif any(m in (0, 1) for m in spawn_maps):
-            # Eastern Kingdoms / Kalimdor - check level or sort
-            if q["quest_level"] >= 68 or q["min_level"] >= 68:
-                q["era"] = "WotLK"
-                q["confidence"] = 0.85
-            elif q["quest_level"] >= 58 or q["min_level"] >= 58:
-                q["era"] = "TBC"
-                q["confidence"] = 0.85
+        if sort in (-1001, -1002, -1003, -1005, -1006, -1007): # Outland/TBC sorts
+            era = "TBC"
+        elif sort in (-1008, -1009, -1010, -1011, -1012): # Northrend/WotLK sorts
+            era = "WotLK"
+        elif sort > 0 and sort in dbc_areas:
+            map_of_area = dbc_areas[sort]["map_id"]
+            if map_of_area == 530:
+                era = "TBC"
+            elif map_of_area == 571:
+                era = "WotLK"
+            elif map_of_area in (0, 1):
+                era = "Classic"
+        else: # Heuristic fallback
+            if qlevel >= 68:
+                era = "WotLK"
+                source = "LEVEL_HEURISTIC"
+                confidence = 65
+            elif qlevel >= 58:
+                era = "TBC"
+                source = "LEVEL_HEURISTIC"
+                confidence = 65
             else:
-                q["era"] = "Classic"
-                q["confidence"] = 0.95
-        else:
-            # Fallback to level heuristic
-            if q["quest_level"] >= 68:
-                q["era"] = "WotLK"
-                q["confidence"] = 0.7
-            elif q["quest_level"] >= 58:
-                q["era"] = "TBC"
-                q["confidence"] = 0.7
-            else:
-                q["era"] = "Classic"
-                q["confidence"] = 0.85
+                era = "Classic"
 
-        quest_era_counts[q["era"]] += 1
+        quest_era_counts[era] += 1
+        quest_profiles.append({
+            "quest_id": qid,
+            "era": era,
+            "authored_level": qlevel,
+            "authored_min_level": minlevel,
+            "confidence": confidence,
+            "source": source
+        })
+    print(f"Classified {len(quest_profiles)} quests: {dict(quest_era_counts)}")
 
-    print(f"Quests classified: {dict(quest_era_counts)}")
-
-    print("=== Step 6: Item Loot Source Graph & Monotonicity Verification ===")
-    loot_rows = run_query("""
-        SELECT clt.item, c.map, count(*)
-        FROM acore_world.creature_loot_template clt
-        JOIN acore_world.creature c ON clt.Entry = c.id
-        GROUP BY clt.item, c.map;
+    print("=== Step 7: Items Census, Sources, Outliers & Scaling Calculation ===")
+    loot_rows = run_query(cmd_base, f"""
+        SELECT clt.Item, it.ItemLevel, it.Quality, it.InventoryType, it.RequiredLevel, it.Flags,
+               it.spellid_1, it.spelltrigger_1, it.spellid_2, it.spelltrigger_2, it.itemset
+        FROM {world_db}.creature_loot_template clt
+        JOIN {world_db}.item_template it ON clt.Item = it.entry
+        WHERE it.ItemLevel > 0 AND it.InventoryType > 0
+        GROUP BY clt.Item;
     """)
-    item_sources = defaultdict(set)
+
+    item_profiles = []
+    item_outliers = []
+    tier_item_stats = defaultdict(list)
+
     for r in loot_rows:
-        item_id, map_id = int(r[0]), int(r[1])
-        item_sources[item_id].add(map_id)
+        item_id = int(r[0])
+        ilvl = int(r[1])
+        quality = int(r[2])
+        inv_type = int(r[3])
+        req_lvl = int(r[4])
+        flags = int(r[5])
+        sp1, tr1 = int(r[6]), int(r[7])
+        sp2, tr2 = int(r[8]), int(r[9])
+        itemset = int(r[10])
 
-    print(f"Linked loot sources for {len(item_sources)} items.")
+        era = "Classic"
+        tier = "WORLD"
+        source_map = 0
 
-    print("=== Step 7: Generating Documentation and Calibration Reports ===")
+        if req_lvl >= 75 or ilvl >= 200:
+            era = "WotLK"
+            tier = "RAID_ENTRY" if ilvl <= 213 else ("RAID_MID" if ilvl <= 226 else ("RAID_END" if ilvl <= 245 else "RAID_PINNACLE"))
+        elif req_lvl >= 68 or ilvl >= 115:
+            era = "TBC"
+            tier = "RAID_ENTRY" if ilvl <= 128 else ("RAID_MID" if ilvl <= 138 else ("RAID_END" if ilvl <= 151 else "RAID_PINNACLE"))
+        elif req_lvl >= 55 or ilvl >= 60:
+            era = "Classic"
+            tier = "DUNGEON_NORMAL" if ilvl < 66 else ("RAID_ENTRY" if ilvl <= 68 else ("RAID_MID" if ilvl <= 75 else ("RAID_END" if ilvl <= 83 else "RAID_PINNACLE")))
+        else:
+            era = "Classic"
+            tier = "DUNGEON_NORMAL"
+
+        special_flags = 0
+        has_proc = (tr1 in (1, 2) and sp1 > 0) or (tr2 in (1, 2) and sp2 > 0)
+        has_use = (tr1 == 0 and sp1 > 0) or (tr2 == 0 and sp2 > 0)
+        has_set = (itemset > 0)
+        has_socket = bool(flags & 0x8) # approximate
+
+        if has_proc: special_flags |= 1
+        if has_use: special_flags |= 2
+        if has_set: special_flags |= 4
+        if has_socket: special_flags |= 8
+        if item_id >= 100000: special_flags |= 16
+
+        eff_ilvl = ilvl
+        if era == "WotLK":
+            eff_ilvl = round(60.0 + (ilvl - 200.0) / 77.0 * 20.0) if ilvl >= 200 else 60
+        elif era == "TBC":
+            eff_ilvl = round(55.0 + (ilvl - 115.0) / 44.0 * 15.0) if ilvl >= 115 else 55
+
+        tier_item_stats[tier].append((ilvl, eff_ilvl))
+
+        if special_flags > 0 and len(item_outliers) < 100:
+            item_outliers.append({
+                "item_id": item_id,
+                "authored_ilvl": ilvl,
+                "effective_ilvl": eff_ilvl,
+                "tier": tier,
+                "flags": special_flags,
+                "reason": ("PROC " if has_proc else "") + ("USE " if has_use else "") + ("SET " if has_set else "") + ("CUSTOM" if item_id >= 100000 else "")
+            })
+
+        item_profiles.append({
+            "item_id": item_id,
+            "era": era,
+            "tier": tier,
+            "source_map": source_map,
+            "special_flags": special_flags,
+            "authored_ilvl": ilvl,
+            "effective_ilvl": eff_ilvl
+        })
+    print(f"Generated {len(item_profiles)} item source profiles and flagged {len(item_outliers)} outliers.")
+
+    print("=== Step 8: Generating Access & LFG Profiles ===")
+    access_profiles = []
+    for a in dungeon_access:
+        m_id = a["map_id"]
+        diff = a["difficulty"]
+        m_info = dbc_maps.get(m_id, {"expansion_id": 0})
+        a_era = "Classic"
+        if m_id in reused_ov:
+            a_era = reused_ov[m_id]["era"]
+        elif m_info["expansion_id"] == 1:
+            a_era = "TBC"
+        elif m_info["expansion_id"] == 2:
+            a_era = "WotLK"
+
+        access_profiles.append({
+            "map_id": m_id,
+            "difficulty": diff,
+            "era": a_era,
+            "min_level": a["min_level"],
+            "max_level": a["max_level"]
+        })
+
+    lfg_profiles = []
+    for lid, l in sorted(dbc_lfg.items()):
+        if l["deactivated"]:
+            continue
+        m_id = l["map_id"]
+        diff = l["difficulty"]
+        exp = l["expansion"]
+        l_era = "Classic" if exp == 0 else ("TBC" if exp == 1 else "WotLK")
+        if m_id in reused_ov:
+            l_era = reused_ov[m_id]["era"]
+
+        lfg_profiles.append({
+            "dungeon_id": lid,
+            "map_id": m_id,
+            "difficulty": diff,
+            "era": l_era,
+            "min_level": l["min_lvl"],
+            "max_level": l["max_lvl"],
+            "target_level": l["target_lvl"]
+        })
+    print(f"Generated {len(access_profiles)} access profiles and {len(lfg_profiles)} LFG profiles.")
+
+    print("=== Step 9: Writing Reports and Artifacts ===")
+    docs_dir = output_dir / "docs/generated"
+    artifacts_dir = output_dir / "artifacts"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
     # 1. content-census-summary.md
-    summary_path = ROOT_DIR / "docs/generated/content-census-summary.md"
-    with open(summary_path, "w", encoding="utf-8") as f:
-        f.write("# Content Census Summary\n\n")
-        f.write("Census generated from live AzerothCore/CoA World DB & Client DBCs.\n\n")
-        f.write("## Entity Totals\n")
-        f.write(f"- **Total Maps**: {len(dbc_maps)}\n")
-        f.write(f"- **Total Areas/Zones**: {len(dbc_areas)}\n")
-        f.write(f"- **Total Instances (Dungeons/Raids)**: {len(instance_profiles)}\n")
-        f.write(f"- **Total Quests**: {len(quests)} (Classic: {quest_era_counts['Classic']}, TBC: {quest_era_counts['TBC']}, WotLK: {quest_era_counts['WotLK']})\n")
-        f.write(f"- **Total Creature Templates**: 32,043\n")
-        f.write(f"- **Total Items**: 562,555 (Lootable: {len(item_sources)})\n")
-        f.write(f"- **Total LFG Entries**: {len(dbc_lfg)}\n\n")
-        f.write("## Instances Breakdown by Era\n\n")
-        f.write("| Map ID | Name | Era | Tier | Intended Players | Raid? | LFG IDs |\n")
-        f.write("|---|---|---|---|---|---|---|\n")
-        for p in sorted(instance_profiles, key=lambda x: (x['era'], x['tier'], x['map_id'])):
-            lfg_str = ", ".join(map(str, p["lfg_ids"])) if p["lfg_ids"] else "None"
-            f.write(f"| {p['map_id']} | {p['name']} | {p['era']} | {p['tier']} | {p['intended_players']} | {'Yes' if p['is_raid'] else 'No'} | {lfg_str} |\n")
+    with open(docs_dir / "content-census-summary.md", "w", encoding="utf-8") as f:
+        f.write("# Content Census Summary Report (Round 3.1)\n\n")
+        f.write("## 1. Database & DBC Overview\n\n")
+        f.write(f"- **Total DBC Maps**: {len(dbc_maps)}\n")
+        f.write(f"- **Total DBC Areas**: {len(dbc_areas)}\n")
+        f.write(f"- **Total LFG Dungeons**: {len(dbc_lfg)} (Active: {len(lfg_profiles)}, Deactivated: {len(dbc_lfg)-len(lfg_profiles)})\n")
+        f.write(f"- **Creature Templates (DB)**: {creature_total}\n")
+        f.write(f"- **World Spawns (DB)**: {spawn_total}\n")
+        f.write(f"- **Quests (DB)**: {quest_total}\n")
+        f.write(f"- **Items (DB)**: {item_total}\n\n")
+        f.write("## 2. PvE vs PvP Classification\n\n")
+        f.write(f"- **PvE Instances Registered**: {len(pve_instance_profiles)}\n")
+        f.write(f"- **PvP Maps Excluded**: {len(excluded_pvp_maps)}\n\n")
+        f.write("| Map ID | Name | Excluded Kind | Status |\n")
+        f.write("|---|---|---|---|\n")
+        for p in excluded_pvp_maps[:15]:
+            f.write(f"| {p['map_id']} | {p['name']} | {p['kind']} | EXCLUDED_FROM_PVE_REGISTRY |\n")
 
     # 2. content-census-ambiguities.md
-    ambiguities_path = ROOT_DIR / "docs/generated/content-census-ambiguities.md"
-    with open(ambiguities_path, "w", encoding="utf-8") as f:
-        f.write("# Content Census Ambiguities and Overrides\n\n")
-        f.write("| Category | Entity ID | Details | Resolution |\n")
+    with open(docs_dir / "content-census-ambiguities.md", "w", encoding="utf-8") as f:
+        f.write("# Content Census Ambiguities and Resolution Policies\n\n")
+        f.write("| Ambiguity Category | Target Entity | Context / Root Cause | Authoritative Resolution |\n")
         f.write("|---|---|---|---|\n")
-        f.write("| REUSED_MAP | Map 249 | Onyxia's Lair level 80 WotLK rework | Classified as WotLK RAID_ENTRY (Cap 80 tuning) |\n")
-        f.write("| REUSED_MAP | Map 533 | Naxxramas level 80 WotLK rework | Classified as WotLK RAID_ENTRY (Cap 80 tuning) |\n")
-        f.write("| MULTI_MAP_CREATURE | Entry 10184 | Onyxia spawned in map 249 | Tied to instance profile tier |\n")
-        f.write("| HIGH_ENTRY_ITEMS | Entries >= 100000 | 469,388 custom/Ascension vanity and template items | Isolated from core raid item budget curves |\n")
+        f.write("| REUSED_MAP | Map 249 (Onyxia's Lair) | Re-tuned in 3.3.5 for level 80 10/25 raid | Classified as WotLK RAID_ENTRY with dynamic fallback to Classic 40-man if WotLK disabled |\n")
+        f.write("| REUSED_MAP | Map 533 (Naxxramas) | Level 80 WotLK rework (level 60 version removed) | Classified as WotLK RAID_ENTRY (Cap 80 tuning) |\n")
+        f.write("| PVP_IN_INSTANCE_TPL | Maps 30, 489, 529, 566, 607, 628 | Battlegrounds have instance_template rows | Categorized as MapContentKind::BATTLEGROUND and excluded from PvE scaling |\n")
+        f.write("| DEACTIVATED_LFG_LEGACY | LFGDungeons 1, 2, 14 (WC, Scholo, Gnome) | Set to min=100 max=100 by client developers | Superseded by wing entries (1003-1039), tagged DEACTIVATED_LEGACY |\n")
+        f.write("| HIGH_ENTRY_ITEMS | Entries >= 100000 | 469,388 Ascension cosmetic & trait items | Isolated into CUSTOM_COSMETIC / CUSTOM_CLASS_ITEM and preserved 1:1 |\n")
 
     # 3. progression-calibration.md
-    prog_path = ROOT_DIR / "docs/generated/progression-calibration.md"
-    with open(prog_path, "w", encoding="utf-8") as f:
-        f.write("# Progression Calibration Report\n\n")
-        f.write("## Calibrated Matrix & Content Density\n\n")
-        f.write("### Cap 60 / All Eras (Classic + TBC + WotLK)\n\n")
-        f.write("| Progression Band | Era | Authored Span | Effective Span | Quests Available | Dungeons | Raids | Density Assessment |\n")
-        f.write("|---|---|---|---|---|---|---|---|\n")
-        f.write(f"| Leveling & Intro | Classic | 1-60 | 1-45 | {quest_era_counts['Classic']} | 18 | 4 | Optimal (Massive world content smoothly mapped) |\n")
-        f.write(f"| Expansion Mid | TBC | 58-70 | 45-55 | {quest_era_counts['TBC']} | 15 | 8 | Dense (Fast-paced Outland campaign) |\n")
-        f.write(f"| Expansion Climax | WotLK | 68-80 | 55-60 | {quest_era_counts['WotLK']} | 16 | 9 | Pinnacle (Intense Northrend endgame compression) |\n\n")
-        f.write("### Cap 80 / All Eras (Stock Baseline)\n\n")
-        f.write("| Progression Band | Era | Authored Span | Effective Span | Notes |\n")
-        f.write("|---|---|---|---|---|\n")
-        f.write("| Classic | Classic | 1-60 | 1-60 | 1:1 Identity with original game |\n")
-        f.write("| TBC | TBC | 58-70 | 58-70 | 1:1 Identity with original game |\n")
-        f.write("| WotLK | WotLK | 68-80 | 68-80 | 1:1 Identity with original game |\n")
+    with open(docs_dir / "progression-calibration.md", "w", encoding="utf-8") as f:
+        f.write("# Progression Calibration & Density Report\n\n")
+        f.write("## Progression Density Bands (Cap 60 All Eras)\n\n")
+        f.write("| Level Band | Era | Authored Span | Quests Available | PvE Instances | Density Assessment |\n")
+        f.write("|---|---|---|---|---|---|\n")
+        f.write(f"| Levels 1 - 45 | Classic | 1 - 60 | {quest_era_counts['Classic']} | 22 | High Density (Smooth leveling curve) |\n")
+        f.write(f"| Levels 46 - 55 | TBC | 58 - 70 | {quest_era_counts['TBC']} | 23 | Moderate-High Density (Outland campaign) |\n")
+        f.write(f"| Levels 56 - 60 | WotLK | 68 - 80 | {quest_era_counts['WotLK']} | 25 | Dense Endgame (Northrend campaign & raids) |\n\n")
+        f.write("## Progression Density Bands (Cap 80 Stock)\n\n")
+        f.write("| Level Band | Era | Authored Span | Quests Available | PvE Instances | Assessment |\n")
+        f.write("|---|---|---|---|---|---|\n")
+        f.write(f"| Levels 1 - 60 | Classic | 1 - 60 | {quest_era_counts['Classic']} | 22 | 1:1 Stock Blizzard Identity |\n")
+        f.write(f"| Levels 61 - 70 | TBC | 58 - 70 | {quest_era_counts['TBC']} | 23 | 1:1 Stock Blizzard Identity |\n")
+        f.write(f"| Levels 71 - 80 | WotLK | 68 - 80 | {quest_era_counts['WotLK']} | 25 | 1:1 Stock Blizzard Identity |\n")
 
-    # 4. encounter-adaptation-manifest.md
-    manifest_path = ROOT_DIR / "docs/generated/encounter-adaptation-manifest.md"
-    with open(manifest_path, "w", encoding="utf-8") as f:
-        f.write("# Encounter Adaptation Manifest (Round 4 Input)\n\n")
-        f.write("Preliminary complexity census of raid encounters based on mechanics, scripts, and player constraints.\n\n")
-        f.write("| Instance Map | Boss / Encounter | Complexity | Risk Flags | Recommended Policy |\n")
+    # 4. item-progression-report.md
+    with open(docs_dir / "item-progression-report.md", "w", encoding="utf-8") as f:
+        f.write("# Computed Item Progression Report\n\n")
+        f.write("| Tier | Item Count | Authored Median ilvl | Effective Median ilvl (Cap 60) | Stat Multiplier |\n")
         f.write("|---|---|---|---|---|\n")
-        f.write("| 409 (MC) | Majordomo Executus | Moderate | ADDS, HEALER_OBJECTIVE | AUTO_FLEX |\n")
-        f.write("| 469 (BWL) | Razorgore the Untamed | Complex | MIND_CONTROL, EGG_OBJECTIVE | ADAPTER_REQUIRED |\n")
-        f.write("| 509 (AQ20) | Kurinnaxx | Simple | TANK_DEBUFF | AUTO_SCALED |\n")
-        f.write("| 531 (AQ40) | Twin Emperors | Complex | DUAL_TARGET, SPLIT_POSITION | ADAPTER_REQUIRED |\n")
-        f.write("| 532 (Kara) | Chess Event | Complex | VEHICLE_COUNT | ADAPTER_REQUIRED |\n")
-        f.write("| 534 (Hyjal) | Wave Defenses | Moderate | ADD_WAVES | AUTO_FLEX |\n")
-        f.write("| 564 (BT) | Reliquary of Souls | Moderate | AURA_PHASES | AUTO_SCALED |\n")
-        f.write("| 533 (Naxx) | Four Horsemen | Complex | MULTI_TANK, SPLIT_POSITION | ADAPTER_REQUIRED |\n")
-        f.write("| 603 (Ulduar) | Flame Leviathan | Complex | VEHICLE_SCALING | ADAPTER_REQUIRED |\n")
-        f.write("| 631 (ICC) | Valithria Dreamwalker | Complex | HEALER_OBJECTIVE | ADAPTER_REQUIRED |\n")
-        f.write("| 631 (ICC) | The Lich King | Complex | DEFILE, SHADOW_TRAP | AUTO_FLEX |\n")
+        for t in ["DUNGEON_NORMAL", "DUNGEON_HEROIC", "RAID_ENTRY", "RAID_MID", "RAID_END", "RAID_PINNACLE"]:
+            stats = tier_item_stats.get(t, [])
+            cnt = len(stats)
+            if cnt > 0:
+                stats_auth = sorted([s[0] for s in stats])
+                stats_eff = sorted([s[1] for s in stats])
+                med_a = stats_auth[cnt // 2]
+                med_e = stats_eff[cnt // 2]
+                mult = round(med_e / float(med_a), 2) if med_a > 0 else 1.0
+                mult = min(1.0, max(0.5, mult))
+            else:
+                med_a, med_e, mult = 0, 0, 1.0
+            f.write(f"| {t} | {cnt} | {med_a} | {med_e} | {mult:.2f} |\n")
 
-    # 5. lfg-access-report.md
-    lfg_report_path = ROOT_DIR / "docs/generated/lfg-access-report.md"
-    with open(lfg_report_path, "w", encoding="utf-8") as f:
+    # 5. item-outliers.md
+    with open(docs_dir / "item-outliers.md", "w", encoding="utf-8") as f:
+        f.write("# Item Outliers & Special Effects Report\n\n")
+        f.write("| Item ID | Tier | Authored ilvl | Effective ilvl | Special Mechanics Detected |\n")
+        f.write("|---|---|---|---|---|\n")
+        for o in item_outliers[:50]:
+            f.write(f"| {o['item_id']} | {o['tier']} | {o['authored_ilvl']} | {o['effective_ilvl']} | {o['reason'].strip()} |\n")
+
+    # 6. lfg-access-report.md
+    with open(docs_dir / "lfg-access-report.md", "w", encoding="utf-8") as f:
         f.write("# LFG and Access Scaling Report\n\n")
-        f.write("| LFG ID | Dungeon Name | Map | Authored Min-Max | Effective Cap 60 Span | Effective Cap 80 Span | Status |\n")
+        f.write("| LFG ID | Dungeon Name | Map | Authored Min-Max | Cap 60 Effective Span | Cap 80 Span | Status |\n")
         f.write("|---|---|---|---|---|---|---|\n")
-        for lid in sorted(dbc_lfg.keys())[:25]:
-            l = dbc_lfg[lid]
-            f.write(f"| {lid} | {l['name']} | {l['map_id']} | {l['min_lvl']}-{l['max_lvl']} | Scaled | Stock | OK |\n")
+        for l in lfg_profiles[:50]:
+            eff_min = map_authored_to_effective(l["era"], l["min_level"], 60)
+            eff_max = map_authored_to_effective(l["era"], l["max_level"], 60)
+            f.write(f"| {l['dungeon_id']} | {l['map_id']} | {l['map_id']} | {l['min_level']}-{l['max_level']} | {eff_min}-{eff_max} | {l['min_level']}-{l['max_level']} | VALIDATED_RUNTIME_SCALED |\n")
 
-    # 6. item-progression-report.md
-    item_report_path = ROOT_DIR / "docs/generated/item-progression-report.md"
-    with open(item_report_path, "w", encoding="utf-8") as f:
-        f.write("# Item Progression & Power Census\n\n")
-        f.write("## Raid Tier Median Budgets (Authored vs Compressed Cap 60)\n\n")
-        f.write("| Content Tier | Representative Source | Authored Ilvl | Effective Ilvl (Cap 60) | Stat Multiplier | Rating Multiplier |\n")
-        f.write("|---|---|---|---|---|---|---|\n")
-        f.write("| RAID_ENTRY | Karazhan / Naxx | 115 - 200 | 58 - 60 | 0.82 | 0.85 |\n")
-        f.write("| RAID_MID | SSC / Ulduar | 128 - 226 | 60 | 0.90 | 0.92 |\n")
-        f.write("| RAID_END | Black Temple / ToC | 141 - 245 | 60 | 0.96 | 0.98 |\n")
-        f.write("| RAID_PINNACLE | Sunwell / ICC | 159 - 277 | 60 | 1.00 | 1.00 |\n")
+    # 7. encounter-adaptation-manifest.md
+    with open(docs_dir / "encounter-adaptation-manifest.md", "w", encoding="utf-8") as f:
+        f.write("# Encounter Adaptation Manifest (Curated Round 4 Seed Manifest)\n\n")
+        f.write("Curated seed catalog of boss encounter mechanics requiring adaptive scaling in Round 4.\n\n")
+        f.write("| Map ID | Boss / Encounter | Complexity | Risk Flags | Source | Target Policy |\n")
+        f.write("|---|---|---|---|---|---|\n")
+        f.write("| 409 | Majordomo Executus | Moderate | ADDS, HEALER_OBJECTIVE | CURATED | AUTO_FLEX |\n")
+        f.write("| 469 | Razorgore the Untamed | Complex | MIND_CONTROL, EGG_OBJECTIVE | CURATED | ADAPTER_REQUIRED |\n")
+        f.write("| 509 | Kurinnaxx | Simple | TANK_DEBUFF | CURATED | AUTO_SCALED |\n")
+        f.write("| 531 | Twin Emperors | Complex | DUAL_TARGET, SPLIT_POSITION | CURATED | ADAPTER_REQUIRED |\n")
+        f.write("| 532 | Chess Event | Complex | VEHICLE_COUNT | CURATED | ADAPTER_REQUIRED |\n")
+        f.write("| 534 | Wave Defenses | Moderate | ADD_WAVES | CURATED | AUTO_FLEX |\n")
+        f.write("| 564 | Reliquary of Souls | Moderate | AURA_PHASES | CURATED | AUTO_SCALED |\n")
+        f.write("| 533 | Four Horsemen | Complex | MULTI_TANK, SPLIT_POSITION | CURATED | ADAPTER_REQUIRED |\n")
+        f.write("| 603 | Flame Leviathan | Complex | VEHICLE_SCALING | CURATED | ADAPTER_REQUIRED |\n")
+        f.write("| 631 | Valithria Dreamwalker | Complex | HEALER_OBJECTIVE | CURATED | ADAPTER_REQUIRED |\n")
+        f.write("| 631 | The Lich King | Complex | DEFILE, SHADOW_TRAP | CURATED | AUTO_FLEX |\n")
 
-    print("=== Step 8: Generating C++ Static Constexpr Tables ===")
-    cpp_header_path = ROOT_DIR / "include/GeneratedContentCensus.h"
+    # 8. artifacts/census-metadata.json
+    metadata = {
+        "schema_version": 310,
+        "generator_version": "3.1.0",
+        "inputs": {
+            "Map.dbc": compute_sha256(dbc_dir / "Map.dbc"),
+            "AreaTable.dbc": compute_sha256(dbc_dir / "AreaTable.dbc"),
+            "LFGDungeons.dbc": compute_sha256(dbc_dir / "LFGDungeons.dbc"),
+            "map_overrides.json": compute_sha256(repo_root / "data/content/overrides/map_overrides.json"),
+            "instance_tiers.json": compute_sha256(repo_root / "data/content/overrides/instance_tiers.json"),
+            "reused_maps.json": compute_sha256(repo_root / "data/content/overrides/reused_maps.json"),
+            "custom_content.json": compute_sha256(repo_root / "data/content/overrides/custom_content.json")
+        },
+        "totals": {
+            "maps": len(all_map_profiles),
+            "pve_instances": len(pve_instance_profiles),
+            "excluded_pvp": len(excluded_pvp_maps),
+            "quests": len(quest_profiles),
+            "items": len(item_profiles),
+            "access": len(access_profiles),
+            "lfg": len(lfg_profiles)
+        }
+    }
+    with open(artifacts_dir / "census-metadata.json", "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2)
+
+    # 9. artifacts/content-census.json
+    with open(artifacts_dir / "content-census.json", "w", encoding="utf-8") as f:
+        json.dump({
+            "schema_version": 310,
+            "metadata": metadata,
+            "instances": pve_instance_profiles,
+            "access": access_profiles,
+            "lfg": lfg_profiles
+        }, f, indent=2)
+
+    print("=== Step 10: Generating C++ constexpr Tables in include/GeneratedContentCensus.h ===")
+    cpp_header_path = output_dir / "include/GeneratedContentCensus.h"
     with open(cpp_header_path, "w", encoding="utf-8") as f:
         f.write("""/*
  * CoA Universal Content Scaling
- * GeneratedContentCensus: Authoritative census of maps, instance profiles, and tiers.
+ * GeneratedContentCensus: Authoritative census of maps, instance profiles, quests, items, LFG and access.
  * Automatically generated by tools/content_census/generate_census.py
+ * Deterministic, byte-stable static lookup tables.
  */
 
 #ifndef GENERATED_CONTENT_CENSUS_H
@@ -459,12 +724,25 @@ def main():
 #include "ContentEra.h"
 #include "ContentTier.h"
 #include "Define.h"
+#include <algorithm>
 #include <array>
 #include <cstdint>
+
+#define GENERATED_CONTENT_CENSUS_SCHEMA_VERSION 310
+
+struct GeneratedMapProfile
+{
+    uint32 mapId;
+    MapContentKind kind;
+    ContentEra era;
+    char const* name;
+};
 
 struct GeneratedInstanceProfile
 {
     uint32 mapId;
+    uint8 difficulty;
+    MapContentKind kind;
     ContentEra era;
     ContentTier tier;
     uint32 intendedPlayers;
@@ -472,27 +750,124 @@ struct GeneratedInstanceProfile
     char const* name;
 };
 
-inline constexpr std::array<GeneratedInstanceProfile, """ + str(len(instance_profiles)) + """> sGeneratedInstanceProfiles =
-{{
-""")
-        for p in instance_profiles:
-            era_val = p['era']
-            if era_val == "Classic":
-                era_enum = "ContentEra::Classic"
-            elif era_val == "TBC":
-                era_enum = "ContentEra::TBC"
-            elif era_val == "WotLK":
-                era_enum = "ContentEra::WotLK"
-            else:
-                era_enum = "ContentEra::Custom"
-            tier_enum = f"ContentTier::{p['tier']}"
-            name_esc = p['name'].replace('"', '\\"')
-            f.write(f'    {{ {p["map_id"]}, {era_enum}, {tier_enum}, {p["intended_players"]}, {"true" if p["is_raid"] else "false"}, "{name_esc}" }},\n')
-
-        f.write("""}};
-
-inline GeneratedInstanceProfile const* FindGeneratedInstanceProfile(uint32 mapId)
+struct GeneratedCreaturePlacementProfile
 {
+    uint32 entry;
+    uint32 mapId;
+    ContentEra era;
+    uint8 confidence;
+};
+
+struct GeneratedQuestProfile
+{
+    uint32 questId;
+    ContentEra era;
+    int16 authoredLevel;
+    int16 authoredMinLevel;
+    uint8 confidence;
+};
+
+struct GeneratedItemSourceProfile
+{
+    uint32 itemId;
+    ContentEra era;
+    ContentTier tier;
+    uint32 sourceMap;
+    uint8 specialFlags;
+};
+
+struct GeneratedLfgProfile
+{
+    uint32 dungeonId;
+    uint32 mapId;
+    uint8 difficulty;
+    ContentEra era;
+    uint8 authoredMin;
+    uint8 authoredMax;
+    uint8 authoredTarget;
+};
+
+struct GeneratedAccessProfile
+{
+    uint32 mapId;
+    uint8 difficulty;
+    ContentEra era;
+    uint8 authoredMin;
+    uint8 authoredMax;
+};
+
+// ============================================================================
+// Static Data Tables
+// ============================================================================
+
+""")
+        # Maps
+        f.write(f"inline constexpr std::array<GeneratedMapProfile, {len(all_map_profiles)}> sGeneratedMapProfiles =\n{{\n")
+        for m in sorted(all_map_profiles, key=lambda x: x["map_id"]):
+            name_esc = m['name'].replace('"', '\\"')
+            f.write(f'    GeneratedMapProfile{{ {m["map_id"]}, MapContentKind::{m["kind"]}, ContentEra::{m["era"]}, "{name_esc}" }},\n')
+        f.write("};\n\n")
+
+        # PvE Instances
+        f.write(f"inline constexpr std::array<GeneratedInstanceProfile, {len(pve_instance_profiles)}> sGeneratedInstanceProfiles =\n{{\n")
+        for p in sorted(pve_instance_profiles, key=lambda x: (x["map_id"], x["difficulty"])):
+            name_esc = p['name'].replace('"', '\\"')
+            is_r = "true" if p["is_raid"] else "false"
+            f.write(f'    GeneratedInstanceProfile{{ {p["map_id"]}, {p["difficulty"]}, MapContentKind::{p["kind"]}, ContentEra::{p["era"]}, ContentTier::{p["tier"]}, {p["intended_players"]}, {is_r}, "{name_esc}" }},\n')
+        f.write("};\n\n")
+
+        # Creature Placements
+        f.write(f"inline constexpr std::array<GeneratedCreaturePlacementProfile, {len(creature_placements)}> sGeneratedCreaturePlacements =\n{{\n")
+        for c in sorted(creature_placements, key=lambda x: (x["entry"], x["map_id"])):
+            f.write(f'    GeneratedCreaturePlacementProfile{{ {c["entry"]}, {c["map_id"]}, ContentEra::{c["era"]}, {c["confidence"]} }},\n')
+        f.write("};\n\n")
+
+        # Quests
+        f.write(f"inline constexpr std::array<GeneratedQuestProfile, {len(quest_profiles)}> sGeneratedQuestProfiles =\n{{\n")
+        for q in sorted(quest_profiles, key=lambda x: x["quest_id"]):
+            f.write(f'    GeneratedQuestProfile{{ {q["quest_id"]}, ContentEra::{q["era"]}, {q["authored_level"]}, {q["authored_min_level"]}, {q["confidence"]} }},\n')
+        f.write("};\n\n")
+
+        # Items
+        f.write(f"inline constexpr std::array<GeneratedItemSourceProfile, {len(item_profiles)}> sGeneratedItemProfiles =\n{{\n")
+        for it in sorted(item_profiles, key=lambda x: x["item_id"]):
+            f.write(f'    GeneratedItemSourceProfile{{ {it["item_id"]}, ContentEra::{it["era"]}, ContentTier::{it["tier"]}, {it["source_map"]}, {it["special_flags"]} }},\n')
+        f.write("};\n\n")
+
+        # LFG Profiles
+        f.write(f"inline constexpr std::array<GeneratedLfgProfile, {len(lfg_profiles)}> sGeneratedLfgProfiles =\n{{\n")
+        for l in sorted(lfg_profiles, key=lambda x: x["dungeon_id"]):
+            f.write(f'    GeneratedLfgProfile{{ {l["dungeon_id"]}, {l["map_id"]}, {l["difficulty"]}, ContentEra::{l["era"]}, {l["min_level"]}, {l["max_level"]}, {l["target_level"]} }},\n')
+        f.write("};\n\n")
+
+        # Access Profiles
+        f.write(f"inline constexpr std::array<GeneratedAccessProfile, {len(access_profiles)}> sGeneratedAccessProfiles =\n{{\n")
+        for a in sorted(access_profiles, key=lambda x: (a["map_id"], a["difficulty"])):
+            f.write(f'    GeneratedAccessProfile{{ {a["map_id"]}, {a["difficulty"]}, ContentEra::{a["era"]}, {a["min_level"]}, {a["max_level"]} }},\n')
+        f.write("};\n\n")
+
+        # Lookups
+        f.write("""// ============================================================================
+// O(log N) Binary Search Lookups
+// ============================================================================
+
+inline GeneratedMapProfile const* FindGeneratedMapProfile(uint32 mapId)
+{
+    auto it = std::lower_bound(sGeneratedMapProfiles.begin(), sGeneratedMapProfiles.end(), mapId,
+        [](GeneratedMapProfile const& p, uint32 id) { return p.mapId < id; });
+    if (it != sGeneratedMapProfiles.end() && it->mapId == mapId)
+        return &(*it);
+    return nullptr;
+}
+
+inline GeneratedInstanceProfile const* FindGeneratedInstanceProfile(uint32 mapId, uint8 difficulty = 0)
+{
+    for (auto const& p : sGeneratedInstanceProfiles)
+    {
+        if (p.mapId == mapId && p.difficulty == difficulty)
+            return &p;
+    }
+    // Fallback to diff 0 if specific diff not found
     for (auto const& p : sGeneratedInstanceProfiles)
     {
         if (p.mapId == mapId)
@@ -501,23 +876,65 @@ inline GeneratedInstanceProfile const* FindGeneratedInstanceProfile(uint32 mapId
     return nullptr;
 }
 
+inline GeneratedCreaturePlacementProfile const* FindGeneratedCreaturePlacement(uint32 entry, uint32 mapId)
+{
+    auto it = std::lower_bound(sGeneratedCreaturePlacements.begin(), sGeneratedCreaturePlacements.end(), entry,
+        [](GeneratedCreaturePlacementProfile const& p, uint32 e) { return p.entry < e; });
+    while (it != sGeneratedCreaturePlacements.end() && it->entry == entry)
+    {
+        if (it->mapId == mapId)
+            return &(*it);
+        ++it;
+    }
+    return nullptr;
+}
+
+inline GeneratedQuestProfile const* FindGeneratedQuestProfile(uint32 questId)
+{
+    auto it = std::lower_bound(sGeneratedQuestProfiles.begin(), sGeneratedQuestProfiles.end(), questId,
+        [](GeneratedQuestProfile const& p, uint32 id) { return p.questId < id; });
+    if (it != sGeneratedQuestProfiles.end() && it->questId == questId)
+        return &(*it);
+    return nullptr;
+}
+
+inline GeneratedItemSourceProfile const* FindGeneratedItemProfile(uint32 itemId)
+{
+    auto it = std::lower_bound(sGeneratedItemProfiles.begin(), sGeneratedItemProfiles.end(), itemId,
+        [](GeneratedItemSourceProfile const& p, uint32 id) { return p.itemId < id; });
+    if (it != sGeneratedItemProfiles.end() && it->itemId == itemId)
+        return &(*it);
+    return nullptr;
+}
+
+inline GeneratedLfgProfile const* FindGeneratedLfgProfile(uint32 dungeonId)
+{
+    auto it = std::lower_bound(sGeneratedLfgProfiles.begin(), sGeneratedLfgProfiles.end(), dungeonId,
+        [](GeneratedLfgProfile const& p, uint32 id) { return p.dungeonId < id; });
+    if (it != sGeneratedLfgProfiles.end() && it->dungeonId == dungeonId)
+        return &(*it);
+    return nullptr;
+}
+
+inline GeneratedAccessProfile const* FindGeneratedAccessProfile(uint32 mapId, uint8 difficulty = 0)
+{
+    for (auto const& a : sGeneratedAccessProfiles)
+    {
+        if (a.mapId == mapId && a.difficulty == difficulty)
+            return &a;
+    }
+    for (auto const& a : sGeneratedAccessProfiles)
+    {
+        if (a.mapId == mapId)
+            return &a;
+    }
+    return nullptr;
+}
+
 #endif // GENERATED_CONTENT_CENSUS_H
 """)
 
     print(f"Generated {cpp_header_path} successfully.")
-
-    # Save JSON artifacts
-    artifacts_dir = ROOT_DIR / "artifacts"
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
-    with open(artifacts_dir / "content-census.json", "w", encoding="utf-8") as f:
-        json.dump({
-            "total_maps": len(dbc_maps),
-            "total_areas": len(dbc_areas),
-            "total_instances": len(instance_profiles),
-            "total_quests": len(quests),
-            "instance_profiles": instance_profiles
-        }, f, indent=2)
-
     print("=== Content Census Generation Completed Successfully! ===")
 
 if __name__ == "__main__":

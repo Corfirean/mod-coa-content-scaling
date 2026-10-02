@@ -1,17 +1,17 @@
-# Encounter Adaptation Manifest (Round 4 Input)
+# Encounter Adaptation Manifest (Curated Round 4 Seed Manifest)
 
-Preliminary complexity census of raid encounters based on mechanics, scripts, and player constraints.
+Curated seed catalog of boss encounter mechanics requiring adaptive scaling in Round 4.
 
-| Instance Map | Boss / Encounter | Complexity | Risk Flags | Recommended Policy |
-|---|---|---|---|---|
-| 409 (MC) | Majordomo Executus | Moderate | ADDS, HEALER_OBJECTIVE | AUTO_FLEX |
-| 469 (BWL) | Razorgore the Untamed | Complex | MIND_CONTROL, EGG_OBJECTIVE | ADAPTER_REQUIRED |
-| 509 (AQ20) | Kurinnaxx | Simple | TANK_DEBUFF | AUTO_SCALED |
-| 531 (AQ40) | Twin Emperors | Complex | DUAL_TARGET, SPLIT_POSITION | ADAPTER_REQUIRED |
-| 532 (Kara) | Chess Event | Complex | VEHICLE_COUNT | ADAPTER_REQUIRED |
-| 534 (Hyjal) | Wave Defenses | Moderate | ADD_WAVES | AUTO_FLEX |
-| 564 (BT) | Reliquary of Souls | Moderate | AURA_PHASES | AUTO_SCALED |
-| 533 (Naxx) | Four Horsemen | Complex | MULTI_TANK, SPLIT_POSITION | ADAPTER_REQUIRED |
-| 603 (Ulduar) | Flame Leviathan | Complex | VEHICLE_SCALING | ADAPTER_REQUIRED |
-| 631 (ICC) | Valithria Dreamwalker | Complex | HEALER_OBJECTIVE | ADAPTER_REQUIRED |
-| 631 (ICC) | The Lich King | Complex | DEFILE, SHADOW_TRAP | AUTO_FLEX |
+| Map ID | Boss / Encounter | Complexity | Risk Flags | Source | Target Policy |
+|---|---|---|---|---|---|
+| 409 | Majordomo Executus | Moderate | ADDS, HEALER_OBJECTIVE | CURATED | AUTO_FLEX |
+| 469 | Razorgore the Untamed | Complex | MIND_CONTROL, EGG_OBJECTIVE | CURATED | ADAPTER_REQUIRED |
+| 509 | Kurinnaxx | Simple | TANK_DEBUFF | CURATED | AUTO_SCALED |
+| 531 | Twin Emperors | Complex | DUAL_TARGET, SPLIT_POSITION | CURATED | ADAPTER_REQUIRED |
+| 532 | Chess Event | Complex | VEHICLE_COUNT | CURATED | ADAPTER_REQUIRED |
+| 534 | Wave Defenses | Moderate | ADD_WAVES | CURATED | AUTO_FLEX |
+| 564 | Reliquary of Souls | Moderate | AURA_PHASES | CURATED | AUTO_SCALED |
+| 533 | Four Horsemen | Complex | MULTI_TANK, SPLIT_POSITION | CURATED | ADAPTER_REQUIRED |
+| 603 | Flame Leviathan | Complex | VEHICLE_SCALING | CURATED | ADAPTER_REQUIRED |
+| 631 | Valithria Dreamwalker | Complex | HEALER_OBJECTIVE | CURATED | ADAPTER_REQUIRED |
+| 631 | The Lich King | Complex | DEFILE, SHADOW_TRAP | CURATED | AUTO_FLEX |

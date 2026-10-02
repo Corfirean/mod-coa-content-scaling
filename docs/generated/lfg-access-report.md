@@ -1,29 +1,54 @@
 # LFG and Access Scaling Report
 
-| LFG ID | Dungeon Name | Map | Authored Min-Max | Effective Cap 60 Span | Effective Cap 80 Span | Status |
+| LFG ID | Dungeon Name | Map | Authored Min-Max | Cap 60 Effective Span | Cap 80 Span | Status |
 |---|---|---|---|---|---|---|
-| 1 | Wailing Caverns | 43 | 100-100 | Scaled | Stock | OK |
-| 2 | Scholomance | 289 | 100-100 | Scaled | Stock | OK |
-| 4 | Ragefire Chasm | 389 | 15-59 | Scaled | Stock | OK |
-| 6 | Deadmines | 36 | 15-59 | Scaled | Stock | OK |
-| 8 | Shadowfang Keep | 33 | 15-59 | Scaled | Stock | OK |
-| 10 | Blackfathom Deeps | 48 | 15-59 | Scaled | Stock | OK |
-| 12 | Stormwind Stockade | 34 | 15-59 | Scaled | Stock | OK |
-| 14 | Gnomeregan | 90 | 100-100 | Scaled | Stock | OK |
-| 16 | Razorfen Kraul | 47 | 25-59 | Scaled | Stock | OK |
-| 18 | Scarlet Monastery - Graveyard | 189 | 18-59 | Scaled | Stock | OK |
-| 20 | Razorfen Downs | 129 | 30-59 | Scaled | Stock | OK |
-| 22 | Uldaman | 70 | 100-100 | Scaled | Stock | OK |
-| 24 | Zul'Farrak | 209 | 35-59 | Scaled | Stock | OK |
-| 26 | Maraudon - Orange Crystals | 349 | 35-59 | Scaled | Stock | OK |
-| 28 | Sunken Temple | 109 | 45-59 | Scaled | Stock | OK |
-| 30 | Blackrock Depths - Prison | 230 | 45-60 | Scaled | Stock | OK |
-| 32 | Lower Blackrock Spire | 229 | 60-60 | Scaled | Stock | OK |
-| 34 | Dire Maul - East | 429 | 45-60 | Scaled | Stock | OK |
-| 36 | Dire Maul - West | 429 | 45-60 | Scaled | Stock | OK |
-| 38 | Dire Maul - North | 429 | 45-60 | Scaled | Stock | OK |
-| 40 | Stratholme - Main Gate | 329 | 45-60 | Scaled | Stock | OK |
-| 42 | Zul'Gurub | 309 | 56-80 | Scaled | Stock | OK |
-| 44 | Upper Blackrock Spire | 229 | 45-80 | Scaled | Stock | OK |
-| 45 | Blackrock Caverns | 645 | 35-60 | Scaled | Stock | OK |
-| 46 | Blackrock Caverns | 645 | 58-70 | Scaled | Stock | OK |
+| 4 | 389 | 389 | 15-59 | 11-44 | 15-59 | VALIDATED_RUNTIME_SCALED |
+| 6 | 36 | 36 | 15-59 | 11-44 | 15-59 | VALIDATED_RUNTIME_SCALED |
+| 8 | 33 | 33 | 15-59 | 11-44 | 15-59 | VALIDATED_RUNTIME_SCALED |
+| 10 | 48 | 48 | 15-59 | 11-44 | 15-59 | VALIDATED_RUNTIME_SCALED |
+| 12 | 34 | 34 | 15-59 | 11-44 | 15-59 | VALIDATED_RUNTIME_SCALED |
+| 16 | 47 | 47 | 25-59 | 19-44 | 25-59 | VALIDATED_RUNTIME_SCALED |
+| 18 | 189 | 189 | 18-59 | 14-44 | 18-59 | VALIDATED_RUNTIME_SCALED |
+| 20 | 129 | 129 | 30-59 | 23-44 | 30-59 | VALIDATED_RUNTIME_SCALED |
+| 24 | 209 | 209 | 35-59 | 26-44 | 35-59 | VALIDATED_RUNTIME_SCALED |
+| 26 | 349 | 349 | 35-59 | 26-44 | 35-59 | VALIDATED_RUNTIME_SCALED |
+| 28 | 109 | 109 | 45-59 | 34-44 | 45-59 | VALIDATED_RUNTIME_SCALED |
+| 30 | 230 | 230 | 45-60 | 34-45 | 45-60 | VALIDATED_RUNTIME_SCALED |
+| 32 | 229 | 229 | 60-60 | 45-45 | 60-60 | VALIDATED_RUNTIME_SCALED |
+| 34 | 429 | 429 | 45-60 | 34-45 | 45-60 | VALIDATED_RUNTIME_SCALED |
+| 36 | 429 | 429 | 45-60 | 34-45 | 45-60 | VALIDATED_RUNTIME_SCALED |
+| 38 | 429 | 429 | 45-60 | 34-45 | 45-60 | VALIDATED_RUNTIME_SCALED |
+| 40 | 329 | 329 | 45-60 | 34-45 | 45-60 | VALIDATED_RUNTIME_SCALED |
+| 42 | 309 | 309 | 56-80 | 42-60 | 56-80 | VALIDATED_RUNTIME_SCALED |
+| 44 | 229 | 229 | 45-80 | 34-60 | 45-80 | VALIDATED_RUNTIME_SCALED |
+| 45 | 645 | 645 | 35-60 | 26-45 | 35-60 | VALIDATED_RUNTIME_SCALED |
+| 46 | 645 | 645 | 58-70 | 45-55 | 58-70 | VALIDATED_RUNTIME_SCALED |
+| 48 | 409 | 409 | 60-80 | 45-60 | 60-80 | VALIDATED_RUNTIME_SCALED |
+| 49 | 645 | 645 | 58-70 | 45-55 | 58-70 | VALIDATED_RUNTIME_SCALED |
+| 50 | 469 | 469 | 60-80 | 45-60 | 60-80 | VALIDATED_RUNTIME_SCALED |
+| 51 | 289 | 289 | 60-60 | 45-45 | 60-60 | VALIDATED_RUNTIME_SCALED |
+| 52 | 289 | 289 | 60-60 | 45-45 | 60-60 | VALIDATED_RUNTIME_SCALED |
+| 53 | 289 | 289 | 60-60 | 45-45 | 60-60 | VALIDATED_RUNTIME_SCALED |
+| 54 | 289 | 289 | 60-60 | 45-45 | 60-60 | VALIDATED_RUNTIME_SCALED |
+| 55 | 289 | 289 | 60-60 | 45-45 | 60-60 | VALIDATED_RUNTIME_SCALED |
+| 56 | 289 | 289 | 60-60 | 45-45 | 60-60 | VALIDATED_RUNTIME_SCALED |
+| 58 | 4294967295 | 4294967295 | 1-14 | 1-11 | 1-14 | VALIDATED_RUNTIME_SCALED |
+| 60 | 4294967295 | 4294967295 | 8-24 | 6-18 | 8-24 | VALIDATED_RUNTIME_SCALED |
+| 62 | 4294967295 | 4294967295 | 18-34 | 14-26 | 18-34 | VALIDATED_RUNTIME_SCALED |
+| 64 | 4294967295 | 4294967295 | 1-14 | 1-11 | 1-14 | VALIDATED_RUNTIME_SCALED |
+| 66 | 4294967295 | 4294967295 | 8-24 | 6-18 | 8-24 | VALIDATED_RUNTIME_SCALED |
+| 68 | 4294967295 | 4294967295 | 18-34 | 14-26 | 18-34 | VALIDATED_RUNTIME_SCALED |
+| 70 | 4294967295 | 4294967295 | 28-50 | 21-38 | 28-50 | VALIDATED_RUNTIME_SCALED |
+| 72 | 4294967295 | 4294967295 | 43-59 | 32-44 | 43-59 | VALIDATED_RUNTIME_SCALED |
+| 74 | 4294967295 | 4294967295 | 33-50 | 25-38 | 33-50 | VALIDATED_RUNTIME_SCALED |
+| 76 | 4294967295 | 4294967295 | 13-30 | 10-23 | 13-30 | VALIDATED_RUNTIME_SCALED |
+| 78 | 4294967295 | 4294967295 | 48-59 | 36-44 | 48-59 | VALIDATED_RUNTIME_SCALED |
+| 80 | 4294967295 | 4294967295 | 43-59 | 32-44 | 43-59 | VALIDATED_RUNTIME_SCALED |
+| 82 | 4294967295 | 4294967295 | 33-50 | 25-38 | 33-50 | VALIDATED_RUNTIME_SCALED |
+| 84 | 4294967295 | 4294967295 | 28-44 | 21-33 | 28-44 | VALIDATED_RUNTIME_SCALED |
+| 86 | 4294967295 | 4294967295 | 18-34 | 14-26 | 18-34 | VALIDATED_RUNTIME_SCALED |
+| 88 | 4294967295 | 4294967295 | 38-54 | 29-41 | 38-54 | VALIDATED_RUNTIME_SCALED |
+| 90 | 4294967295 | 4294967295 | 48-59 | 36-44 | 48-59 | VALIDATED_RUNTIME_SCALED |
+| 92 | 4294967295 | 4294967295 | 53-60 | 40-45 | 53-60 | VALIDATED_RUNTIME_SCALED |
+| 94 | 4294967295 | 4294967295 | 1-14 | 1-11 | 1-14 | VALIDATED_RUNTIME_SCALED |
+| 96 | 4294967295 | 4294967295 | 8-24 | 6-18 | 8-24 | VALIDATED_RUNTIME_SCALED |

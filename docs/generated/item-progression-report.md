@@ -1,10 +1,10 @@
-# Item Progression & Power Census
+# Computed Item Progression Report
 
-## Raid Tier Median Budgets (Authored vs Compressed Cap 60)
-
-| Content Tier | Representative Source | Authored Ilvl | Effective Ilvl (Cap 60) | Stat Multiplier | Rating Multiplier |
-|---|---|---|---|---|---|---|
-| RAID_ENTRY | Karazhan / Naxx | 115 - 200 | 58 - 60 | 0.82 | 0.85 |
-| RAID_MID | SSC / Ulduar | 128 - 226 | 60 | 0.90 | 0.92 |
-| RAID_END | Black Temple / ToC | 141 - 245 | 60 | 0.96 | 0.98 |
-| RAID_PINNACLE | Sunwell / ICC | 159 - 277 | 60 | 1.00 | 1.00 |
+| Tier | Item Count | Authored Median ilvl | Effective Median ilvl (Cap 60) | Stat Multiplier |
+|---|---|---|---|---|
+| DUNGEON_NORMAL | 2281 | 46 | 46 | 1.00 |
+| DUNGEON_HEROIC | 0 | 0 | 0 | 1.00 |
+| RAID_ENTRY | 935 | 132 | 60 | 0.50 |
+| RAID_MID | 123 | 74 | 70 | 0.95 |
+| RAID_END | 195 | 80 | 78 | 0.97 |
+| RAID_PINNACLE | 323 | 103 | 88 | 0.85 |

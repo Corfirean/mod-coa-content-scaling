@@ -999,7 +999,10 @@ TEST(ContentCensusTest, InstanceProfileRegistryTiersCalibrated)
     sInstanceProfileRegistry->Initialize();
 
     std::vector<std::string> issues;
-    EXPECT_TRUE(sInstanceProfileRegistry->ValidateAll(issues));
+    bool ok = sInstanceProfileRegistry->ValidateAll(issues);
+    for (auto const& issue : issues)
+        std::cout << "ISSUE: " << issue << std::endl;
+    EXPECT_TRUE(ok);
 
     // Check tier resolution
     EXPECT_EQ(sInstanceProfileRegistry->GetTierForMap(36), ContentTier::DUNGEON_NORMAL);
@@ -1058,6 +1061,134 @@ TEST(ProgressionCalibrationTest, QuestChainMonotonicity_NeverInverts)
     uint8 qTbcStart = layout.MapAuthoredToEffective(ContentEra::TBC, 58);
     EXPECT_EQ(qClassicEnd, 45);
     EXPECT_GE(qTbcStart, 45);
+}
+
+// =============================================================================
+// Round 3.1: Census Integrity, Generated Profiles & Runtime Wiring Tests
+// =============================================================================
+
+TEST(ContentCensusIntegrityTest, PvPMapsExcludedFromInstanceRegistry)
+{
+    sInstanceProfileRegistry->Initialize();
+
+    // Verified list of Battlegrounds and Arenas in WoW 3.3.5a
+    static constexpr uint32 pvpMaps[] = { 30, 489, 529, 559, 562, 566, 572, 607, 617, 618, 628 };
+
+    for (uint32 mapId : pvpMaps)
+    {
+        // 1. InstanceProfileRegistry must NEVER register or have a profile for PvP maps
+        EXPECT_FALSE(sInstanceProfileRegistry->HasProfile(mapId))
+            << "PvP Map " << mapId << " should NOT be in InstanceProfileRegistry!";
+        EXPECT_EQ(sInstanceProfileRegistry->GetProfile(mapId), nullptr)
+            << "PvP Map " << mapId << " should return nullptr from GetProfile!";
+
+        // 2. Kind helper must classify as BATTLEGROUND or ARENA, never DUNGEON or RAID
+        MapContentKind kind = sInstanceProfileRegistry->GetKindForMap(mapId);
+        EXPECT_TRUE(kind == MapContentKind::BATTLEGROUND || kind == MapContentKind::ARENA)
+            << "Map " << mapId << " has unexpected kind: " << static_cast<uint32>(kind);
+        EXPECT_FALSE(IsPvEInstanceKind(kind))
+            << "Map " << mapId << " was wrongly considered a PvE instance!";
+    }
+}
+
+TEST(ContentCensusIntegrityTest, GeneratedCensusSchemaAndCounts)
+{
+    EXPECT_EQ(GENERATED_CONTENT_CENSUS_SCHEMA_VERSION, 310);
+    EXPECT_EQ(sGeneratedMapProfiles.size(), 374u);
+    EXPECT_EQ(sGeneratedInstanceProfiles.size(), 221u); // 221 PvE instance difficulty variants
+    EXPECT_EQ(sGeneratedCreaturePlacements.size(), 4125u);
+    EXPECT_EQ(sGeneratedQuestProfiles.size(), 10106u);
+    EXPECT_EQ(sGeneratedItemProfiles.size(), 3857u);
+    EXPECT_EQ(sGeneratedLfgProfiles.size(), 423u);
+    EXPECT_EQ(sGeneratedAccessProfiles.size(), 121u);
+}
+
+TEST(ContentCensusIntegrityTest, QuestRuntimeUsesGeneratedCensus)
+{
+    // Quest 203 in census
+    auto const* q203 = FindGeneratedQuestProfile(203);
+    ASSERT_NE(q203, nullptr);
+    EXPECT_EQ(q203->era, ContentEra::Classic);
+    EXPECT_EQ(q203->authoredLevel, 33);
+    EXPECT_EQ(q203->authoredMinLevel, 30);
+    EXPECT_GE(q203->confidence, 80u);
+
+    // Verify ContentPackRegistry resolution delegates to generated census
+    EraResolutionResult res = sContentPackRegistry->ResolveEraDetailsForQuest(203, 12, 0, 33);
+    EXPECT_EQ(res.era, ContentEra::Classic);
+    EXPECT_EQ(res.source, EraResolutionSource::ContentCensus);
+    EXPECT_FLOAT_EQ(res.confidence, static_cast<float>(q203->confidence) / 100.0f);
+}
+
+TEST(ContentCensusIntegrityTest, CreaturePlacementAwareResolution)
+{
+    // Test creature entry in census: entry with map placement
+    ASSERT_FALSE(sGeneratedCreaturePlacements.empty());
+    auto const& sample = sGeneratedCreaturePlacements[0];
+
+    auto const* found = FindGeneratedCreaturePlacement(sample.entry, sample.mapId);
+    ASSERT_NE(found, nullptr);
+    EXPECT_EQ(found->entry, sample.entry);
+    EXPECT_EQ(found->mapId, sample.mapId);
+    EXPECT_EQ(found->era, sample.era);
+
+    EraResolutionResult res = sContentPackRegistry->ResolveEraDetailsForCreature(
+        sample.entry, sample.mapId, 0, 0, 70);
+    EXPECT_EQ(res.era, sample.era);
+    EXPECT_EQ(res.source, EraResolutionSource::ContentCensus);
+}
+
+TEST(ContentCensusIntegrityTest, LfgAndDungeonAccessScaling)
+{
+    ProgressionLayout layoutCap60 = ProgressionLayout::Create(60, true, true);
+    // Classic: 1-45, TBC: 45-55, WotLK: 55-60
+
+    // Utgarde Keep (LFG Dungeon ID 242, Map 574, Authored min 69, max 72, target 70)
+    auto const* ukLfg = FindGeneratedLfgProfile(242);
+    ASSERT_NE(ukLfg, nullptr);
+    EXPECT_EQ(ukLfg->era, ContentEra::WotLK);
+    EXPECT_EQ(ukLfg->mapId, 574u);
+
+    uint8 scaledMin = layoutCap60.MapAuthoredToEffective(ukLfg->era, ukLfg->authoredMin);
+    uint8 scaledMax = layoutCap60.MapAuthoredToEffective(ukLfg->era, ukLfg->authoredMax);
+    EXPECT_GE(scaledMin, 55);
+    EXPECT_LE(scaledMax, 60);
+    EXPECT_LE(scaledMin, scaledMax);
+
+    // Access profile for Utgarde Keep (Map 574)
+    auto const* ukAccess = FindGeneratedAccessProfile(574, 0);
+    ASSERT_NE(ukAccess, nullptr);
+    EXPECT_EQ(ukAccess->era, ContentEra::WotLK);
+    uint8 accMin = layoutCap60.MapAuthoredToEffective(ukAccess->era, ukAccess->authoredMin);
+    uint8 accMax = layoutCap60.MapAuthoredToEffective(ukAccess->era, ukAccess->authoredMax);
+    EXPECT_GE(accMin, 55);
+    EXPECT_LE(accMax, 60);
+
+    // Expansion locked check when WotLK is disabled
+    ProgressionLayout layoutClassicTBC = ProgressionLayout::Create(70, true, false);
+    EXPECT_FALSE(layoutClassicTBC.IsEraEnabled(ContentEra::WotLK));
+}
+
+TEST(ContentCensusIntegrityTest, ItemSourceTiersAndOutlierClassification)
+{
+    // Landmark items in census
+    // Classic raid item: Elementium Reinforced Bulwark (Item 19354, BWL)
+    auto const* bwlShield = FindGeneratedItemProfile(19354);
+    ASSERT_NE(bwlShield, nullptr);
+    EXPECT_EQ(bwlShield->era, ContentEra::Classic);
+    EXPECT_EQ(bwlShield->tier, ContentTier::RAID_MID);
+
+    // TBC Legendary: Warglaive of Azzinoth (BT, Item 32837)
+    auto const* warglaive = FindGeneratedItemProfile(32837);
+    ASSERT_NE(warglaive, nullptr);
+    EXPECT_EQ(warglaive->era, ContentEra::TBC);
+    EXPECT_EQ(warglaive->tier, ContentTier::RAID_PINNACLE);
+
+    // WotLK Pinnacle: Item 50351
+    auto const* iccTrinket = FindGeneratedItemProfile(50351);
+    ASSERT_NE(iccTrinket, nullptr);
+    EXPECT_EQ(iccTrinket->era, ContentEra::WotLK);
+    EXPECT_EQ(iccTrinket->tier, ContentTier::RAID_PINNACLE);
 }
 
 
