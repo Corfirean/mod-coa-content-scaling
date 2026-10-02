@@ -12,5 +12,6 @@ set_property(GLOBAL APPEND PROPERTY ACORE_MODULE_TEST_SOURCES
     "${CMAKE_SOURCE_DIR}/modules/mod-coa-content-scaling/src/InstanceProfile.cpp"
     "${CMAKE_SOURCE_DIR}/modules/mod-coa-content-scaling/src/ContentPackRegistry.cpp"
     "${CMAKE_SOURCE_DIR}/modules/mod-coa-content-scaling/src/ItemBudgetScaler.cpp"
+    "${CMAKE_SOURCE_DIR}/modules/mod-coa-content-scaling/src/CoAContentScalingConfig.cpp"
     "${CMAKE_SOURCE_DIR}/modules/mod-coa-content-scaling/tests/ProgressionLayoutTest.cpp")
 

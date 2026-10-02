@@ -6,6 +6,7 @@
 #include "ProgressionLayout.h"
 #include "ContentEra.h"
 #include "ContentPackRegistry.h"
+#include "CoAContentScalingConfig.h"
 #include "DungeonFinding/LFG.h"
 #include "InstanceProfile.h"
 #include "InstanceScaleContext.h"
@@ -504,5 +505,451 @@ TEST(LfgQueuePolicyAcceptanceMatrixTest, AcceptanceMatrixVerification)
         EXPECT_EQ(p.challengeSize, 0u);
     }
 }
+
+// =============================================================================
+// Round 2.2: Config Canonical Keys and Centralized Parser Tests
+// =============================================================================
+
+TEST(CoAConfigTest, CanonicalKeysConstantsMatch)
+{
+    EXPECT_STREQ(CoAContentScalingConfigKeys::Enable, "CoAContentScaling.Enable");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::ProgressionMode, "CoAContentScaling.Progression.Mode");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::ProgressionClassicEnd, "CoAContentScaling.Progression.ClassicEnd");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::ProgressionTbcEnd, "CoAContentScaling.Progression.TbcEnd");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::GroupScalingEnable, "CoAContentScaling.GroupScaling.Enable");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::GroupScalingLockOnEncounterStart, "CoAContentScaling.GroupScaling.LockOnEncounterStart");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::GroupScalingAllowSoloRaids, "CoAContentScaling.GroupScaling.AllowSoloRaids");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::AdaptiveMechanicsEnable, "CoAContentScaling.AdaptiveMechanics.Enable");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::SoloAssistMode, "CoAContentScaling.SoloAssist.Mode");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::RewardsScaleLootCount, "CoAContentScaling.Rewards.ScaleLootCount");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::ScaleItems, "CoAContentScaling.ScaleItems");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::LfgDefaultMode, "CoAContentScaling.LFG.DefaultMode");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::LfgDefaultChallengeSize, "CoAContentScaling.LFG.DefaultChallengeSize");
+    EXPECT_STREQ(CoAContentScalingConfigKeys::Debug, "CoAContentScaling.Debug");
+}
+
+TEST(CoAConfigTest, ParseProgressionMode)
+{
+    EXPECT_EQ(CoAContentScalingConfig::ParseProgressionMode("Auto"), "Auto");
+    EXPECT_EQ(CoAContentScalingConfig::ParseProgressionMode("auto"), "Auto");
+    EXPECT_EQ(CoAContentScalingConfig::ParseProgressionMode(" AUTO "), "Auto");
+    EXPECT_EQ(CoAContentScalingConfig::ParseProgressionMode("Custom"), "Custom");
+    EXPECT_EQ(CoAContentScalingConfig::ParseProgressionMode("custom"), "Custom");
+    EXPECT_EQ(CoAContentScalingConfig::ParseProgressionMode(" CUSTOM "), "Custom");
+    // Invalid / garbage fallback to Auto
+    EXPECT_EQ(CoAContentScalingConfig::ParseProgressionMode("Unknown"), "Auto");
+    EXPECT_EQ(CoAContentScalingConfig::ParseProgressionMode(""), "Auto");
+    EXPECT_EQ(CoAContentScalingConfig::ParseProgressionMode("123"), "Auto");
+}
+
+TEST(CoAConfigTest, ParseSoloAssistMode)
+{
+    // Canonical names
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode("None"), SoloAssistMode::NONE);
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode("none"), SoloAssistMode::NONE);
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode("Light"), SoloAssistMode::LIGHT);
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode("light"), SoloAssistMode::LIGHT);
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode("Full"), SoloAssistMode::FULL);
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode("full"), SoloAssistMode::FULL);
+
+    // Backwards-compatible numbers
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode("0"), SoloAssistMode::NONE);
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode("1"), SoloAssistMode::LIGHT);
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode("2"), SoloAssistMode::FULL);
+
+    // Trimming
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode(" 1 "), SoloAssistMode::LIGHT);
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode(" Light "), SoloAssistMode::LIGHT);
+
+    // Invalid values MUST safely fall back to NONE (never LIGHT)
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode("invalid"), SoloAssistMode::NONE);
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode("3"), SoloAssistMode::NONE);
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode("99"), SoloAssistMode::NONE);
+    EXPECT_EQ(CoAContentScalingConfig::ParseSoloAssistMode(""), SoloAssistMode::NONE);
+}
+
+TEST(CoAConfigTest, ParseLfgCompositionMode)
+{
+    EXPECT_EQ(CoAContentScalingConfig::ParseLfgCompositionMode("Matchmaking"), lfg::LfgCompositionMode::MATCHMAKING);
+    EXPECT_EQ(CoAContentScalingConfig::ParseLfgCompositionMode("matchmaking"), lfg::LfgCompositionMode::MATCHMAKING);
+    EXPECT_EQ(CoAContentScalingConfig::ParseLfgCompositionMode("BotFill"), lfg::LfgCompositionMode::BOT_FILL);
+    EXPECT_EQ(CoAContentScalingConfig::ParseLfgCompositionMode("bots"), lfg::LfgCompositionMode::BOT_FILL);
+    EXPECT_EQ(CoAContentScalingConfig::ParseLfgCompositionMode("CurrentParty"), lfg::LfgCompositionMode::CURRENT_PARTY);
+    EXPECT_EQ(CoAContentScalingConfig::ParseLfgCompositionMode("party"), lfg::LfgCompositionMode::CURRENT_PARTY);
+    EXPECT_EQ(CoAContentScalingConfig::ParseLfgCompositionMode("solo"), lfg::LfgCompositionMode::CURRENT_PARTY);
+
+    // Invalid fallback
+    EXPECT_EQ(CoAContentScalingConfig::ParseLfgCompositionMode("invalid"), lfg::LfgCompositionMode::MATCHMAKING);
+    EXPECT_EQ(CoAContentScalingConfig::ParseLfgCompositionMode(""), lfg::LfgCompositionMode::MATCHMAKING);
+}
+
+// =============================================================================
+// Round 2.2: Pending Policy Atomic Consume-Once and TTL Simulation Tests
+// =============================================================================
+
+struct TestPendingPolicy
+{
+    uint32 mapId{0};
+    uint64 groupGuid{0};
+    uint32 challengeSize{0};
+    lfg::LfgCompositionMode compositionMode{lfg::LfgCompositionMode::MATCHMAKING};
+    uint64 generation{0};
+    uint32 createdAt{0};
+};
+
+class PendingPolicySimulator
+{
+public:
+    void RegisterProposal(uint32 mapId, uint64 groupGuid, std::vector<uint64> const& playerGuids,
+                          uint32 challengeSize, lfg::LfgCompositionMode compMode, uint32 currentTime)
+    {
+        ++_generation;
+        TestPendingPolicy p;
+        p.mapId = mapId;
+        p.groupGuid = groupGuid;
+        p.challengeSize = challengeSize;
+        p.compositionMode = compMode;
+        p.generation = _generation;
+        p.createdAt = currentTime;
+
+        if (groupGuid)
+            _groupPolicies[groupGuid] = p;
+
+        for (uint64 pguid : playerGuids)
+            _playerPolicies[pguid] = p;
+    }
+
+    std::optional<TestPendingPolicy> Consume(uint32 mapId, uint64 groupGuid, uint64 playerGuid, uint32 currentTime)
+    {
+        PurgeExpired(currentTime);
+
+        TestPendingPolicy policy;
+        bool found = false;
+
+        if (groupGuid)
+        {
+            auto it = _groupPolicies.find(groupGuid);
+            if (it != _groupPolicies.end() && it->second.mapId == mapId)
+            {
+                policy = it->second;
+                found = true;
+            }
+        }
+
+        if (!found && playerGuid)
+        {
+            auto it = _playerPolicies.find(playerGuid);
+            if (it != _playerPolicies.end() && it->second.mapId == mapId)
+            {
+                policy = it->second;
+                found = true;
+            }
+        }
+
+        if (!found)
+            return std::nullopt;
+
+        uint64 const targetGen = policy.generation;
+
+        if (policy.groupGuid)
+        {
+            auto git = _groupPolicies.find(policy.groupGuid);
+            if (git != _groupPolicies.end() && git->second.generation == targetGen)
+                _groupPolicies.erase(git);
+        }
+
+        for (auto it = _playerPolicies.begin(); it != _playerPolicies.end();)
+        {
+            if (it->second.generation == targetGen)
+                it = _playerPolicies.erase(it);
+            else
+                ++it;
+        }
+
+        return policy;
+    }
+
+    void OnPlayerLogout(uint64 playerGuid, uint64 leaderGuid, uint32 groupSize)
+    {
+        auto it = _playerPolicies.find(playerGuid);
+        if (it != _playerPolicies.end())
+        {
+            uint64 const gen = it->second.generation;
+            uint64 const grpGuid = it->second.groupGuid;
+            _playerPolicies.erase(it);
+
+            if (grpGuid && (playerGuid == leaderGuid || groupSize <= 1))
+            {
+                auto git = _groupPolicies.find(grpGuid);
+                if (git != _groupPolicies.end() && git->second.generation == gen)
+                    _groupPolicies.erase(git);
+            }
+        }
+    }
+
+    void PurgeExpired(uint32 currentTime)
+    {
+        constexpr uint32 TTL = 300; // 5 min
+        for (auto it = _groupPolicies.begin(); it != _groupPolicies.end();)
+        {
+            if (currentTime > it->second.createdAt && (currentTime - it->second.createdAt) > TTL)
+                it = _groupPolicies.erase(it);
+            else
+                ++it;
+        }
+
+        for (auto it = _playerPolicies.begin(); it != _playerPolicies.end();)
+        {
+            if (currentTime > it->second.createdAt && (currentTime - it->second.createdAt) > TTL)
+                it = _playerPolicies.erase(it);
+            else
+                ++it;
+        }
+    }
+
+    size_t GroupCount() const { return _groupPolicies.size(); }
+    size_t PlayerCount() const { return _playerPolicies.size(); }
+
+private:
+    uint64 _generation{0};
+    std::unordered_map<uint64, TestPendingPolicy> _groupPolicies;
+    std::unordered_map<uint64, TestPendingPolicy> _playerPolicies;
+};
+
+TEST(PendingPolicyTest, ConsumeOnceAndEraseAllAliases)
+{
+    PendingPolicySimulator sim;
+    sim.RegisterProposal(33, 100, { 1, 2, 3, 4, 5 }, 10, lfg::LfgCompositionMode::CURRENT_PARTY, 1000);
+
+    EXPECT_EQ(sim.GroupCount(), 1u);
+    EXPECT_EQ(sim.PlayerCount(), 5u);
+
+    // First entry: Successfully consumed
+    auto consumed = sim.Consume(33, 100, 1, 1010);
+    ASSERT_TRUE(consumed.has_value());
+    EXPECT_EQ(consumed->challengeSize, 10u);
+    EXPECT_EQ(consumed->mapId, 33u);
+
+    // Group entry and ALL 5 player aliases sharing generation erased atomically
+    EXPECT_EQ(sim.GroupCount(), 0u);
+    EXPECT_EQ(sim.PlayerCount(), 0u);
+
+    // Re-entry / subsequent check: MUST NOT inherit old challenge
+    auto secondEntry = sim.Consume(33, 100, 1, 1020);
+    EXPECT_FALSE(secondEntry.has_value());
+
+    auto memberEntry = sim.Consume(33, 100, 2, 1020);
+    EXPECT_FALSE(memberEntry.has_value());
+}
+
+TEST(PendingPolicyTest, TtlExpiration)
+{
+    PendingPolicySimulator sim;
+    sim.RegisterProposal(43, 200, { 10 }, 5, lfg::LfgCompositionMode::CURRENT_PARTY, 1000);
+
+    // Within TTL (150s elapsed)
+    sim.PurgeExpired(1150);
+    EXPECT_EQ(sim.GroupCount(), 1u);
+
+    // Past 300s TTL (301s elapsed)
+    sim.PurgeExpired(1301);
+    EXPECT_EQ(sim.GroupCount(), 0u);
+    EXPECT_EQ(sim.PlayerCount(), 0u);
+
+    auto result = sim.Consume(43, 200, 10, 1302);
+    EXPECT_FALSE(result.has_value());
+}
+
+TEST(PendingPolicyTest, LeaderLogoutCleansGroupPolicy)
+{
+    PendingPolicySimulator sim;
+    sim.RegisterProposal(33, 300, { 20, 21, 22 }, 3, lfg::LfgCompositionMode::CURRENT_PARTY, 1000);
+
+    EXPECT_EQ(sim.GroupCount(), 1u);
+    EXPECT_EQ(sim.PlayerCount(), 3u);
+
+    // Non-leader logs out (leader is 20, member 21 logs out)
+    sim.OnPlayerLogout(21, 20, 3);
+    EXPECT_EQ(sim.PlayerCount(), 2u);
+    EXPECT_EQ(sim.GroupCount(), 1u); // Group policy remains
+
+    // Leader 20 logs out
+    sim.OnPlayerLogout(20, 20, 2);
+    EXPECT_EQ(sim.PlayerCount(), 1u);
+    EXPECT_EQ(sim.GroupCount(), 0u); // Group policy purged
+}
+
+// =============================================================================
+// Round 2.2: Multi-Role Bot Solver Tests
+// =============================================================================
+
+struct SolverMember
+{
+    uint8 roles;
+};
+
+struct SolverResult
+{
+    bool hasTank{false};
+    bool hasHealer{false};
+    uint32 realDpsCount{0};
+    uint32 tankBotsNeeded{0};
+    uint32 healerBotsNeeded{0};
+    uint32 dpsBotsNeeded{0};
+};
+
+SolverResult SolveRoles(std::vector<SolverMember> const& members)
+{
+    SolverResult result;
+    if (members.empty() || members.size() >= 5)
+        return result;
+
+    size_t const N = members.size();
+    bool bestFound = false;
+    int bestScore = -1;
+    bool bestTank = false;
+    bool bestHealer = false;
+    uint32 bestDps = 0;
+
+    auto backtrack = [&](auto& self, size_t idx, bool curTank, bool curHealer, uint32 curDps) -> void
+    {
+        if (idx == N)
+        {
+            int score = (curTank ? 100 : 0) + (curHealer ? 50 : 0) + int(curDps);
+            if (!bestFound || score > bestScore)
+            {
+                bestScore = score;
+                bestTank = curTank;
+                bestHealer = curHealer;
+                bestDps = curDps;
+                bestFound = true;
+            }
+            return;
+        }
+
+        uint8 const availableRoles = members[idx].roles;
+
+        // Try Tank
+        if (!curTank && (availableRoles & lfg::PLAYER_ROLE_TANK))
+            self(self, idx + 1, true, curHealer, curDps);
+
+        // Try Healer
+        if (!curHealer && (availableRoles & lfg::PLAYER_ROLE_HEALER))
+            self(self, idx + 1, curTank, true, curDps);
+
+        // Try DPS
+        if (curDps < 3 && (availableRoles & lfg::PLAYER_ROLE_DAMAGE))
+            self(self, idx + 1, curTank, curHealer, curDps + 1);
+
+        // Unassigned branch
+        self(self, idx + 1, curTank, curHealer, curDps);
+    };
+
+    backtrack(backtrack, 0, false, false, 0);
+
+    result.hasTank = bestTank;
+    result.hasHealer = bestHealer;
+    result.realDpsCount = bestDps;
+
+    uint32 const availableBotSlots = static_cast<uint32>(5 - N);
+    uint32 remainingSlots = availableBotSlots;
+
+    if (!result.hasTank && remainingSlots > 0)
+    {
+        result.tankBotsNeeded = 1;
+        --remainingSlots;
+    }
+
+    if (!result.hasHealer && remainingSlots > 0)
+    {
+        result.healerBotsNeeded = 1;
+        --remainingSlots;
+    }
+
+    uint32 const missingDps = (result.realDpsCount >= 3) ? 0 : (3 - result.realDpsCount);
+    result.dpsBotsNeeded = std::min<uint32>(remainingSlots, missingDps);
+
+    return result;
+}
+
+TEST(BotRoleSolverTest, SinglePlayerMultiRole)
+{
+    // Solo player queued as Tank | Healer
+    // Must be assigned to Tank (or Healer), exactly ONE role, never both!
+    std::vector<SolverMember> members = { { lfg::PLAYER_ROLE_TANK | lfg::PLAYER_ROLE_HEALER } };
+    SolverResult res = SolveRoles(members);
+
+    EXPECT_TRUE(res.hasTank);
+    EXPECT_FALSE(res.hasHealer); // Solo player cannot be both!
+    EXPECT_EQ(res.tankBotsNeeded, 0u);
+    EXPECT_EQ(res.healerBotsNeeded, 1u); // Healer bot spawned
+    EXPECT_EQ(res.dpsBotsNeeded, 3u);    // 3 DPS bots spawned
+    EXPECT_EQ(1u + res.tankBotsNeeded + res.healerBotsNeeded + res.dpsBotsNeeded, 5u); // Total exactly 5
+}
+
+TEST(BotRoleSolverTest, FourRealDps_NeverExceedsFiveMembers)
+{
+    // 4 real DPS queued
+    // Bot slots available = 5 - 4 = 1 slot.
+    // Tank has higher priority than Healer, so add 1 Tank bot.
+    // Group must NEVER become 6 players!
+    std::vector<SolverMember> members = {
+        { lfg::PLAYER_ROLE_DAMAGE },
+        { lfg::PLAYER_ROLE_DAMAGE },
+        { lfg::PLAYER_ROLE_DAMAGE },
+        { lfg::PLAYER_ROLE_DAMAGE }
+    };
+    SolverResult res = SolveRoles(members);
+
+    EXPECT_FALSE(res.hasTank);
+    EXPECT_FALSE(res.hasHealer);
+    EXPECT_EQ(res.realDpsCount, 3u); // Capped to 3 standard dungeon DPS
+    EXPECT_EQ(res.tankBotsNeeded, 1u);
+    EXPECT_EQ(res.healerBotsNeeded, 0u); // Slots exhausted!
+    EXPECT_EQ(res.dpsBotsNeeded, 0u);
+
+    uint32 totalGroup = 4u + res.tankBotsNeeded + res.healerBotsNeeded + res.dpsBotsNeeded;
+    EXPECT_EQ(totalGroup, 5u); // Exactly 5, NOT 6!
+}
+
+TEST(BotRoleSolverTest, FullFiveRealPlayers_ZeroBotsNeeded)
+{
+    std::vector<SolverMember> members = {
+        { lfg::PLAYER_ROLE_TANK },
+        { lfg::PLAYER_ROLE_HEALER },
+        { lfg::PLAYER_ROLE_DAMAGE },
+        { lfg::PLAYER_ROLE_DAMAGE },
+        { lfg::PLAYER_ROLE_DAMAGE }
+    };
+    SolverResult res = SolveRoles(members);
+
+    EXPECT_EQ(res.tankBotsNeeded, 0u);
+    EXPECT_EQ(res.healerBotsNeeded, 0u);
+    EXPECT_EQ(res.dpsBotsNeeded, 0u);
+}
+
+TEST(BotRoleSolverTest, FlexibleRolesThreeMembers)
+{
+    // Player 1: Tank | DPS
+    // Player 2: Healer | DPS
+    // Player 3: DPS
+    std::vector<SolverMember> members = {
+        { lfg::PLAYER_ROLE_TANK | lfg::PLAYER_ROLE_DAMAGE },
+        { lfg::PLAYER_ROLE_HEALER | lfg::PLAYER_ROLE_DAMAGE },
+        { lfg::PLAYER_ROLE_DAMAGE }
+    };
+    SolverResult res = SolveRoles(members);
+
+    EXPECT_TRUE(res.hasTank);
+    EXPECT_TRUE(res.hasHealer);
+    EXPECT_EQ(res.realDpsCount, 1u);
+    EXPECT_EQ(res.tankBotsNeeded, 0u);
+    EXPECT_EQ(res.healerBotsNeeded, 0u);
+    EXPECT_EQ(res.dpsBotsNeeded, 2u); // 3 members + 2 DPS bots = 5 total
+
+    uint32 totalGroup = 3u + res.tankBotsNeeded + res.healerBotsNeeded + res.dpsBotsNeeded;
+    EXPECT_EQ(totalGroup, 5u);
+}
+
 
 

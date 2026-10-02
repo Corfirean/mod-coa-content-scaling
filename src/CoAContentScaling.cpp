@@ -5,6 +5,7 @@
 
 #include "CoAContentScaling.h"
 #include "AdaptiveEncounterAPI.h"
+#include "CoAContentScalingConfig.h"
 #include "CombatBudgetProfile.h"
 #include "Config.h"
 #include "Containers.h"
@@ -14,6 +15,7 @@
 #include "DBCEnums.h"
 #include "DatabaseEnv.h"
 #include "Field.h"
+#include "GameTime.h"
 #include "Group.h"
 #include "InstanceScaleContext.h"
 #include "ItemBudgetScaler.h"
@@ -47,25 +49,22 @@ CoAContentScaling* CoAContentScaling::Instance()
 
 void CoAContentScaling::LoadConfig()
 {
-    _enabled = sConfigMgr->GetOption<bool>("CoAContentScaling.Enable", true);
-    _groupScalingEnabled = sConfigMgr->GetOption<bool>("CoAContentScaling.GroupScaling.Enable", true);
-    _lockOnEncounterStart = sConfigMgr->GetOption<bool>("CoAContentScaling.GroupScaling.LockOnEncounterStart", true);
-    _adaptiveMechanicsEnabled = sConfigMgr->GetOption<bool>("CoAContentScaling.AdaptiveMechanics.Enable", true);
-    _scaleLootCount = sConfigMgr->GetOption<bool>("CoAContentScaling.Rewards.ScaleLootCount", true);
-    _allowSoloRaids = sConfigMgr->GetOption<bool>("CoAContentScaling.GroupScaling.AllowSoloRaids", true);
-    _debug = sConfigMgr->GetOption<bool>("CoAContentScaling.Debug", false);
+    _enabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::Enable, true);
+    _groupScalingEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingEnable, true);
+    _lockOnEncounterStart = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingLockOnEncounterStart, true);
+    _allowSoloRaids = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingAllowSoloRaids, true);
+    _adaptiveMechanicsEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::AdaptiveMechanicsEnable, true);
+    _scaleLootCount = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::RewardsScaleLootCount, true);
+    _debug = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::Debug, false);
 
-    _progressionMode = sConfigMgr->GetOption<std::string>("CoAContentScaling.ProgressionMode", "Auto");
-    _customClassicEnd = static_cast<uint8>(sConfigMgr->GetOption<uint32>("CoAContentScaling.Progression.CustomClassicEnd", 45));
-    _customTbcEnd = static_cast<uint8>(sConfigMgr->GetOption<uint32>("CoAContentScaling.Progression.CustomTbcEnd", 58));
+    std::string const rawProgressionMode = sConfigMgr->GetOption<std::string>(CoAContentScalingConfigKeys::ProgressionMode, "Auto");
+    _progressionMode = CoAContentScalingConfig::ParseProgressionMode(rawProgressionMode);
 
-    std::string const defaultModeStr = sConfigMgr->GetOption<std::string>("CoAContentScaling.LFG.DefaultMode", "Matchmaking");
-    if (defaultModeStr == "BotFill" || defaultModeStr == "Bots")
-        _defaultLfgCompositionMode = lfg::LfgCompositionMode::BOT_FILL;
-    else if (defaultModeStr == "CurrentParty" || defaultModeStr == "Party")
-        _defaultLfgCompositionMode = lfg::LfgCompositionMode::CURRENT_PARTY;
-    else
-        _defaultLfgCompositionMode = lfg::LfgCompositionMode::MATCHMAKING;
+    _customClassicEnd = static_cast<uint8>(sConfigMgr->GetOption<uint32>(CoAContentScalingConfigKeys::ProgressionClassicEnd, 0));
+    _customTbcEnd = static_cast<uint8>(sConfigMgr->GetOption<uint32>(CoAContentScalingConfigKeys::ProgressionTbcEnd, 0));
+
+    std::string const defaultModeStr = sConfigMgr->GetOption<std::string>(CoAContentScalingConfigKeys::LfgDefaultMode, "Matchmaking");
+    _defaultLfgCompositionMode = CoAContentScalingConfig::ParseLfgCompositionMode(defaultModeStr);
 
     if (_defaultLfgCompositionMode == lfg::LfgCompositionMode::BOT_FILL && !sScriptMgr->HasLfgAutoFillProvider())
     {
@@ -73,17 +72,20 @@ void CoAContentScaling::LoadConfig()
         _defaultLfgCompositionMode = lfg::LfgCompositionMode::MATCHMAKING;
     }
 
-    _defaultLfgChallengeSize = sConfigMgr->GetOption<uint32>("CoAContentScaling.LFG.DefaultChallengeSize", 0);
-    if (_defaultLfgChallengeSize > 40)
-        _defaultLfgChallengeSize = 40;
-
-    std::string const soloMode = sConfigMgr->GetOption<std::string>("CoAContentScaling.SoloAssist.Mode", "Light");
-    if (soloMode == "Full")
-        sSoloAssistPolicy->SetMode(SoloAssistMode::FULL);
-    else if (soloMode == "None")
-        sSoloAssistPolicy->SetMode(SoloAssistMode::NONE);
+    uint32 const rawChallenge = sConfigMgr->GetOption<uint32>(CoAContentScalingConfigKeys::LfgDefaultChallengeSize, 0);
+    if (rawChallenge > 40)
+    {
+        LOG_WARN("module.coa_content_scaling",
+                 "CoAContentScaling: Invalid LFG.DefaultChallengeSize {} (must be 0..40). Falling back to 0 (Adaptive).", rawChallenge);
+        _defaultLfgChallengeSize = 0;
+    }
     else
-        sSoloAssistPolicy->SetMode(SoloAssistMode::LIGHT);
+    {
+        _defaultLfgChallengeSize = rawChallenge;
+    }
+
+    std::string const soloMode = sConfigMgr->GetOption<std::string>(CoAContentScalingConfigKeys::SoloAssistMode, "0");
+    sSoloAssistPolicy->SetMode(CoAContentScalingConfig::ParseSoloAssistMode(soloMode));
 }
 
 void CoAContentScaling::FinalizeAndInitialize()
@@ -101,7 +103,7 @@ void CoAContentScaling::FinalizeAndInitialize()
     sInstanceScalingMgr->LoadCalibratedBossFlex();
 
     // 4. Scale item templates if enabled
-    if (sConfigMgr->GetOption<bool>("CoAContentScaling.ScaleItems", true))
+    if (sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::ScaleItems, true))
     {
         sItemBudgetScaler->ScaleAllItems(_layout);
     }
@@ -354,14 +356,19 @@ lfg::LfgCompositionMode CoAContentScaling::GetPlayerLfgMode(ObjectGuid guid) con
     return (it != _playerLfgSettings.end()) ? it->second.compositionMode : _defaultLfgCompositionMode;
 }
 
-void CoAContentScaling::SetPlayerLfgChallenge(ObjectGuid guid, uint32 challengeSize)
+bool CoAContentScaling::SetPlayerLfgChallenge(ObjectGuid guid, uint32 challengeSize)
 {
+    if (challengeSize > 40)
+        return false;
+
     {
         std::lock_guard<std::mutex> lock(_lfgSettingsLock);
-        _playerLfgSettings[guid].challengeSize = std::min<uint32>(challengeSize, 40);
+        _playerLfgSettings[guid].challengeSize = challengeSize;
     }
     if (Player* player = ObjectAccessor::FindPlayer(guid))
         SavePlayerLfgSettings(player);
+
+    return true;
 }
 
 uint32 CoAContentScaling::GetPlayerLfgChallenge(ObjectGuid guid) const
@@ -448,7 +455,30 @@ void CoAContentScaling::OnPlayerLogout(Player* player)
     }
     {
         std::lock_guard<std::mutex> pLock(_pendingPolicyLock);
-        _pendingPlayerPolicies.erase(guid);
+        auto pIt = _pendingPlayerPolicies.find(guid);
+        if (pIt != _pendingPlayerPolicies.end())
+        {
+            uint64 const gen = pIt->second.generation;
+            ObjectGuid const grpGuid = pIt->second.groupGuid;
+
+            // Purge player alias
+            _pendingPlayerPolicies.erase(pIt);
+
+            // If player was in a group associated with this pending policy, check if group policy should also be cleaned
+            // (e.g. If player is group leader or no remaining members in pending map)
+            if (grpGuid)
+            {
+                Group* grp = player->GetGroup();
+                if (!grp || grp->GetLeaderGUID() == guid || grp->GetMembersCount() <= 1)
+                {
+                    auto gIt = _pendingInstancePolicies.find(grpGuid);
+                    if (gIt != _pendingInstancePolicies.end() && gIt->second.generation == gen)
+                    {
+                        _pendingInstancePolicies.erase(gIt);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -527,6 +557,7 @@ void CoAContentScaling::OnLfgProposalMadeGroup(lfg::LfgProposal const& proposal,
     pendingPolicy.challengeSize = proposal.policy.challengeSize;
     pendingPolicy.compositionMode = proposal.policy.compositionMode;
     pendingPolicy.generation = _pendingPolicyGeneration;
+    pendingPolicy.createdAt = GameTime::GetGameTime().count();
 
     _pendingInstancePolicies[group->GetGUID()] = pendingPolicy;
 
@@ -534,6 +565,114 @@ void CoAContentScaling::OnLfgProposalMadeGroup(lfg::LfgProposal const& proposal,
     {
         _pendingPlayerPolicies[pair.first] = pendingPolicy;
     }
+}
+
+std::optional<PendingInstanceScalePolicy> CoAContentScaling::ConsumePendingInstancePolicy(
+    uint32 mapId, ObjectGuid groupGuid, ObjectGuid playerGuid)
+{
+    std::lock_guard<std::mutex> lock(_pendingPolicyLock);
+    PurgeExpiredPendingPolicies();
+
+    PendingInstanceScalePolicy policy;
+    bool found = false;
+
+    // Check group pending policy first
+    if (groupGuid)
+    {
+        auto it = _pendingInstancePolicies.find(groupGuid);
+        if (it != _pendingInstancePolicies.end() && it->second.mapId == mapId)
+        {
+            policy = it->second;
+            found = true;
+        }
+    }
+
+    // Check player pending policy fallback
+    if (!found && playerGuid)
+    {
+        auto it = _pendingPlayerPolicies.find(playerGuid);
+        if (it != _pendingPlayerPolicies.end() && it->second.mapId == mapId)
+        {
+            policy = it->second;
+            found = true;
+        }
+    }
+
+    if (!found)
+        return std::nullopt;
+
+    // Atomically erase matching group entry and all player aliases that share this generation
+    uint64 const targetGeneration = policy.generation;
+
+    if (policy.groupGuid)
+    {
+        auto gIt = _pendingInstancePolicies.find(policy.groupGuid);
+        if (gIt != _pendingInstancePolicies.end() && gIt->second.generation == targetGeneration)
+        {
+            _pendingInstancePolicies.erase(gIt);
+        }
+    }
+
+    for (auto it = _pendingPlayerPolicies.begin(); it != _pendingPlayerPolicies.end();)
+    {
+        if (it->second.generation == targetGeneration)
+        {
+            it = _pendingPlayerPolicies.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    return policy;
+}
+
+void CoAContentScaling::PurgeExpiredPendingPolicies()
+{
+    // 5 minutes (300 seconds) TTL
+    constexpr uint32 PENDING_POLICY_TTL_SEC = 300;
+    uint32 const now = GameTime::GetGameTime().count();
+
+    for (auto it = _pendingInstancePolicies.begin(); it != _pendingInstancePolicies.end();)
+    {
+        if (now > it->second.createdAt && (now - it->second.createdAt) > PENDING_POLICY_TTL_SEC)
+            it = _pendingInstancePolicies.erase(it);
+        else
+            ++it;
+    }
+
+    for (auto it = _pendingPlayerPolicies.begin(); it != _pendingPlayerPolicies.end();)
+    {
+        if (now > it->second.createdAt && (now - it->second.createdAt) > PENDING_POLICY_TTL_SEC)
+            it = _pendingPlayerPolicies.erase(it);
+        else
+            ++it;
+    }
+}
+
+size_t CoAContentScaling::GetPendingGroupPoliciesCount() const
+{
+    std::lock_guard<std::mutex> lock(_pendingPolicyLock);
+    return _pendingInstancePolicies.size();
+}
+
+size_t CoAContentScaling::GetPendingPlayerPoliciesCount() const
+{
+    std::lock_guard<std::mutex> lock(_pendingPolicyLock);
+    return _pendingPlayerPolicies.size();
+}
+
+std::vector<PendingInstanceScalePolicy> CoAContentScaling::GetAllPendingPolicies() const
+{
+    std::lock_guard<std::mutex> lock(_pendingPolicyLock);
+    std::vector<PendingInstanceScalePolicy> result;
+    result.reserve(_pendingInstancePolicies.size());
+    for (auto const& pair : _pendingInstancePolicies)
+    {
+        result.push_back(pair.second);
+    }
+    return result;
 }
 
 void CoAContentScaling::OnInstanceMapCreated(InstanceMap* instanceMap, Player* player)
@@ -544,42 +683,23 @@ void CoAContentScaling::OnInstanceMapCreated(InstanceMap* instanceMap, Player* p
     uint32 const mapId = instanceMap->GetId();
     uint32 const instanceId = instanceMap->GetInstanceId();
 
-    PendingInstanceScalePolicy policy;
-    bool found = false;
+    ObjectGuid groupGuid;
+    ObjectGuid playerGuid;
 
+    if (player)
     {
-        std::lock_guard<std::mutex> lock(_pendingPolicyLock);
-        if (player)
-        {
-            Group* group = player->GetGroup();
-            if (group)
-            {
-                auto it = _pendingInstancePolicies.find(group->GetGUID());
-                if (it != _pendingInstancePolicies.end() && it->second.mapId == mapId)
-                {
-                    policy = it->second;
-                    found = true;
-                }
-            }
-
-            if (!found)
-            {
-                auto it = _pendingPlayerPolicies.find(player->GetGUID());
-                if (it != _pendingPlayerPolicies.end() && it->second.mapId == mapId)
-                {
-                    policy = it->second;
-                    found = true;
-                }
-            }
-        }
+        playerGuid = player->GetGUID();
+        if (Group* group = player->GetGroup())
+            groupGuid = group->GetGUID();
     }
 
-    if (found && policy.challengeSize > 0)
+    std::optional<PendingInstanceScalePolicy> policyOpt = ConsumePendingInstancePolicy(mapId, groupGuid, playerGuid);
+    if (policyOpt && policyOpt->challengeSize > 0)
     {
-        sInstanceScalingMgr->SetChallengeSize(mapId, instanceId, policy.challengeSize);
+        sInstanceScalingMgr->SetChallengeSize(mapId, instanceId, policyOpt->challengeSize);
         LOG_INFO("module.coa_content_scaling",
                  "CoAContentScaling: Applied pending LFG challenge size {} to instance (mapId: {}, instanceId: {})",
-                 policy.challengeSize, mapId, instanceId);
+                 policyOpt->challengeSize, mapId, instanceId);
     }
 }
 

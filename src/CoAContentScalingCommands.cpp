@@ -229,6 +229,11 @@ private:
 
         handler->PSendSysMessage("[PASS] ProgressionLayout valid: Cap %u", uint32(layout.maxLevel));
         handler->PSendSysMessage("[PASS] Enabled eras continuous and terminating at Cap");
+
+        sCoAContentScaling->PurgeExpiredPendingPolicies();
+        handler->PSendSysMessage("[PASS] Pending LFG policies verified (%zu active groups, %zu player aliases)",
+            sCoAContentScaling->GetPendingGroupPoliciesCount(), sCoAContentScaling->GetPendingPlayerPoliciesCount());
+
         handler->PSendSysMessage("All validation checks passed.");
         return true;
     }
@@ -254,6 +259,13 @@ private:
             handler->SendSysMessage("Challenge Size: Adaptive (matches actual player count)");
         else
             handler->PSendSysMessage("Challenge Size: %u player(s)", challenge);
+
+        size_t const pendingGroups = sCoAContentScaling->GetPendingGroupPoliciesCount();
+        size_t const pendingPlayers = sCoAContentScaling->GetPendingPlayerPoliciesCount();
+        if (pendingGroups > 0 || pendingPlayers > 0)
+        {
+            handler->PSendSysMessage("Pending Policies: %zu group(s), %zu player alias(es)", pendingGroups, pendingPlayers);
+        }
 
         return true;
     }
@@ -315,7 +327,11 @@ private:
                     return true;
                 }
 
-                sCoAContentScaling->SetPlayerLfgChallenge(player->GetGUID(), uint32(val));
+                if (!sCoAContentScaling->SetPlayerLfgChallenge(player->GetGUID(), uint32(val)))
+                {
+                    handler->SendSysMessage("Failed to set challenge size (must be 0..40).");
+                    return true;
+                }
                 handler->PSendSysMessage("LFG Challenge Size locked to %d players.", val);
             }
             catch (...)

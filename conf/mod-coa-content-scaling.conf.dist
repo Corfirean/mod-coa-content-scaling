@@ -15,8 +15,9 @@ CoAContentScaling.Enable = 1
 #
 # CoAContentScaling.Progression.Mode
 #     Description: Progression layout boundary mode.
-#     Default:     Auto (calculates boundaries based on active content packs and MaxPlayerLevel)
-#                  Custom (uses Progression.ClassicEnd and Progression.TbcEnd)
+#     Values:      Auto   - Calculates boundaries based on active content packs and MaxPlayerLevel
+#                  Custom - Uses Progression.ClassicEnd and Progression.TbcEnd
+#     Default:     Auto
 #
 CoAContentScaling.Progression.Mode = Auto
 
@@ -53,6 +54,14 @@ CoAContentScaling.GroupScaling.Enable = 1
 CoAContentScaling.GroupScaling.LockOnEncounterStart = 1
 
 #
+# CoAContentScaling.GroupScaling.AllowSoloRaids
+#     Description: Allow solo players to enter raid instances without being in a raid group.
+#     Default:     1 - Enabled
+#                  0 - Disabled
+#
+CoAContentScaling.GroupScaling.AllowSoloRaids = 1
+
+#
 # CoAContentScaling.AdaptiveMechanics.Enable
 #     Description: Adapt encounter mechanics (target counts, adds) for small groups.
 #     Default:     1 - Enabled
@@ -63,11 +72,12 @@ CoAContentScaling.AdaptiveMechanics.Enable = 1
 #
 # CoAContentScaling.SoloAssist.Mode
 #     Description: Assist mode for solo dungeon/raid gameplay.
-#     Default:     0 - NONE
-#                  1 - LIGHT (15% unavoidable damage mitigation)
-#                  2 - FULL (30% unavoidable damage mitigation)
+#     Values:      None  (or 0) - No passive assist aura
+#                  Light (or 1) - 15% unavoidable damage mitigation
+#                  Full  (or 2) - 30% unavoidable damage mitigation
+#     Default:     None
 #
-CoAContentScaling.SoloAssist.Mode = 0
+CoAContentScaling.SoloAssist.Mode = None
 
 #
 # CoAContentScaling.Rewards.ScaleLootCount
@@ -78,12 +88,31 @@ CoAContentScaling.SoloAssist.Mode = 0
 CoAContentScaling.Rewards.ScaleLootCount = 1
 
 #
-# CoAContentScaling.AllowSoloRaids
-#     Description: Allow solo players to enter raid instances without being in a raid group.
+# CoAContentScaling.ScaleItems
+#     Description: Dynamically scale item budgets, ratings, armor, and weapon DPS to progression boundaries.
 #     Default:     1 - Enabled
 #                  0 - Disabled
 #
-CoAContentScaling.AllowSoloRaids = 1
+CoAContentScaling.ScaleItems = 1
+
+#
+# CoAContentScaling.LFG.DefaultMode
+#     Description: Default composition mode for Dungeon Finder queues.
+#     Values:      Matchmaking  - Standard queue, waits for real players to fill all roles
+#                  BotFill      - Auto-fills empty slots with intelligent playerbots
+#                  CurrentParty - Bypasses matchmaking, queues immediately with current group or solo
+#     Default:     Matchmaking
+#
+CoAContentScaling.LFG.DefaultMode = Matchmaking
+
+#
+# CoAContentScaling.LFG.DefaultChallengeSize
+#     Description: Default challenge scaling size for Dungeon Finder queues.
+#     Values:      0      - Adaptive (scales dynamically to actual number of players)
+#                  1..40  - Fixed challenge target size
+#     Default:     0
+#
+CoAContentScaling.LFG.DefaultChallengeSize = 0
 
 #
 # CoAContentScaling.Debug

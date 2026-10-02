@@ -44,6 +44,7 @@ struct PendingInstanceScalePolicy
     uint32 challengeSize{0};
     lfg::LfgCompositionMode compositionMode{lfg::LfgCompositionMode::MATCHMAKING};
     uint64 generation{0};
+    uint32 createdAt{0}; // GameTime::GetGameTime()
 };
 
 class CoAContentScaling
@@ -84,7 +85,7 @@ public:
     // LFG Policy & Composition Integration
     void SetPlayerLfgMode(ObjectGuid guid, lfg::LfgCompositionMode mode);
     [[nodiscard]] lfg::LfgCompositionMode GetPlayerLfgMode(ObjectGuid guid) const;
-    void SetPlayerLfgChallenge(ObjectGuid guid, uint32 challengeSize);
+    bool SetPlayerLfgChallenge(ObjectGuid guid, uint32 challengeSize);
     [[nodiscard]] uint32 GetPlayerLfgChallenge(ObjectGuid guid) const;
     void LoadPlayerLfgSettings(Player* player);
     void SavePlayerLfgSettings(Player* player);
@@ -93,6 +94,13 @@ public:
     void OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::LfgQueuePolicy& policy);
     void OnLfgProposalMadeGroup(lfg::LfgProposal const& proposal, Group* group);
     void OnInstanceMapCreated(InstanceMap* instanceMap, Player* player);
+
+    // Pending Policy Lifecycle & Diagnostics
+    std::optional<PendingInstanceScalePolicy> ConsumePendingInstancePolicy(uint32 mapId, ObjectGuid groupGuid, ObjectGuid playerGuid);
+    void PurgeExpiredPendingPolicies();
+    [[nodiscard]] size_t GetPendingGroupPoliciesCount() const;
+    [[nodiscard]] size_t GetPendingPlayerPoliciesCount() const;
+    std::vector<PendingInstanceScalePolicy> GetAllPendingPolicies() const;
 
 private:
     CoAContentScaling() = default;
