@@ -117,29 +117,79 @@ public:
 
             case ContentTier::DUNGEON_HEROIC:
                 // Heroics unlock towards the upper part of the era span, before raids
-                if (span >= 5)
-                    return minL + static_cast<uint8>(std::round(float(span) * 0.70f));
+                if (span >= 6)
+                    return minL + static_cast<uint8>(std::round(float(span) * 0.65f));
+                if (span == 5)
+                    return minL + 2; // 57
+                if (span >= 3)
+                    return minL + 1;
                 return (maxL > 1) ? (maxL - 1) : maxL;
 
             case ContentTier::RAID_ENTRY:
-                if (span >= 5)
-                    return minL + static_cast<uint8>(std::round(float(span) * 0.80f));
+                if (span >= 6)
+                    return minL + static_cast<uint8>(std::round(float(span) * 0.75f));
+                if (span == 5)
+                    return minL + 2; // 57
+                if (span >= 4)
+                    return minL + 2;
+                if (span >= 3)
+                    return minL + 1;
                 return (maxL > 1) ? (maxL - 1) : maxL;
 
             case ContentTier::RAID_MID:
-                if (span >= 5)
-                    return minL + static_cast<uint8>(std::round(float(span) * 0.88f));
+                if (span >= 6)
+                    return minL + static_cast<uint8>(std::round(float(span) * 0.85f));
+                if (span == 5)
+                    return minL + 3; // 58
+                if (span >= 4)
+                    return minL + 3;
+                if (span >= 3)
+                    return minL + 2;
                 return maxL;
 
             case ContentTier::RAID_END:
-                if (span >= 5)
-                    return minL + static_cast<uint8>(std::round(float(span) * 0.94f));
+                if (span >= 6)
+                    return minL + static_cast<uint8>(std::round(float(span) * 0.92f));
+                if (span == 5)
+                    return minL + 4; // 59
+                if (span >= 4)
+                    return maxL;
+                if (span >= 3)
+                    return minL + 2;
                 return maxL;
 
             case ContentTier::RAID_PINNACLE:
             default:
                 return maxL;
         }
+    }
+
+    /// Resolves authoritative effective minimum level for dungeon/raid access.
+    /// Preserves stock identity 1:1 when cap 80 with all eras active.
+    /// In compressed progression, uses tier unlock level for heroics and raids to prevent collapse to cap.
+    [[nodiscard]] uint8 ResolveEffectiveAccessMin(ContentEra era, ContentTier tier, uint8 authoredMin,
+                                                  ProgressionLayout const& layout) const
+    {
+        // Stock cap 80 identity preserves authored access requirements 1:1
+        if (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+            return authoredMin;
+
+        // If era is not enabled, access is locked out
+        if (!layout.IsEraEnabled(era))
+            return 255;
+
+        // For DUNGEON_NORMAL and WORLD, authored mapped range is authoritative
+        if (tier == ContentTier::WORLD || tier == ContentTier::DUNGEON_NORMAL)
+        {
+            if (authoredMin == 0)
+                return 0;
+            return layout.MapAuthoredToEffective(era, authoredMin);
+        }
+
+        // For DUNGEON_HEROIC and RAIDS in compressed mode:
+        // ResolveTierUnlockLevel is authoritative progression gate to preserve tier window
+        uint8 const tierUnlock = ResolveTierUnlockLevel(tier, era, layout);
+        return tierUnlock;
     }
 
 private:

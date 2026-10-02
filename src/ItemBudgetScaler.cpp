@@ -187,7 +187,8 @@ ScaledItemBudget ItemBudgetScaler::CalculateItemBudget(ItemTemplate const* proto
         uint32 expectedContentLevel = 0;
         if (ctx.tier != ContentTier::WORLD)
         {
-            expectedContentLevel = sProgressionRewardResolver->ResolveTierUnlockLevel(ctx.tier, ctx.era, layout);
+            expectedContentLevel = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+                ctx.era, ctx.tier, static_cast<uint8>(proto->RequiredLevel), layout);
         }
         budget.effectiveRequiredLevel = sProgressionRewardResolver->ResolveItemRequiredLevel(
             proto->RequiredLevel, ctx.era, expectedContentLevel, layout);

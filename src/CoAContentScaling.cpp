@@ -112,8 +112,107 @@ void CoAContentScaling::FinalizeAndInitialize()
         sItemBudgetScaler->ScaleAllItems(_layout);
     }
 
+    // 5. Register production hooks
+    RegisterLocalLevelScalingHooks();
+
     LOG_INFO("server.loading", "CoAContentScaling: Finalized lifecycle and built immutable ProgressionLayout (Cap {})",
              _layout.maxLevel);
+}
+
+void CoAContentScaling::RegisterLocalLevelScalingHooks()
+{
+    bool const enabled = _enabled;
+    LocalLevelScaling::ContentScalingActive.store(enabled, std::memory_order_relaxed);
+
+    if (enabled)
+    {
+        LocalLevelScaling::QuestBaseLevelOwner.store([](Quest const* quest) -> int32
+        {
+            return sCoAContentScaling->GetEffectiveQuestLevel(quest);
+        }, std::memory_order_relaxed);
+
+        LocalLevelScaling::QuestMinLevelOwner.store([](Quest const* quest) -> uint32
+        {
+            return sCoAContentScaling->GetEffectiveQuestMinLevel(quest);
+        }, std::memory_order_relaxed);
+
+        LocalLevelScaling::CreatureBaseLevelOwner.store([](CreatureTemplate const* cinfo, Creature const* creature) -> uint8
+        {
+            return sCoAContentScaling->GetEffectiveCreatureLevel(cinfo, creature, cinfo ? cinfo->maxlevel : 1);
+        }, std::memory_order_relaxed);
+
+        LocalLevelScaling::QuestMoneyMaxLevelOwner.store([](Quest const* quest, uint32 defaultMoney) -> uint32
+        {
+            if (!quest || !sCoAContentScaling->IsEnabled())
+                return defaultMoney;
+
+            auto const& layout = sCoAContentScaling->GetLayout();
+            ContentEra const era = sContentPackRegistry->ResolveEraForQuest(
+                quest->GetQuestId(), quest->GetZoneOrSort(), 0, static_cast<uint8>(quest->GetQuestLevel()));
+            int32 const effLvl = sCoAContentScaling->GetEffectiveQuestLevel(quest);
+            uint32 const effXP = sProgressionRewardResolver->ResolveQuestXP(
+                quest->XPValue(layout.maxLevel, false), quest->GetQuestLevel(), effLvl, layout, era);
+            int32 const money = sProgressionRewardResolver->ResolveMoneyAtCap(effXP, 1.0f);
+            return static_cast<uint32>(money);
+        }, std::memory_order_relaxed);
+
+        LocalLevelScaling::KillContentLevelOwner.store([](Player const* player, Unit const* victim, uint8 defaultContent) -> uint8
+        {
+            if (!player || !sCoAContentScaling->IsEnabled())
+                return defaultContent;
+
+            auto const& layout = sCoAContentScaling->GetLayout();
+            // In cap80 identity with all eras active, preserve stock content level 1:1
+            if (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+                return defaultContent;
+
+            // In compressed mode, determine content band from effective player level to avoid 580 base XP skew
+            uint8 const pLvl = player->GetLevel();
+            if (pLvl >= 71)
+                return 2; // CONTENT_71_80
+            if (pLvl >= 61)
+                return 1; // CONTENT_61_70
+            return 0;     // CONTENT_1_60
+        }, std::memory_order_relaxed);
+
+        LocalLevelScaling::QuestRewardRateOwner.store([](Player const* player, Quest const* quest, float defaultRate) -> float
+        {
+            if (!player || !quest || !sCoAContentScaling->IsEnabled())
+                return defaultRate;
+
+            if (quest->IsDFQuest())
+                return sWorld->getRate(RATE_XP_QUEST_DF);
+
+            ContentEra const era = sContentPackRegistry->ResolveEraForQuest(
+                quest->GetQuestId(), quest->GetZoneOrSort(), 0, static_cast<uint8>(quest->GetQuestLevel()));
+
+            switch (era)
+            {
+                case ContentEra::WotLK:
+                    return sWorld->getRate(RATE_XP_QUEST_WOTLK);
+                case ContentEra::TBC:
+                    return sWorld->getRate(RATE_XP_QUEST_TBC);
+                case ContentEra::Classic:
+                default:
+                    return sWorld->getRate(RATE_XP_QUEST);
+            }
+        }, std::memory_order_relaxed);
+    }
+    else
+    {
+        UnregisterLocalLevelScalingHooks();
+    }
+}
+
+void CoAContentScaling::UnregisterLocalLevelScalingHooks()
+{
+    LocalLevelScaling::ContentScalingActive.store(false, std::memory_order_relaxed);
+    LocalLevelScaling::QuestBaseLevelOwner.store(nullptr, std::memory_order_relaxed);
+    LocalLevelScaling::QuestMinLevelOwner.store(nullptr, std::memory_order_relaxed);
+    LocalLevelScaling::CreatureBaseLevelOwner.store(nullptr, std::memory_order_relaxed);
+    LocalLevelScaling::QuestMoneyMaxLevelOwner.store(nullptr, std::memory_order_relaxed);
+    LocalLevelScaling::KillContentLevelOwner.store(nullptr, std::memory_order_relaxed);
+    LocalLevelScaling::QuestRewardRateOwner.store(nullptr, std::memory_order_relaxed);
 }
 
 void CoAContentScaling::InitializeLayout()
@@ -337,7 +436,7 @@ void CoAContentScaling::RecalculateEncounterCombatStats(Creature* boss, Encounte
     boss->UpdateDamagePhysical(RANGED_ATTACK);
 }
 
-bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId) const
+bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId, uint8 difficulty) const
 {
     if (!player || player->IsGameMaster())
         return true;
@@ -346,22 +445,17 @@ bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId) co
     if (!_layout.IsEraEnabled(era))
         return false;
 
-    // Check instance access profile and tier unlock level
-    auto const* accessProf = FindGeneratedAccessProfile(mapId);
-    auto const* instProf = FindGeneratedInstanceProfile(mapId);
+    // Check difficulty-specific instance access profile and tier unlock level
+    auto const* accessProf = FindGeneratedAccessProfile(mapId, difficulty);
+    auto const* instProf = FindGeneratedInstanceProfile(mapId, difficulty);
 
     if (accessProf || instProf)
     {
-        uint8 effectiveMin = 0;
-        if (accessProf && accessProf->authoredMin > 0)
-            effectiveMin = _layout.MapAuthoredToEffective(era, accessProf->authoredMin);
-
+        uint8 const authoredMin = accessProf ? accessProf->authoredMin : 0;
         ContentTier const tier = instProf ? instProf->tier : ContentTier::WORLD;
-        if (tier != ContentTier::WORLD)
-        {
-            uint8 const tierUnlock = sProgressionRewardResolver->ResolveTierUnlockLevel(tier, era, _layout);
-            effectiveMin = std::max(effectiveMin, tierUnlock);
-        }
+
+        uint8 const effectiveMin = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+            era, tier, authoredMin, _layout);
 
         if (effectiveMin > 0 && player->GetLevel() < effectiveMin)
             return false;
@@ -765,69 +859,6 @@ namespace
         void OnLoadCustomDatabaseTable() override
         {
             sCoAContentScaling->FinalizeAndInitialize();
-
-            bool const enabled = sCoAContentScaling->IsEnabled();
-            LocalLevelScaling::ContentScalingActive.store(enabled, std::memory_order_relaxed);
-
-            if (enabled)
-            {
-                LocalLevelScaling::QuestBaseLevelOwner.store([](Quest const* quest) -> int32
-                {
-                    return sCoAContentScaling->GetEffectiveQuestLevel(quest);
-                }, std::memory_order_relaxed);
-
-                LocalLevelScaling::QuestMinLevelOwner.store([](Quest const* quest) -> uint32
-                {
-                    return sCoAContentScaling->GetEffectiveQuestMinLevel(quest);
-                }, std::memory_order_relaxed);
-
-                LocalLevelScaling::CreatureBaseLevelOwner.store([](CreatureTemplate const* cinfo, Creature const* creature) -> uint8
-                {
-                    return sCoAContentScaling->GetEffectiveCreatureLevel(cinfo, creature, cinfo ? cinfo->maxlevel : 1);
-                }, std::memory_order_relaxed);
-
-                LocalLevelScaling::QuestMoneyMaxLevelOwner.store([](Quest const* quest, uint32 defaultMoney) -> uint32
-                {
-                    if (!quest || !sCoAContentScaling->IsEnabled())
-                        return defaultMoney;
-
-                    auto const& layout = sCoAContentScaling->GetLayout();
-                    ContentEra const era = sContentPackRegistry->ResolveEraForQuest(
-                        quest->GetQuestId(), quest->GetZoneOrSort(), 0, static_cast<uint8>(quest->GetQuestLevel()));
-                    int32 const effLvl = sCoAContentScaling->GetEffectiveQuestLevel(quest);
-                    uint32 const effXP = sProgressionRewardResolver->ResolveQuestXP(
-                        quest->XPValue(layout.maxLevel, false), quest->GetQuestLevel(), effLvl, layout, era);
-                    int32 const money = sProgressionRewardResolver->ResolveMoneyAtCap(effXP, 1.0f);
-                    return static_cast<uint32>(money);
-                }, std::memory_order_relaxed);
-
-                LocalLevelScaling::KillContentLevelOwner.store([](Player const* player, Unit const* victim, uint8 defaultContent) -> uint8
-                {
-                    if (!player || !sCoAContentScaling->IsEnabled())
-                        return defaultContent;
-
-                    auto const& layout = sCoAContentScaling->GetLayout();
-                    // In cap80 identity with all eras active, preserve stock content level 1:1
-                    if (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
-                        return defaultContent;
-
-                    // In compressed mode, determine content band from effective player level to avoid 580 base XP skew
-                    uint8 const pLvl = player->GetLevel();
-                    if (pLvl >= 71)
-                        return 2; // CONTENT_71_80
-                    if (pLvl >= 61)
-                        return 1; // CONTENT_61_70
-                    return 0;     // CONTENT_1_60
-                }, std::memory_order_relaxed);
-            }
-            else
-            {
-                LocalLevelScaling::QuestBaseLevelOwner.store(nullptr, std::memory_order_relaxed);
-                LocalLevelScaling::QuestMinLevelOwner.store(nullptr, std::memory_order_relaxed);
-                LocalLevelScaling::CreatureBaseLevelOwner.store(nullptr, std::memory_order_relaxed);
-                LocalLevelScaling::QuestMoneyMaxLevelOwner.store(nullptr, std::memory_order_relaxed);
-                LocalLevelScaling::KillContentLevelOwner.store(nullptr, std::memory_order_relaxed);
-            }
         }
     };
 
@@ -860,16 +891,13 @@ namespace
 
             // Compute effective min and max levels
             auto const& layout = sCoAContentScaling->GetLayout();
-            uint8 effMin = layout.MapAuthoredToEffective(lfgProf->era, lfgProf->authoredMin);
-            uint8 const effMax = layout.MapAuthoredToEffective(lfgProf->era, lfgProf->authoredMax);
-
             auto const* instProf = FindGeneratedInstanceProfile(lfgProf->mapId, lfgProf->difficulty);
             ContentTier const tier = instProf ? instProf->tier : ContentTier::WORLD;
-            if (tier != ContentTier::WORLD)
-            {
-                uint8 const tierUnlock = sProgressionRewardResolver->ResolveTierUnlockLevel(tier, lfgProf->era, layout);
-                effMin = std::max(effMin, tierUnlock);
-            }
+            uint8 const effMin = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+                lfgProf->era, tier, lfgProf->authoredMin, layout);
+            uint8 const effMax = (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+                ? lfgProf->authoredMax
+                : layout.MapAuthoredToEffective(lfgProf->era, lfgProf->authoredMax);
 
             uint8 const playerLevel = player->GetLevel();
 
@@ -1119,10 +1147,11 @@ namespace
         bool OnPlayerCanEnterMap(Player* player, MapEntry const* entry, InstanceTemplate const* /*instance*/,
                                  MapDifficulty const* /*mapDiff*/, bool /*loginCheck*/) override
         {
-            if (!sCoAContentScaling->IsEnabled())
+            if (!sCoAContentScaling->IsEnabled() || !player || !entry)
                 return true;
 
-            return sCoAContentScaling->CanPlayerEnterMap(player, entry->MapID);
+            Difficulty const diff = player->GetDifficulty(entry->IsRaid());
+            return sCoAContentScaling->CanPlayerEnterMap(player, entry->MapID, static_cast<uint8>(diff));
         }
 
         bool OnPlayerCanTakeQuest(Player const* /*player*/, Quest const* quest) override
@@ -1176,17 +1205,17 @@ namespace
             }
 
             auto const& layout = sCoAContentScaling->GetLayout();
-            if (minLevel > 0)
-                minLevel = layout.MapAuthoredToEffective(accessProf->era, minLevel);
-            if (maxLevel > 0)
-                maxLevel = layout.MapAuthoredToEffective(accessProf->era, maxLevel);
-
             auto const* instProf = FindGeneratedInstanceProfile(mapId, accessProf->difficulty);
             ContentTier const tier = instProf ? instProf->tier : ContentTier::WORLD;
-            if (tier != ContentTier::WORLD)
+
+            minLevel = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+                accessProf->era, tier, accessProf->authoredMin, layout);
+
+            if (maxLevel > 0)
             {
-                uint8 const tierUnlock = sProgressionRewardResolver->ResolveTierUnlockLevel(tier, accessProf->era, layout);
-                minLevel = std::max(minLevel, tierUnlock);
+                maxLevel = (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+                    ? accessProf->authoredMax
+                    : layout.MapAuthoredToEffective(accessProf->era, accessProf->authoredMax);
             }
         }
 

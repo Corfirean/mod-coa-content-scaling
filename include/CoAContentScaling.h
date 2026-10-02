@@ -71,6 +71,10 @@ public:
     [[nodiscard]] int32 GetEffectiveQuestLevel(Quest const* quest) const;
     [[nodiscard]] uint32 GetEffectiveQuestMinLevel(Quest const* quest) const;
 
+    // Production Hook Lifecycle
+    void RegisterLocalLevelScalingHooks();
+    void UnregisterLocalLevelScalingHooks();
+
     // Combat scaling calculations
     void ApplyCreatureScaling(CreatureTemplate const* cinfo, Creature* creature);
     void RecalculateEncounterCombatStats(Creature* boss, EncounterScaleSnapshot const& snapshot,
@@ -83,7 +87,7 @@ public:
     [[nodiscard]] bool IsWotlkEnabled() const { return _wotlkEnabled; }
 
     // Map access validation
-    [[nodiscard]] bool CanPlayerEnterMap(Player const* player, uint32 mapId) const;
+    [[nodiscard]] bool CanPlayerEnterMap(Player const* player, uint32 mapId, uint8 difficulty = 0) const;
 
     // LFG Policy & Composition Integration
     void SetPlayerLfgMode(ObjectGuid guid, lfg::LfgCompositionMode mode);

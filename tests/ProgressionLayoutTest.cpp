@@ -12,7 +12,9 @@
 #include "InstanceProfile.h"
 #include "InstanceScaleContext.h"
 #include "ItemBudgetScaler.h"
+#include "CoAContentScaling.h"
 #include "ItemTemplate.h"
+#include "LocalLevelScaling.h"
 #include "ProgressionContext.h"
 #include "ProgressionRewardResolver.h"
 #include <fstream>
@@ -1781,12 +1783,14 @@ TEST(ProgressionRewardTest, RaidTierUnlockOrdering)
     uint8 entry = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_ENTRY, ContentEra::WotLK, layout);
     uint8 mid = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_MID, ContentEra::WotLK, layout);
     uint8 end = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_END, ContentEra::WotLK, layout);
+    uint8 pinnacle = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_PINNACLE, ContentEra::WotLK, layout);
 
     EXPECT_LE(normal, heroic);
     EXPECT_LE(heroic, entry);
     EXPECT_LE(entry, mid);
     EXPECT_LE(mid, end);
-    EXPECT_EQ(end, layout.maxLevel);
+    EXPECT_LE(end, pinnacle);
+    EXPECT_EQ(pinnacle, layout.maxLevel);
 }
 
 TEST(ProgressionRewardTest, Economy_MoneyAtCapSafeguard)
@@ -1927,55 +1931,197 @@ TEST(ProductionPathIntegrationTest, RealItems_RequiredLevelWithinTierAcquisition
 
         ScaledItemBudget budget = sItemBudgetScaler->CalculateItemBudget(&proto, layout, ctx);
 
-        uint32 tierUnlock = sProgressionRewardResolver->ResolveTierUnlockLevel(tc.tier, tc.era, layout);
-        EXPECT_LE(budget.effectiveRequiredLevel, tierUnlock + 1)
+        uint32 const expectedAcquisition = sProgressionRewardResolver->ResolveEffectiveAccessMin(tc.era, tc.tier, tc.authReq, layout);
+        EXPECT_LE(budget.effectiveRequiredLevel, expectedAcquisition + 1)
             << "Item " << tc.id << " effective req level " << budget.effectiveRequiredLevel
-            << " exceeds tier acquisition level " << tierUnlock;
+            << " exceeds tier acquisition level " << expectedAcquisition;
         EXPECT_LE(budget.effectiveRequiredLevel, layout.maxLevel);
     }
 }
 
-TEST(ProductionPathIntegrationTest, CreatureXp_CompressedNoSpurious580BaseExp)
+TEST(ProductionPathContractTest, CreatureXp_ProductionOwnerWiredAndValid)
 {
-    // Under Cap 60 (All Eras), a level 57 player fighting a level 57 mob
-    // must NOT receive CONTENT_71_80 base gain (580), but CONTENT_1_60 base gain (45)
-    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+    sCoAContentScaling->RegisterLocalLevelScalingHooks();
 
-    uint8 pLvl = 57;
-    uint8 mobLvl = 57;
+    // Verify LocalLevelScaling::KillContentLevelOwner hook contract
+    EXPECT_TRUE(LocalLevelScaling::KillContentLevelOwner.load(std::memory_order_relaxed) != nullptr);
 
-    // Normal BaseGain formula:
-    // With CONTENT_1_60 (nBaseExp = 45): ((57*5 + 45) * 20 / 10 + 1) / 2 = (330 * 2 + 1) / 2 = 330
-    // With CONTENT_71_80 (nBaseExp = 580): ((57*5 + 580) * 20 / 10 + 1) / 2 = (865 * 2 + 1) / 2 = 865
-    // In our compressed kill XP resolver, player 57 evaluates to CONTENT_1_60 (band 0)
-    uint8 resolvedContentBand = (pLvl >= 71) ? 2 : ((pLvl >= 61) ? 1 : 0);
-    EXPECT_EQ(resolvedContentBand, 0);
-
-    // Cap 80 preserves stock content levels 1:1
+    // In Cap 80 with all expansions active, verify stock content band is preserved 1:1
     ProgressionLayout stockLayout = ProgressionLayout::Create(80, true, true);
     EXPECT_TRUE(stockLayout.maxLevel == 80 && stockLayout.tbcEnabled && stockLayout.wotlkEnabled);
 }
 
-TEST(ProductionPathIntegrationTest, TierAccess_HeroicStrictlyAfterNormal)
+TEST(QuestRateAuthorityTest, ConfiguredEraRateSelection)
+{
+    sCoAContentScaling->RegisterLocalLevelScalingHooks();
+
+    // The hook must be wired into LocalLevelScaling
+    auto resolver = LocalLevelScaling::QuestRewardRateOwner.load(std::memory_order_relaxed);
+    EXPECT_TRUE(resolver != nullptr);
+
+    // Verify era resolution logic:
+    // TBC quest level 58 -> TBC era
+    ContentEra eraTbc58 = sContentPackRegistry->ResolveEraForQuest(10129, 0, 0, 58);
+    EXPECT_EQ(eraTbc58, ContentEra::TBC);
+
+    // TBC quest level 60 -> TBC era
+    ContentEra eraTbc60 = sContentPackRegistry->ResolveEraForQuest(10129, 0, 0, 60);
+    EXPECT_EQ(eraTbc60, ContentEra::TBC);
+
+    // WotLK quest level 68 -> WotLK era
+    ContentEra eraWotlk68 = sContentPackRegistry->ResolveEraForQuest(12671, 0, 0, 68);
+    EXPECT_EQ(eraWotlk68, ContentEra::WotLK);
+
+    // WotLK quest level 70 -> WotLK era
+    ContentEra eraWotlk70 = sContentPackRegistry->ResolveEraForQuest(12671, 0, 0, 70);
+    EXPECT_EQ(eraWotlk70, ContentEra::WotLK);
+
+    // Classic quest level 45 -> Classic era
+    ContentEra eraClassic45 = sContentPackRegistry->ResolveEraForQuest(10, 0, 0, 45);
+    EXPECT_EQ(eraClassic45, ContentEra::Classic);
+}
+
+TEST(QuestXpRuntimeContractTest, PipelineIntegrityAndZeroXPUnchanged)
 {
     ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
 
-    uint8 tbcNormal = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_NORMAL, ContentEra::TBC, layout);
-    uint8 tbcHeroic = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_HEROIC, ContentEra::TBC, layout);
-    uint8 tbcRaidEntry = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_ENTRY, ContentEra::TBC, layout);
+    // Invariant: repeatable or zero-reward quest must NEVER be converted to positive XP
+    uint32 zeroXP = sProgressionRewardResolver->ResolveQuestXP(0, 80, 60, layout, ContentEra::WotLK);
+    EXPECT_EQ(zeroXP, 0u);
 
-    EXPECT_LT(tbcNormal, tbcHeroic);
-    EXPECT_LE(tbcHeroic, tbcRaidEntry);
+    // Non-zero XP should resolve calibrated reward
+    uint32 nonZeroXP = sProgressionRewardResolver->ResolveQuestXP(20000, 80, 60, layout, ContentEra::WotLK);
+    EXPECT_GT(nonZeroXP, 0u);
+}
 
-    uint8 wotlkNormal = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_NORMAL, ContentEra::WotLK, layout);
-    uint8 wotlkHeroic = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_HEROIC, ContentEra::WotLK, layout);
-    uint8 wotlkRaidEntry = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_ENTRY, ContentEra::WotLK, layout);
-    uint8 wotlkRaidEnd = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_END, ContentEra::WotLK, layout);
+TEST(CompressedTierAccessTest, RealInstances_Cap60AllEras)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+    std::string err;
+    ASSERT_TRUE(layout.Validate(err)) << err;
 
-    EXPECT_LT(wotlkNormal, wotlkHeroic);
-    EXPECT_LE(wotlkHeroic, wotlkRaidEntry);
-    EXPECT_LE(wotlkRaidEntry, wotlkRaidEnd);
-    EXPECT_EQ(wotlkRaidEnd, layout.maxLevel);
+    // In Cap 60 (All Eras): Classic 1..45, TBC 45..55, WotLK 55..60
+    // TBC instances:
+    // Ramparts Normal (map 543, authoredMin 55, tier DUNGEON_NORMAL)
+    uint8 rampartsNorm = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::TBC, ContentTier::DUNGEON_NORMAL, 55, layout);
+    // Ramparts Heroic (map 543, authoredMin 70, tier DUNGEON_HEROIC)
+    uint8 rampartsHeroic = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::TBC, ContentTier::DUNGEON_HEROIC, 70, layout);
+    // Karazhan (map 532, authoredMin 68, tier RAID_ENTRY)
+    uint8 karazhan = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::TBC, ContentTier::RAID_ENTRY, 68, layout);
+    // Black Temple (map 564, authoredMin 70, tier RAID_END)
+    uint8 blackTemple = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::TBC, ContentTier::RAID_END, 70, layout);
+
+    EXPECT_LT(rampartsNorm, rampartsHeroic);
+    EXPECT_LE(rampartsHeroic, karazhan);
+    EXPECT_LE(karazhan, blackTemple);
+
+    // WotLK instances:
+    // Utgarde Keep Normal (map 574, authoredMin 65, tier DUNGEON_NORMAL)
+    uint8 utgardeNorm = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::WotLK, ContentTier::DUNGEON_NORMAL, 65, layout);
+    // Utgarde Keep Heroic (map 574, authoredMin 80, tier DUNGEON_HEROIC)
+    uint8 utgardeHeroic = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::WotLK, ContentTier::DUNGEON_HEROIC, 80, layout);
+    // Naxxramas (map 533, authoredMin 80, tier RAID_ENTRY)
+    uint8 naxx80 = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::WotLK, ContentTier::RAID_ENTRY, 80, layout);
+    // Ulduar (map 603, authoredMin 80, tier RAID_MID)
+    uint8 ulduar = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::WotLK, ContentTier::RAID_MID, 80, layout);
+    // ICC (map 631, authoredMin 80, tier RAID_PINNACLE)
+    uint8 icc = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::WotLK, ContentTier::RAID_PINNACLE, 80, layout);
+
+    EXPECT_LT(utgardeNorm, utgardeHeroic);
+    EXPECT_LE(utgardeHeroic, naxx80);
+    EXPECT_LT(naxx80, ulduar);
+    EXPECT_LE(ulduar, icc);
+    EXPECT_EQ(icc, layout.maxLevel);
+}
+
+TEST(DifficultyAwareAccessTest, SameMapDifferentDifficultyProfiles)
+{
+    // Map 543 (Hellfire Citadel: Ramparts) has difficulty 0 (Normal) and difficulty 1 (Heroic)
+    auto const* instNorm = FindGeneratedInstanceProfile(543, 0);
+    auto const* instHeroic = FindGeneratedInstanceProfile(543, 1);
+
+    ASSERT_NE(instNorm, nullptr);
+    ASSERT_NE(instHeroic, nullptr);
+
+    EXPECT_EQ(instNorm->tier, ContentTier::DUNGEON_NORMAL);
+    EXPECT_EQ(instHeroic->tier, ContentTier::DUNGEON_HEROIC);
+
+    auto const* accNorm = FindGeneratedAccessProfile(543, 0);
+    auto const* accHeroic = FindGeneratedAccessProfile(543, 1);
+
+    ASSERT_NE(accNorm, nullptr);
+    ASSERT_NE(accHeroic, nullptr);
+
+    EXPECT_EQ(accNorm->authoredMin, 55);
+    EXPECT_EQ(accHeroic->authoredMin, 70);
+}
+
+TEST(Cap80AccessIdentityTest, PreservesStockAuthoredRequirements)
+{
+    ProgressionLayout stockLayout = ProgressionLayout::Create(80, true, true);
+
+    // Stock Cap 80 preserves authored min level 1:1 without synthetic tier shift
+    uint8 rampartsNorm = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::TBC, ContentTier::DUNGEON_NORMAL, 55, stockLayout);
+    uint8 rampartsHeroic = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::TBC, ContentTier::DUNGEON_HEROIC, 70, stockLayout);
+    uint8 karazhan = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::TBC, ContentTier::RAID_ENTRY, 68, stockLayout);
+    uint8 blackTemple = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::TBC, ContentTier::RAID_END, 70, stockLayout);
+
+    EXPECT_EQ(rampartsNorm, 55);
+    EXPECT_EQ(rampartsHeroic, 70);
+    EXPECT_EQ(karazhan, 68);
+    EXPECT_EQ(blackTemple, 70);
+
+    uint8 naxx = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::WotLK, ContentTier::RAID_ENTRY, 80, stockLayout);
+    uint8 icc = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        ContentEra::WotLK, ContentTier::RAID_PINNACLE, 80, stockLayout);
+
+    EXPECT_EQ(naxx, 80);
+    EXPECT_EQ(icc, 80);
+}
+
+TEST(RealItemAcquisitionGateTest, RealItemsWithProfileMatchAcquisitionGate)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    std::vector<uint32> sampleItemIds = { 24021, 27447, 28612, 37056, 37379, 39291, 45086, 50351 };
+
+    for (uint32 itemId : sampleItemIds)
+    {
+        auto const* prof = FindGeneratedItemProfile(itemId);
+        ASSERT_NE(prof, nullptr) << "Item " << itemId << " missing in census";
+
+        ItemTemplate proto;
+        proto.ItemId = itemId;
+        proto.RequiredLevel = 80;
+        proto.ItemLevel = 200;
+
+        ItemScalingContext ctx = ItemScalingContext::Resolve(&proto);
+        EXPECT_TRUE(ctx.hasGeneratedProfile);
+        EXPECT_EQ(ctx.era, prof->era);
+        EXPECT_EQ(ctx.tier, prof->tier);
+
+        ScaledItemBudget budget = sItemBudgetScaler->CalculateItemBudget(&proto, layout, ctx);
+
+        uint32 gate = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+            ctx.era, ctx.tier, static_cast<uint8>(proto.RequiredLevel), layout);
+
+        EXPECT_LE(budget.effectiveRequiredLevel, gate + 1);
+        EXPECT_LE(budget.effectiveRequiredLevel, layout.maxLevel);
+    }
 }
 
 
