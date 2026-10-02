@@ -17,7 +17,9 @@
 #include "Map.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "ProgressionContext.h"
 #include "ProgressionLayout.h"
+#include "ProgressionRewardResolver.h"
 #include "QuestDef.h"
 #include "ScriptMgr.h"
 #include <string>
@@ -41,16 +43,17 @@ public:
 
         static ChatCommandTable const coaScaleCommandTable =
         {
-            { "status",    HandleStatus,    SEC_ADMINISTRATOR, Console::Yes },
-            { "census",    HandleCensus,    SEC_ADMINISTRATOR, Console::Yes },
-            { "layout",    HandleLayout,    SEC_ADMINISTRATOR, Console::Yes },
-            { "creature",  HandleCreature,  SEC_ADMINISTRATOR, Console::No },
-            { "instance",  HandleInstance,  SEC_ADMINISTRATOR, Console::No },
-            { "encounter", HandleEncounter, SEC_ADMINISTRATOR, Console::No },
-            { "quest",     HandleQuest,     SEC_ADMINISTRATOR, Console::Yes },
-            { "item",      HandleItem,      SEC_ADMINISTRATOR, Console::Yes },
-            { "validate",  HandleValidate,  SEC_ADMINISTRATOR, Console::Yes },
-            { "lfg",       coaScaleLfgCommandTable },
+            { "status",      HandleStatus,      SEC_ADMINISTRATOR, Console::Yes },
+            { "census",      HandleCensus,      SEC_ADMINISTRATOR, Console::Yes },
+            { "layout",      HandleLayout,      SEC_ADMINISTRATOR, Console::Yes },
+            { "progression", HandleProgression, SEC_PLAYER,        Console::No },
+            { "creature",    HandleCreature,    SEC_ADMINISTRATOR, Console::No },
+            { "instance",    HandleInstance,    SEC_ADMINISTRATOR, Console::No },
+            { "encounter",   HandleEncounter,   SEC_ADMINISTRATOR, Console::No },
+            { "quest",       HandleQuest,       SEC_ADMINISTRATOR, Console::Yes },
+            { "item",        HandleItem,        SEC_ADMINISTRATOR, Console::Yes },
+            { "validate",    HandleValidate,    SEC_ADMINISTRATOR, Console::Yes },
+            { "lfg",         coaScaleLfgCommandTable },
         };
 
         static ChatCommandTable const commandTable =
@@ -105,6 +108,50 @@ private:
             handler->PSendSysMessage("WotLK:   %u -> %u", uint32(layout.wotlk->minLevel), uint32(layout.wotlk->maxLevel));
         else
             handler->PSendSysMessage("WotLK:   [Disabled / Locked]");
+
+        return true;
+    }
+
+    static bool HandleProgression(ChatHandler* handler)
+    {
+        Player* player = handler->GetPlayer();
+        if (!player)
+            return false;
+
+        ProgressionLayout const& layout = sCoAContentScaling->GetLayout();
+        uint8 const playerLevel = player->GetLevel();
+
+        // Determine player's active era based on their current level
+        ContentEra activeEra = ContentEra::Classic;
+        if (layout.wotlkEnabled && layout.wotlk.has_value() && playerLevel >= layout.wotlk->minLevel)
+            activeEra = ContentEra::WotLK;
+        else if (layout.tbcEnabled && layout.tbc.has_value() && playerLevel >= layout.tbc->minLevel)
+            activeEra = ContentEra::TBC;
+
+        LevelRange const activeRange = layout.GetEraRange(activeEra);
+        float eraProgress = 0.0f;
+        if (activeRange.IsValid() && activeRange.maxLevel > activeRange.minLevel)
+            eraProgress = float(playerLevel - activeRange.minLevel) / float(activeRange.maxLevel - activeRange.minLevel);
+
+        handler->PSendSysMessage("=== Player Progression Status ===");
+        handler->PSendSysMessage("Current Level: %u / %u (MaxPlayerLevel: %u)",
+            playerLevel, layout.maxLevel, layout.maxLevel);
+        handler->PSendSysMessage("Enabled Packs: Classic%s%s",
+            layout.tbcEnabled ? ", TBC" : "", layout.wotlkEnabled ? ", WotLK" : "");
+        handler->PSendSysMessage("Effective Era: %s (Range: %u - %u | Progress: %.1f%%)",
+            ContentEraToString(activeEra).data(), activeRange.minLevel, activeRange.maxLevel, eraProgress * 100.0f);
+
+        // Display tier unlock gates for active era
+        uint8 const heroicUnlock = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_HEROIC, activeEra, layout);
+        uint8 const raidEntryUnlock = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_ENTRY, activeEra, layout);
+        uint8 const raidMidUnlock = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_MID, activeEra, layout);
+        uint8 const raidEndUnlock = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_END, activeEra, layout);
+
+        handler->PSendSysMessage("Unlock Gates [%s]:", ContentEraToString(activeEra).data());
+        handler->PSendSysMessage(" - Heroic Dungeons: L%u (%s)", heroicUnlock, playerLevel >= heroicUnlock ? "UNLOCKED" : "LOCKED");
+        handler->PSendSysMessage(" - Raid Entry:     L%u (%s)", raidEntryUnlock, playerLevel >= raidEntryUnlock ? "UNLOCKED" : "LOCKED");
+        handler->PSendSysMessage(" - Raid Mid:       L%u (%s)", raidMidUnlock, playerLevel >= raidMidUnlock ? "UNLOCKED" : "LOCKED");
+        handler->PSendSysMessage(" - Raid End/Pinn.: L%u (%s)", raidEndUnlock, playerLevel >= raidEndUnlock ? "UNLOCKED" : "LOCKED");
 
         return true;
     }
@@ -246,14 +293,31 @@ private:
 
         EraResolutionResult const eraRes = sContentPackRegistry->ResolveEraDetailsForQuest(
             questId, quest->GetZoneOrSort(), 0, quest->GetQuestLevel());
+        ProgressionLayout const& layout = sCoAContentScaling->GetLayout();
         int32 const effectiveLevel = sCoAContentScaling->GetEffectiveQuestLevel(quest);
         uint32 const effectiveMin = sCoAContentScaling->GetEffectiveQuestMinLevel(quest);
+        bool const eraEnabled = layout.IsEraEnabled(eraRes.era);
 
         handler->PSendSysMessage("=== Quest Scaling: %s (ID: %u) ===", quest->GetTitle().c_str(), questId);
-        handler->PSendSysMessage("Era: %s | Resolved by: %s (Confidence: %.2f)",
-            ContentEraToString(eraRes.era).data(), EraResolutionSourceToString(eraRes.source).data(), eraRes.confidence);
+        handler->PSendSysMessage("Era: %s (%s) | Resolved by: %s (Confidence: %.2f)",
+            ContentEraToString(eraRes.era).data(),
+            eraEnabled ? "Active" : "Locked / Pack Disabled",
+            EraResolutionSourceToString(eraRes.source).data(),
+            eraRes.confidence);
         handler->PSendSysMessage("Authored Level: %d | Effective Level: %d", quest->GetQuestLevel(), effectiveLevel);
-        handler->PSendSysMessage("Authored MinLevel: %u | Effective MinLevel: %u", quest->GetMinLevel(), effectiveMin);
+        handler->PSendSysMessage("Authored MinLevel: %u | Effective MinLevel: %u (%s)",
+            quest->GetMinLevel(), effectiveMin,
+            effectiveMin >= 255 ? "Inaccessible" : "Accessible");
+
+        uint8 const pLvl = handler->GetPlayer() ? handler->GetPlayer()->GetLevel() : 0;
+        uint32 const authoredXP = quest->XPValue(pLvl);
+        uint32 const effectiveXP = sProgressionRewardResolver->ResolveQuestXP(
+            authoredXP, quest->GetQuestLevel(), effectiveLevel, layout, eraRes.era);
+        int32 const moneyAtCap = sProgressionRewardResolver->ResolveMoneyAtCap(effectiveXP, 1.0f);
+
+        handler->PSendSysMessage("Reward XP: Authored %u -> Calibrated %u", authoredXP, effectiveXP);
+        handler->PSendSysMessage("At-Cap Money Conversion: %dg %ds %dc (Guard: 50g cap)",
+            moneyAtCap / 10000, (moneyAtCap % 10000) / 100, moneyAtCap % 100);
 
         return true;
     }

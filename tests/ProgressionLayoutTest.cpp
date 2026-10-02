@@ -13,6 +13,8 @@
 #include "InstanceScaleContext.h"
 #include "ItemBudgetScaler.h"
 #include "ItemTemplate.h"
+#include "ProgressionContext.h"
+#include "ProgressionRewardResolver.h"
 #include <fstream>
 #include <sstream>
 #include "gtest/gtest.h"
@@ -1682,4 +1684,190 @@ TEST(SourceGraphAuthorityTest, NoHardcodedCustomBoundariesInItemBudgetScalerCpp)
     EXPECT_EQ(content.find("350000"), std::string::npos) << "Found hardcoded 350000 boundary in ItemBudgetScaler.cpp";
     EXPECT_EQ(content.find("600000"), std::string::npos) << "Found hardcoded 600000 boundary in ItemBudgetScaler.cpp";
 }
+
+// =================================================================================================
+// Round 5: Progression & Reward Integration Tests
+// =================================================================================================
+
+TEST(ProgressionRewardTest, QuestEffectiveLevelMapping_Cap60_AllEras)
+{
+    // MaxLevel 60, all eras active: Classic 1..45, TBC 45..55, WotLK 55..60
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+    std::string err;
+    ASSERT_TRUE(layout.Validate(err));
+
+    // Classic level 60 quest -> maps to Classic max (45)
+    uint8 effectiveClassic60 = layout.MapAuthoredToEffective(ContentEra::Classic, 60);
+    EXPECT_EQ(effectiveClassic60, 45);
+
+    // TBC level 70 quest -> maps to TBC max (55)
+    uint8 effectiveTbc70 = layout.MapAuthoredToEffective(ContentEra::TBC, 70);
+    EXPECT_EQ(effectiveTbc70, 55);
+
+    // WotLK level 80 quest -> maps to WotLK max (60)
+    uint8 effectiveWotlk80 = layout.MapAuthoredToEffective(ContentEra::WotLK, 80);
+    EXPECT_EQ(effectiveWotlk80, 60);
+}
+
+TEST(ProgressionRewardTest, QuestChainRemainsReachable_MinLevelRelativeGapPreserved)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+    // Suppose a quest in Classic is level 30, minLevel 25 (gap = 5)
+    uint8 effectiveLevel = layout.MapAuthoredToEffective(ContentEra::Classic, 30);
+    uint8 effectiveMin = layout.MapAuthoredToEffective(ContentEra::Classic, 25);
+
+    // Effective min level must be strictly less than or equal to effective quest level
+    EXPECT_LE(effectiveMin, effectiveLevel);
+}
+
+TEST(ProgressionRewardTest, CreatureXpUsesEffectiveLevel)
+{
+    // Verify that ProgressionRewardResolver or level scaling logic yields effective level < authored level on compression
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+    // Level 80 Lich King creature in WotLK
+    uint8 effCreatureLevel = layout.MapAuthoredToEffective(ContentEra::WotLK, 80);
+    EXPECT_EQ(effCreatureLevel, 60);
+    // When a player is level 60, fighting level 60 gives appropriate XP, whereas fighting level 80 would give skull / 0 or impossible XP
+    EXPECT_EQ(effCreatureLevel, layout.maxLevel);
+}
+
+TEST(ProgressionRewardTest, QuestXpMonotonicWithinEra)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    // TBC early quest (61) vs TBC endgame quest (70)
+    uint32 earlyAuthoredXP = 8500;
+    uint32 lateAuthoredXP = 12500;
+
+    int32 earlyEffLevel = layout.MapAuthoredToEffective(ContentEra::TBC, 61);
+    int32 lateEffLevel = layout.MapAuthoredToEffective(ContentEra::TBC, 70);
+
+    uint32 earlyCalibrated = sProgressionRewardResolver->ResolveQuestXP(earlyAuthoredXP, 61, earlyEffLevel, layout, ContentEra::TBC);
+    uint32 lateCalibrated = sProgressionRewardResolver->ResolveQuestXP(lateAuthoredXP, 70, lateEffLevel, layout, ContentEra::TBC);
+
+    // Calibrated XP should grow monotonically from early to late quest
+    EXPECT_LT(earlyCalibrated, lateCalibrated);
+}
+
+TEST(ProgressionRewardTest, ItemRequiredLevelMatchesAcquisition)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    // TBC dungeon item with authored reqLevel 70
+    uint32 effContentLevel = 55; // TBC max in 60-all layout
+    uint32 resolvedReq = sProgressionRewardResolver->ResolveItemRequiredLevel(70, ContentEra::TBC, effContentLevel, layout);
+
+    // Required level must not exceed the acquisition content level
+    EXPECT_LE(resolvedReq, effContentLevel + 1);
+    EXPECT_LE(resolvedReq, layout.maxLevel);
+}
+
+TEST(ProgressionRewardTest, DungeonAccessUsesEffectiveLevel_NormalBeforeHeroic)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    uint8 heroicUnlock = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_HEROIC, ContentEra::TBC, layout);
+    uint8 normalUnlock = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_NORMAL, ContentEra::TBC, layout);
+
+    EXPECT_LT(normalUnlock, heroicUnlock);
+}
+
+TEST(ProgressionRewardTest, RaidTierUnlockOrdering)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    uint8 normal = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_NORMAL, ContentEra::WotLK, layout);
+    uint8 heroic = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_HEROIC, ContentEra::WotLK, layout);
+    uint8 entry = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_ENTRY, ContentEra::WotLK, layout);
+    uint8 mid = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_MID, ContentEra::WotLK, layout);
+    uint8 end = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_END, ContentEra::WotLK, layout);
+
+    EXPECT_LE(normal, heroic);
+    EXPECT_LE(heroic, entry);
+    EXPECT_LE(entry, mid);
+    EXPECT_LE(mid, end);
+    EXPECT_EQ(end, layout.maxLevel);
+}
+
+TEST(ProgressionRewardTest, Economy_MoneyAtCapSafeguard)
+{
+    // Very high XP quest (e.g. 100,000 XP)
+    int32 moneyAtCap = sProgressionRewardResolver->ResolveMoneyAtCap(100000, 1.0f);
+    // Standard formula: 100,000 * 6 = 600,000 copper (60g). Guard caps at 500,000 copper (50g).
+    EXPECT_LE(moneyAtCap, 500000);
+    EXPECT_EQ(moneyAtCap, 500000);
+}
+
+TEST(ProgressionRewardTest, DisabledPackHidden_LockedOut)
+{
+    // MaxLevel 60, Classic only (TBC and WotLK disabled)
+    ProgressionLayout layout = ProgressionLayout::Create(60, false, false);
+    EXPECT_FALSE(layout.IsEraEnabled(ContentEra::TBC));
+    EXPECT_FALSE(layout.IsEraEnabled(ContentEra::WotLK));
+    EXPECT_TRUE(layout.IsEraEnabled(ContentEra::Classic));
+    EXPECT_FALSE(layout.tbc.has_value());
+    EXPECT_FALSE(layout.wotlk.has_value());
+}
+
+TEST(ProgressionRewardTest, ClassicOnlyUsesFullRange)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, false, false);
+    EXPECT_EQ(layout.classic.minLevel, 1);
+    EXPECT_EQ(layout.classic.maxLevel, 60);
+
+    // Authored level 60 maps 1:1 to 60
+    uint8 mapped = layout.MapAuthoredToEffective(ContentEra::Classic, 60);
+    EXPECT_EQ(mapped, 60);
+}
+
+TEST(ProgressionRewardTest, SkipEraHasNoGap)
+{
+    // Classic + WotLK (TBC skipped)
+    ProgressionLayout layout = ProgressionLayout::Create(60, false, true);
+    std::string err;
+    ASSERT_TRUE(layout.Validate(err));
+
+    // Classic: 1..45, WotLK: 45..60
+    EXPECT_EQ(layout.classic.maxLevel, layout.wotlk->minLevel);
+}
+
+TEST(ProgressionRewardTest, Cap80Identity_StockBlizzardPreserved)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(80, true, true);
+    std::string err;
+    ASSERT_TRUE(layout.Validate(err));
+
+    EXPECT_EQ(layout.classic.minLevel, 1);
+    EXPECT_EQ(layout.classic.maxLevel, 60);
+    ASSERT_TRUE(layout.tbc.has_value());
+    EXPECT_EQ(layout.tbc->minLevel, 60);
+    EXPECT_EQ(layout.tbc->maxLevel, 70);
+    ASSERT_TRUE(layout.wotlk.has_value());
+    EXPECT_EQ(layout.wotlk->minLevel, 70);
+    EXPECT_EQ(layout.wotlk->maxLevel, 80);
+
+    // Authored XP must be preserved exactly 1:1 at cap 80 with all expansions active
+    uint32 xp = sProgressionRewardResolver->ResolveQuestXP(12500, 75, 75, layout, ContentEra::WotLK);
+    EXPECT_EQ(xp, 12500);
+
+    // Authored item req level preserved 1:1
+    uint32 req = sProgressionRewardResolver->ResolveItemRequiredLevel(80, ContentEra::WotLK, 80, layout);
+    EXPECT_EQ(req, 80);
+}
+
+TEST(ProgressionRewardTest, ProgressionContext_ConstructionAndMetrics)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+    ProgressionContext ctx(75, 55, ContentEra::WotLK, ContentTier::RAID_ENTRY, layout.maxLevel, true, 0.7f, 0.7f);
+
+    EXPECT_EQ(ctx.authoredLevel, 75);
+    EXPECT_EQ(ctx.effectiveLevel, 55);
+    EXPECT_EQ(ctx.era, ContentEra::WotLK);
+    EXPECT_EQ(ctx.tier, ContentTier::RAID_ENTRY);
+    EXPECT_EQ(ctx.maxPlayerLevel, 60);
+    EXPECT_TRUE(ctx.contentPackEnabled);
+    EXPECT_FLOAT_EQ(ctx.progressionPosition, 0.7f);
+    EXPECT_FLOAT_EQ(ctx.eraProgress, 0.7f);
+}
+
 

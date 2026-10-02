@@ -173,6 +173,9 @@ int32 CoAContentScaling::GetEffectiveQuestLevel(Quest const* quest) const
     ContentEra const era = sContentPackRegistry->ResolveEraForQuest(
         quest->GetQuestId(), quest->GetZoneOrSort(), 0, static_cast<uint8>(authoredLevel));
 
+    if (!_layout.IsEraEnabled(era))
+        return 255; // Lock out quest from disabled expansion
+
     return static_cast<int32>(_layout.MapAuthoredToEffective(era, static_cast<uint8>(authoredLevel)));
 }
 
@@ -187,6 +190,9 @@ uint32 CoAContentScaling::GetEffectiveQuestMinLevel(Quest const* quest) const
 
     ContentEra const era = sContentPackRegistry->ResolveEraForQuest(
         quest->GetQuestId(), quest->GetZoneOrSort(), 0, static_cast<uint8>(authoredMin));
+
+    if (!_layout.IsEraEnabled(era))
+        return 255; // Lock out quest from disabled expansion
 
     return static_cast<uint32>(_layout.MapAuthoredToEffective(era, static_cast<uint8>(authoredMin)));
 }
@@ -748,6 +754,11 @@ namespace
                     return sCoAContentScaling->GetEffectiveQuestLevel(quest);
                 }, std::memory_order_relaxed);
 
+                LocalLevelScaling::QuestMinLevelOwner.store([](Quest const* quest) -> uint32
+                {
+                    return sCoAContentScaling->GetEffectiveQuestMinLevel(quest);
+                }, std::memory_order_relaxed);
+
                 LocalLevelScaling::CreatureBaseLevelOwner.store([](CreatureTemplate const* cinfo, Creature const* creature) -> uint8
                 {
                     return sCoAContentScaling->GetEffectiveCreatureLevel(cinfo, creature, cinfo ? cinfo->maxlevel : 1);
@@ -756,6 +767,7 @@ namespace
             else
             {
                 LocalLevelScaling::QuestBaseLevelOwner.store(nullptr, std::memory_order_relaxed);
+                LocalLevelScaling::QuestMinLevelOwner.store(nullptr, std::memory_order_relaxed);
                 LocalLevelScaling::CreatureBaseLevelOwner.store(nullptr, std::memory_order_relaxed);
             }
         }
@@ -1044,6 +1056,20 @@ namespace
                 return true;
 
             return sCoAContentScaling->CanPlayerEnterMap(player, entry->MapID);
+        }
+
+        bool OnPlayerCanTakeQuest(Player const* /*player*/, Quest const* quest) override
+        {
+            if (!sCoAContentScaling->IsEnabled() || !quest)
+                return true;
+
+            ContentEra const era = sContentPackRegistry->ResolveEraForQuest(
+                quest->GetQuestId(), quest->GetZoneOrSort(), 0, static_cast<uint8>(quest->GetQuestLevel()));
+
+            if (!sCoAContentScaling->GetLayout().IsEraEnabled(era))
+                return false;
+
+            return true;
         }
 
         void OnResolveDungeonAccessLevels(Player const* player, uint32 mapId, uint8& minLevel, uint8& maxLevel) override
