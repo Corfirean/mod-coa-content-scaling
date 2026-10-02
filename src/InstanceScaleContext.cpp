@@ -539,7 +539,17 @@ void InstanceScalingMgr::LoadCalibratedBossFlex()
     std::lock_guard<std::mutex> lock(_lock);
     _bossFlexCache.clear();
 
-    QueryResult result = WorldDatabase.Query("SELECT entry, difficulty, per_player_health FROM coa_boss_flex");
+    // coa_boss_flex is created by mod-coa-raid-difficulty: one row per boss with the health per player of every difficulty
+    // in hp_d0..hp_d3 (0 = no flex). A query naming a column that does not exist stops the world server at start-up, so
+    // the table is checked first and a server without it simply has no calibrated profiles.
+    QueryResult columns = WorldDatabase.Query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'coa_boss_flex' AND COLUMN_NAME IN ('hp_d0', 'hp_d1', 'hp_d2', 'hp_d3')");
+    if (!columns || columns->Fetch()[0].Get<uint64>() != 4)
+    {
+        LOG_WARN("server.loading", "UniversalContentScaling: coa_boss_flex is missing or has an unexpected layout, no calibrated boss flex profiles loaded.");
+        return;
+    }
+
+    QueryResult result = WorldDatabase.Query("SELECT entry, hp_d0, hp_d1, hp_d2, hp_d3 FROM coa_boss_flex");
     if (!result)
         return;
 
@@ -548,13 +558,13 @@ void InstanceScalingMgr::LoadCalibratedBossFlex()
     {
         Field* fields = result->Fetch();
         uint32 const entry = fields[0].Get<uint32>();
-        uint8 const diff = fields[1].Get<uint8>();
-        uint32 const perPlayerHp = fields[2].Get<uint32>();
 
-        if (diff < MAX_RAID_DIFFICULTY)
+        for (uint8 diff = 0; diff < MAX_RAID_DIFFICULTY && diff < 4; ++diff)
         {
+            uint32 const perPlayerHp = fields[1 + diff].Get<uint32>();
             _bossFlexCache[entry][diff] = perPlayerHp;
-            ++count;
+            if (perPlayerHp > 0)
+                ++count;
         }
     } while (result->NextRow());
 
