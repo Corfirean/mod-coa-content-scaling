@@ -46,6 +46,7 @@ public:
             { "layout",    HandleLayout,    SEC_ADMINISTRATOR, Console::Yes },
             { "creature",  HandleCreature,  SEC_ADMINISTRATOR, Console::No },
             { "instance",  HandleInstance,  SEC_ADMINISTRATOR, Console::No },
+            { "encounter", HandleEncounter, SEC_ADMINISTRATOR, Console::No },
             { "quest",     HandleQuest,     SEC_ADMINISTRATOR, Console::Yes },
             { "item",      HandleItem,      SEC_ADMINISTRATOR, Console::Yes },
             { "validate",  HandleValidate,  SEC_ADMINISTRATOR, Console::Yes },
@@ -181,6 +182,55 @@ private:
         }
         handler->PSendSysMessage("Multipliers: HP x%.2f | Damage x%.2f | Heal x%.2f | Absorb x%.2f",
             ctx.healthScale, ctx.damageScale, ctx.healingScale, ctx.absorbScale);
+
+        return true;
+    }
+
+    static bool HandleEncounter(ChatHandler* handler)
+    {
+        Player* player = handler->GetPlayer();
+        if (!player)
+            return false;
+
+        Map* map = player->GetMap();
+        if (!map || !map->IsDungeon())
+        {
+            handler->SendSysMessage("You are not inside an instance/dungeon.");
+            return true;
+        }
+
+        InstanceScaleContext const ctx = sInstanceScalingMgr->GetOrCreateContext(map);
+        EncounterContext const encCtx = sInstanceScalingMgr->BuildEncounterContext(map, ctx.lockEncounterId);
+        IEncounterAdapter const* adapter = sAdaptiveEncounterMgr->GetAdapter(map->GetId(), ctx.lockEncounterId);
+
+        handler->PSendSysMessage("=== Adaptive Encounter Diagnostics (Map: %u, Inst: %u) ===", map->GetId(), map->GetInstanceId());
+        handler->PSendSysMessage("Active Lock: %s (Encounter ID: %u, Gen: %llu)",
+            ctx.encounterLocked ? "LOCKED" : "UNLOCKED/IDLE",
+            ctx.lockEncounterId, static_cast<unsigned long long>(encCtx.snapshotGeneration));
+        handler->PSendSysMessage("Participants: %u physical | %.1f combat eff | %u mechanic parts (Intended: %u)",
+            encCtx.actualParticipants, encCtx.combatEffectivePlayers, encCtx.mechanicParticipants, encCtx.intendedPlayers);
+        handler->PSendSysMessage("Mode: %s | Solo State: Physical: %s | Mechanic: %s",
+            encCtx.challengeSize > 0 ? ("Challenge " + std::to_string(encCtx.challengeSize)).c_str() : "Adaptive (0)",
+            encCtx.isPhysicallySolo ? "Yes" : "No",
+            encCtx.isMechanicSolo ? "Yes" : "No");
+
+        if (adapter)
+        {
+            handler->PSendSysMessage("Adapter: %s [COMPAT: %s]",
+                adapter->GetName().data(), CompatibilityToString(adapter->GetCompatibility()).data());
+        }
+        else
+        {
+            handler->PSendSysMessage("Adapter: None (Generic Adaptive Scaling fallback) [COMPAT: AUTO]");
+        }
+
+        handler->PSendSysMessage("Sample Mechanics Scaled (at %u mechanic players):", encCtx.mechanicParticipants);
+        uint32 sampleTargets = sAdaptiveEncounterMgr->ResolveMechanic(map->GetId(), ctx.lockEncounterId, 0, EncounterMechanicType::TARGET_COUNT, 4, encCtx);
+        uint32 sampleAdds = sAdaptiveEncounterMgr->ResolveMechanic(map->GetId(), ctx.lockEncounterId, 0, EncounterMechanicType::ADD_COUNT, 12, encCtx);
+        uint32 sampleReq = sAdaptiveEncounterMgr->ResolveMechanic(map->GetId(), ctx.lockEncounterId, 0, EncounterMechanicType::REQUIRED_PLAYERS, 4, encCtx);
+        handler->PSendSysMessage(" - Target Count: 4 -> %u", sampleTargets);
+        handler->PSendSysMessage(" - Add Wave: 12 -> %u", sampleAdds);
+        handler->PSendSysMessage(" - Required Players: 4 -> %u", sampleReq);
 
         return true;
     }

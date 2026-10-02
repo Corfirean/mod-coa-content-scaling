@@ -4,6 +4,7 @@
  */
 
 #include "InstanceScaleContext.h"
+#include "AdaptiveEncounterAPI.h"
 #include "CoAContentScaling.h"
 #include "ContentPackRegistry.h"
 #include "DatabaseEnv.h"
@@ -38,22 +39,27 @@ InstanceScalingMgr* InstanceScalingMgr::Instance()
     return &instance;
 }
 
-float InstanceScalingMgr::CountEffectivePlayers(Map* map) const
+uint32 InstanceScalingMgr::CountActualPlayers(Map* map) const
 {
     if (!map)
-        return 1.0f;
+        return 1;
 
-    float count = 0.0f;
+    uint32 count = 0;
     map->DoForAllPlayers([&count](Player* player)
     {
         if (!player || player->IsGameMaster())
             return;
 
-        // Both human players and playerbots count with full 1.0 weight
-        count += 1.0f;
+        // Humans + playerbots count as physical participants
+        ++count;
     });
 
-    return std::max(1.0f, count);
+    return std::max(1u, count);
+}
+
+float InstanceScalingMgr::CountEffectivePlayers(Map* map) const
+{
+    return float(CountActualPlayers(map));
 }
 
 InstanceScaleContext InstanceScalingMgr::GetOrCreateContext(Map* map)
@@ -61,7 +67,7 @@ InstanceScaleContext InstanceScalingMgr::GetOrCreateContext(Map* map)
     if (!map)
         return InstanceScaleContext{};
 
-    float const actualPlayers = CountEffectivePlayers(map);
+    uint32 const actualPlayers = CountActualPlayers(map);
     uint32 const mapId = map->GetId();
     uint32 const instanceId = map->GetInstanceId();
     uint64 const key = (static_cast<uint64>(mapId) << 32) | instanceId;
@@ -80,9 +86,17 @@ InstanceScaleContext InstanceScalingMgr::GetOrCreateContext(Map* map)
         if (cit != _challengeSizes.end())
             virtualChallenge = cit->second;
 
+        auto compIt = _compositionModes.find(key);
+        if (compIt != _compositionModes.end())
+            it->second.compositionMode = compIt->second;
+
+        it->second.actualParticipants = actualPlayers;
         it->second.challengeSize = virtualChallenge;
-        it->second.effectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : actualPlayers;
-        it->second.CalculateMultipliers(it->second.effectivePlayers / float(it->second.intendedPlayers));
+        it->second.combatEffectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : float(actualPlayers);
+        it->second.mechanicParticipants = (virtualChallenge > 0) ? std::min<uint32>(actualPlayers, virtualChallenge) : actualPlayers;
+        it->second.effectivePlayers = it->second.combatEffectivePlayers;
+
+        it->second.CalculateMultipliers(it->second.combatEffectivePlayers / float(it->second.intendedPlayers));
         return it->second;
     }
 
@@ -112,9 +126,17 @@ InstanceScaleContext InstanceScalingMgr::GetOrCreateContext(Map* map)
     if (cit != _challengeSizes.end())
         virtualChallenge = cit->second;
 
+    auto compIt = _compositionModes.find(key);
+    if (compIt != _compositionModes.end())
+        ctx.compositionMode = compIt->second;
+
+    ctx.actualParticipants = actualPlayers;
     ctx.challengeSize = virtualChallenge;
-    ctx.effectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : actualPlayers;
-    ctx.CalculateMultipliers(ctx.effectivePlayers / float(ctx.intendedPlayers));
+    ctx.combatEffectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : float(actualPlayers);
+    ctx.mechanicParticipants = (virtualChallenge > 0) ? std::min<uint32>(actualPlayers, virtualChallenge) : actualPlayers;
+    ctx.effectivePlayers = ctx.combatEffectivePlayers;
+
+    ctx.CalculateMultipliers(ctx.combatEffectivePlayers / float(ctx.intendedPlayers));
 
     _contexts[key] = ctx;
     return ctx;
@@ -132,7 +154,7 @@ InstanceScaleContext InstanceScalingMgr::GetContext(uint32 mapId, uint32 instanc
 
 EncounterScaleSnapshot InstanceScalingMgr::LockEncounterContext(Map* map, EncounterLifecycleSource source, EncounterKey key, EncounterHealthTransferPolicy hpPolicy)
 {
-    float const actualPlayers = CountEffectivePlayers(map);
+    uint32 const actualPlayers = CountActualPlayers(map);
     uint32 const mapId = map->GetId();
     uint32 const instanceId = map->GetInstanceId();
     uint64 const mkey = (static_cast<uint64>(mapId) << 32) | instanceId;
@@ -145,11 +167,20 @@ EncounterScaleSnapshot InstanceScalingMgr::LockEncounterContext(Map* map, Encoun
     if (cit != _challengeSizes.end())
         virtualChallenge = cit->second;
 
-    ctx.effectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : actualPlayers;
+    auto compIt = _compositionModes.find(mkey);
+    if (compIt != _compositionModes.end())
+        ctx.compositionMode = compIt->second;
+
+    ctx.actualParticipants = actualPlayers;
+    ctx.challengeSize = virtualChallenge;
+    ctx.combatEffectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : float(actualPlayers);
+    ctx.mechanicParticipants = (virtualChallenge > 0) ? std::min<uint32>(actualPlayers, virtualChallenge) : actualPlayers;
+    ctx.effectivePlayers = ctx.combatEffectivePlayers;
+
     if (ctx.intendedPlayers == 0)
         ctx.intendedPlayers = sInstanceProfileRegistry->GetIntendedPlayers(mapId, map->GetDifficulty());
 
-    ctx.CalculateMultipliers(ctx.effectivePlayers / float(ctx.intendedPlayers));
+    ctx.CalculateMultipliers(ctx.combatEffectivePlayers / float(ctx.intendedPlayers));
 
     ctx.lockState = EncounterLockState::ACTIVE;
     ctx.encounterLocked = true;
@@ -159,19 +190,27 @@ EncounterScaleSnapshot InstanceScalingMgr::LockEncounterContext(Map* map, Encoun
     ctx.hpPolicy = hpPolicy;
 
     EncounterScaleSnapshot snapshot;
-    snapshot.effectivePlayers = ctx.effectivePlayers;
+    snapshot.actualParticipants = ctx.actualParticipants;
+    snapshot.combatEffectivePlayers = ctx.combatEffectivePlayers;
+    snapshot.mechanicParticipants = ctx.mechanicParticipants;
     snapshot.intendedPlayers = ctx.intendedPlayers;
+    snapshot.challengeSize = ctx.challengeSize;
+    snapshot.compositionMode = ctx.compositionMode;
+    snapshot.isPhysicallySolo = (ctx.actualParticipants <= 1);
+    snapshot.isMechanicSolo = (ctx.mechanicParticipants <= 1);
+
     snapshot.healthScale = ctx.healthScale;
     snapshot.damageScale = ctx.damageScale;
     snapshot.healingScale = ctx.healingScale;
     snapshot.absorbScale = ctx.absorbScale;
     snapshot.generation = ++ctx.snapshotGeneration;
     snapshot.valid = true;
+    snapshot.effectivePlayers = ctx.combatEffectivePlayers;
 
     ctx.activeSnapshot = snapshot;
 
-    LOG_INFO("server.loading", "UniversalContentScaling: Encounter {}:{} locked on map {} (instance {}) [gen {}]: {} effective players (intended {}) -> HP x{:.2f}, Dmg x{:.2f}",
-             uint32(key.type), key.id, mapId, instanceId, snapshot.generation, snapshot.effectivePlayers, snapshot.intendedPlayers, snapshot.healthScale, snapshot.damageScale);
+    LOG_INFO("server.loading", "UniversalContentScaling: Encounter {}:{} locked on map {} (instance {}) [gen {}]: {} actual, {} combat eff, {} mechanic parts (intended {}) -> HP x{:.2f}, Dmg x{:.2f}",
+             uint32(key.type), key.id, mapId, instanceId, snapshot.generation, snapshot.actualParticipants, snapshot.combatEffectivePlayers, snapshot.mechanicParticipants, snapshot.intendedPlayers, snapshot.healthScale, snapshot.damageScale);
 
     return snapshot;
 }
@@ -232,7 +271,7 @@ void InstanceScalingMgr::BeginEncounter(Map* map, EncounterLifecycleSource sourc
                     snapshot = ctx.activeSnapshot;
                     needApplyBoss = true;
                 }
-                return;
+                // Do NOT early return here: drop out of mutex and call ApplySnapshotToBoss if boss was provided!
             }
             else
             {
@@ -386,6 +425,85 @@ uint32 InstanceScalingMgr::GetChallengeSize(uint32 mapId, uint32 instanceId) con
     return 0;
 }
 
+void InstanceScalingMgr::SetCompositionMode(uint32 mapId, uint32 instanceId, lfg::LfgCompositionMode mode)
+{
+    uint64 const key = (static_cast<uint64>(mapId) << 32) | instanceId;
+    std::lock_guard<std::mutex> lock(_lock);
+    _compositionModes[key] = mode;
+}
+
+lfg::LfgCompositionMode InstanceScalingMgr::GetCompositionMode(uint32 mapId, uint32 instanceId) const
+{
+    uint64 const key = (static_cast<uint64>(mapId) << 32) | instanceId;
+    std::lock_guard<std::mutex> lock(_lock);
+    auto it = _compositionModes.find(key);
+    if (it != _compositionModes.end())
+        return it->second;
+    return lfg::LfgCompositionMode::MATCHMAKING;
+}
+
+EncounterContext InstanceScalingMgr::BuildEncounterContext(Map* map, uint32 encounterId)
+{
+    if (!map)
+        return EncounterContext{};
+
+    uint32 const mapId = map->GetId();
+    uint32 const instanceId = map->GetInstanceId();
+    uint64 const key = (static_cast<uint64>(mapId) << 32) | instanceId;
+
+    std::lock_guard<std::mutex> lock(_lock);
+    auto it = _contexts.find(key);
+    if (it != _contexts.end() && it->second.encounterLocked && it->second.activeSnapshot.valid)
+    {
+        EncounterScaleSnapshot const& snap = it->second.activeSnapshot;
+        EncounterContext ctx;
+        ctx.mapId = mapId;
+        ctx.instanceId = instanceId;
+        ctx.encounterId = encounterId;
+        ctx.actualParticipants = snap.actualParticipants;
+        ctx.combatEffectivePlayers = snap.combatEffectivePlayers;
+        ctx.mechanicParticipants = snap.mechanicParticipants;
+        ctx.intendedPlayers = snap.intendedPlayers;
+        ctx.challengeSize = snap.challengeSize;
+        ctx.difficulty = map->GetDifficulty();
+        ctx.compositionMode = snap.compositionMode;
+        ctx.isPhysicallySolo = snap.isPhysicallySolo;
+        ctx.isMechanicSolo = snap.isMechanicSolo;
+        ctx.snapshotGeneration = snap.generation;
+        return ctx;
+    }
+
+    // If not locked in encounter, construct dynamically from current state
+    uint32 const actualPlayers = CountActualPlayers(map);
+    uint32 virtualChallenge = 0;
+    auto cit = _challengeSizes.find(key);
+    if (cit != _challengeSizes.end())
+        virtualChallenge = cit->second;
+
+    lfg::LfgCompositionMode compMode = lfg::LfgCompositionMode::MATCHMAKING;
+    auto compIt = _compositionModes.find(key);
+    if (compIt != _compositionModes.end())
+        compMode = compIt->second;
+
+    uint32 const intended = sInstanceProfileRegistry->GetIntendedPlayers(mapId, map->GetDifficulty());
+
+    EncounterContext ctx;
+    ctx.mapId = mapId;
+    ctx.instanceId = instanceId;
+    ctx.encounterId = encounterId;
+    ctx.actualParticipants = actualPlayers;
+    ctx.combatEffectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : float(actualPlayers);
+    ctx.mechanicParticipants = (virtualChallenge > 0) ? std::min<uint32>(actualPlayers, virtualChallenge) : actualPlayers;
+    ctx.intendedPlayers = intended;
+    ctx.challengeSize = virtualChallenge;
+    ctx.difficulty = map->GetDifficulty();
+    ctx.compositionMode = compMode;
+    ctx.isPhysicallySolo = (actualPlayers <= 1);
+    ctx.isMechanicSolo = (ctx.mechanicParticipants <= 1);
+    ctx.snapshotGeneration = (it != _contexts.end()) ? it->second.snapshotGeneration : 0;
+    return ctx;
+}
+
 bool InstanceScalingMgr::HasCalibratedBossHp(uint32 entry, uint8 difficulty) const
 {
     if (difficulty >= MAX_RAID_DIFFICULTY)
@@ -448,5 +566,6 @@ void InstanceScalingMgr::Clear()
     std::lock_guard<std::mutex> lock(_lock);
     _contexts.clear();
     _challengeSizes.clear();
+    _compositionModes.clear();
     _bossFlexCache.clear();
 }

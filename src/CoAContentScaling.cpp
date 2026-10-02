@@ -5,6 +5,7 @@
 
 #include "CoAContentScaling.h"
 #include "AdaptiveEncounterAPI.h"
+#include "AllMapScript.h"
 #include "CoAContentScalingConfig.h"
 #include "CombatBudgetProfile.h"
 #include "Config.h"
@@ -696,12 +697,17 @@ void CoAContentScaling::OnInstanceMapCreated(InstanceMap* instanceMap, Player* p
     }
 
     std::optional<PendingInstanceScalePolicy> policyOpt = ConsumePendingInstancePolicy(mapId, groupGuid, playerGuid);
-    if (policyOpt && policyOpt->challengeSize > 0)
+    if (policyOpt)
     {
-        sInstanceScalingMgr->SetChallengeSize(mapId, instanceId, policyOpt->challengeSize);
-        LOG_INFO("module.coa_content_scaling",
-                 "CoAContentScaling: Applied pending LFG challenge size {} to instance (mapId: {}, instanceId: {})",
-                 policyOpt->challengeSize, mapId, instanceId);
+        sInstanceScalingMgr->SetCompositionMode(mapId, instanceId, policyOpt->compositionMode);
+
+        if (policyOpt->challengeSize > 0)
+        {
+            sInstanceScalingMgr->SetChallengeSize(mapId, instanceId, policyOpt->challengeSize);
+            LOG_INFO("module.coa_content_scaling",
+                     "CoAContentScaling: Applied pending LFG challenge size {} to instance (mapId: {}, instanceId: {})",
+                     policyOpt->challengeSize, mapId, instanceId);
+        }
     }
 }
 
@@ -1128,15 +1134,35 @@ namespace
             loot->unlootedCount = static_cast<uint8>(loot->items.size());
         }
     };
+
+    class coa_content_scaling_map : public AllMapScript
+    {
+    public:
+        coa_content_scaling_map() : AllMapScript("coa_content_scaling_map") { }
+
+        void OnResolveEncounterMechanic(Map* map, uint32 encounterId, uint8 mechanicType, uint32 authoredValue, uint32& resolvedValue) override
+        {
+            if (!sCoAContentScaling->IsEnabled() || !sCoAContentScaling->IsAdaptiveMechanicsEnabled() || !map)
+                return;
+
+            EncounterContext ctx = sInstanceScalingMgr->BuildEncounterContext(map, encounterId);
+            resolvedValue = sAdaptiveEncounterMgr->ResolveMechanic(
+                map->GetId(), encounterId, 0, static_cast<EncounterMechanicType>(mechanicType), authoredValue, ctx);
+        }
+    };
 }
+
+void RegisterCuratedEncounterAdapters();
 
 void AddCoAContentScalingScripts()
 {
+    RegisterCuratedEncounterAdapters();
     new coa_content_scaling_world();
     new coa_content_scaling_global();
     new coa_content_scaling_creature();
     new coa_content_scaling_unit();
     new coa_content_scaling_player();
     new coa_content_scaling_misc();
+    new coa_content_scaling_map();
     AddCoAContentScalingCommands();
 }

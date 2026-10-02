@@ -6,10 +6,12 @@
 #ifndef COA_INSTANCE_SCALE_CONTEXT_H
 #define COA_INSTANCE_SCALE_CONTEXT_H
 
+#include "AdaptiveEncounterAPI.h"
 #include "ContentEra.h"
 #include "ContentTier.h"
 #include "DBCEnums.h"
 #include "Define.h"
+#include "LFG.h"
 #include "ObjectGuid.h"
 #include <cmath>
 #include <mutex>
@@ -70,14 +72,26 @@ enum class EncounterHealthTransferPolicy : uint8
 
 struct EncounterScaleSnapshot
 {
-    float effectivePlayers{1.0f};
+    uint32 actualParticipants{1};
+    float combatEffectivePlayers{1.0f};
+    uint32 mechanicParticipants{1};
     uint32 intendedPlayers{5};
+    uint32 challengeSize{0};
+    lfg::LfgCompositionMode compositionMode{lfg::LfgCompositionMode::MATCHMAKING};
+
     float healthScale{1.0f};
     float damageScale{1.0f};
     float healingScale{1.0f};
     float absorbScale{1.0f};
+
     uint64 generation{0};
     bool valid{false};
+
+    bool isPhysicallySolo{true};
+    bool isMechanicSolo{true};
+
+    // Backwards-compatibility alias
+    float effectivePlayers{1.0f};
 };
 
 struct InstanceScaleContext
@@ -88,9 +102,12 @@ struct InstanceScaleContext
     ContentEra era{ContentEra::Classic};
     ContentTier tier{ContentTier::DUNGEON_NORMAL};
 
+    uint32 actualParticipants{1};
+    float combatEffectivePlayers{5.0f};
+    uint32 mechanicParticipants{1};
     uint32 intendedPlayers{5};
-    float effectivePlayers{5.0f};
     uint32 challengeSize{0};
+    lfg::LfgCompositionMode compositionMode{lfg::LfgCompositionMode::MATCHMAKING};
 
     Difficulty difficulty{DUNGEON_DIFFICULTY_NORMAL};
 
@@ -111,6 +128,9 @@ struct InstanceScaleContext
     std::unordered_map<ObjectGuid, uint64> bossAppliedGenerations;
     EncounterHealthTransferPolicy hpPolicy{EncounterHealthTransferPolicy::FULL_ON_PULL};
 
+    // Backwards-compatibility alias
+    float effectivePlayers{5.0f};
+
     void CalculateMultipliers(float realRatio);
 };
 
@@ -123,7 +143,8 @@ public:
     InstanceScaleContext GetOrCreateContext(Map* map);
     InstanceScaleContext GetContext(uint32 mapId, uint32 instanceId);
 
-    // Count participants in map
+    // Count participants in map (actual physical human + bot players)
+    uint32 CountActualPlayers(Map* map) const;
     float CountEffectivePlayers(Map* map) const;
 
     // Authoritative Encounter Lifecycle
@@ -143,6 +164,13 @@ public:
     void SetChallengeSize(uint32 mapId, uint32 instanceId, uint32 virtualSize);
     uint32 GetChallengeSize(uint32 mapId, uint32 instanceId) const;
 
+    // Composition mode setting (MATCHMAKING, BOT_FILL, CURRENT_PARTY)
+    void SetCompositionMode(uint32 mapId, uint32 instanceId, lfg::LfgCompositionMode mode);
+    lfg::LfgCompositionMode GetCompositionMode(uint32 mapId, uint32 instanceId) const;
+
+    // Build EncounterContext for AdaptiveEncounterMgr queries
+    EncounterContext BuildEncounterContext(Map* map, uint32 encounterId);
+
     // Boss flex health integration (priority: explicit encounter override > coa_boss_flex > generic instance scaling)
     uint32 GetCalibratedBossHp(uint32 entry, uint8 difficulty, float effectivePlayers) const;
     bool HasCalibratedBossHp(uint32 entry, uint8 difficulty) const;
@@ -157,6 +185,7 @@ private:
     // key: (mapId << 32) | instanceId
     std::unordered_map<uint64, InstanceScaleContext> _contexts;
     std::unordered_map<uint64, uint32> _challengeSizes;
+    std::unordered_map<uint64, lfg::LfgCompositionMode> _compositionModes;
 
     // coa_boss_flex cache: entry -> perPlayer[4]
     std::unordered_map<uint32, std::array<uint32, MAX_RAID_DIFFICULTY>> _bossFlexCache;
