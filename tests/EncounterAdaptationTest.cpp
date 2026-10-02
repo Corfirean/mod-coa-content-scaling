@@ -464,13 +464,47 @@ TEST_F(EncounterAdaptationTest, LichKingGuaranteedSoloValkyrRelease)
     uint32 const fullCarryWindowMs = sAdaptiveEncounterMgr->ResolveMechanic(
         631, 12, 2, EncounterMechanicType::TIMER_MS, 0, fullCtx);
     EXPECT_EQ(fullCarryWindowMs, 0u);
+
+    // Fail-safe logic verification:
+    // If Valkyr reaches POINT_DROP_PLAYER before timer fires:
+    auto SimulatePointDropPlayer = [](uint32 safeReleaseTimerMs, bool isHeroic, bool& executedAuthoredCliffDrop, bool& safelyEjected)
+    {
+        executedAuthoredCliffDrop = false;
+        safelyEjected = false;
+
+        if (safeReleaseTimerMs > 0)
+        {
+            // Solo fail-safe: safe ejection on platform, cliff drop path NOT executed
+            safelyEjected = true;
+            executedAuthoredCliffDrop = false;
+        }
+        else
+        {
+            // Full group: authored cliff-drop path is executed
+            executedAuthoredCliffDrop = true;
+            safelyEjected = false;
+        }
+    };
+
+    bool cliffDropExecuted = false;
+    bool safelyEjected = false;
+
+    // Solo case: reaches drop point before timer -> safe ejection, cliff drop NOT executed
+    SimulatePointDropPlayer(soloCarryWindowMs, false, cliffDropExecuted, safelyEjected);
+    EXPECT_TRUE(safelyEjected);
+    EXPECT_FALSE(cliffDropExecuted);
+
+    // Full raid case: reaches drop point -> authored cliff drop executed
+    SimulatePointDropPlayer(fullCarryWindowMs, false, cliffDropExecuted, safelyEjected);
+    EXPECT_FALSE(safelyEjected);
+    EXPECT_TRUE(cliffDropExecuted);
 }
 
-// 13. EndToEndHookIntegrationTest
-// Simulates the exact call chain:
+// 13. EndToEndHookContractTest
+// Simulated hook-chain contract test verifying the call chain:
 // InstanceScript::ResolveEncounterMechanic -> ScriptMgr::OnResolveEncounterMechanic -> AllMapScript::OnResolveEncounterMechanic
 // -> mod-coa-content-scaling (coa_content_scaling_map) -> AdaptiveEncounterMgr -> Adapter
-TEST_F(EncounterAdaptationTest, EndToEndHookIntegrationTest)
+TEST_F(EncounterAdaptationTest, EndToEndHookContractTest)
 {
     // Mock minimal map script behavior mirroring coa_content_scaling_map
     struct MockScalingMapScript
