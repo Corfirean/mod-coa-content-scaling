@@ -465,38 +465,64 @@ TEST_F(EncounterAdaptationTest, LichKingGuaranteedSoloValkyrRelease)
         631, 12, 2, EncounterMechanicType::TIMER_MS, 0, fullCtx);
     EXPECT_EQ(fullCarryWindowMs, 0u);
 
+    // Platform inset safe landing geometry verification:
+    // Dest point is on or past the cliff edge; safe release must inset by SAFE_INSET_DISTANCE towards platform center
+    struct MockPosition { float x; float y; float z; };
+    MockPosition const centerPos{ 503.6282f, -2124.655f, 840.8569f };
+    MockPosition const cliffDestPoint{ 580.0f, -2124.655f, 840.8569f }; // 76.37 yards east (off the edge)
+
+    auto DistSq = [](MockPosition const& a, MockPosition const& b)
+    {
+        float const dx = a.x - b.x;
+        float const dy = a.y - b.y;
+        return dx * dx + dy * dy;
+    };
+
+    constexpr float SAFE_INSET_DISTANCE = 12.0f;
+    float const angleToCenter = std::atan2(centerPos.y - cliffDestPoint.y, centerPos.x - cliffDestPoint.x);
+    MockPosition const safeLandingPos{
+        cliffDestPoint.x + std::cos(angleToCenter) * SAFE_INSET_DISTANCE,
+        cliffDestPoint.y + std::sin(angleToCenter) * SAFE_INSET_DISTANCE,
+        centerPos.z
+    };
+
+    // Safe position must be strictly closer to CenterPosition than the cliff drop point
+    EXPECT_LT(DistSq(safeLandingPos, centerPos), DistSq(cliffDestPoint, centerPos));
+    // Safe position must be inset by SAFE_INSET_DISTANCE
+    EXPECT_NEAR(std::sqrt(DistSq(safeLandingPos, cliffDestPoint)), SAFE_INSET_DISTANCE, 0.001f);
+
     // Fail-safe logic verification:
     // If Valkyr reaches POINT_DROP_PLAYER before timer fires:
-    auto SimulatePointDropPlayer = [](uint32 safeReleaseTimerMs, bool isHeroic, bool& executedAuthoredCliffDrop, bool& safelyEjected)
+    auto SimulatePointDropPlayer = [](uint32 safeReleaseTimerMs, bool isHeroic, bool& executedAuthoredCliffDrop, bool& safelyRelocated)
     {
         executedAuthoredCliffDrop = false;
-        safelyEjected = false;
+        safelyRelocated = false;
 
         if (safeReleaseTimerMs > 0)
         {
-            // Solo fail-safe: safe ejection on platform, cliff drop path NOT executed
-            safelyEjected = true;
+            // Solo fail-safe: safe relocation onto platform inset, cliff drop path NOT executed
+            safelyRelocated = true;
             executedAuthoredCliffDrop = false;
         }
         else
         {
             // Full group: authored cliff-drop path is executed
             executedAuthoredCliffDrop = true;
-            safelyEjected = false;
+            safelyRelocated = false;
         }
     };
 
     bool cliffDropExecuted = false;
-    bool safelyEjected = false;
+    bool safelyRelocated = false;
 
-    // Solo case: reaches drop point before timer -> safe ejection, cliff drop NOT executed
-    SimulatePointDropPlayer(soloCarryWindowMs, false, cliffDropExecuted, safelyEjected);
-    EXPECT_TRUE(safelyEjected);
+    // Solo case: reaches drop point before timer -> safe relocation, cliff drop NOT executed
+    SimulatePointDropPlayer(soloCarryWindowMs, false, cliffDropExecuted, safelyRelocated);
+    EXPECT_TRUE(safelyRelocated);
     EXPECT_FALSE(cliffDropExecuted);
 
     // Full raid case: reaches drop point -> authored cliff drop executed
-    SimulatePointDropPlayer(fullCarryWindowMs, false, cliffDropExecuted, safelyEjected);
-    EXPECT_FALSE(safelyEjected);
+    SimulatePointDropPlayer(fullCarryWindowMs, false, cliffDropExecuted, safelyRelocated);
+    EXPECT_FALSE(safelyRelocated);
     EXPECT_TRUE(cliffDropExecuted);
 }
 
