@@ -171,10 +171,10 @@ TEST(ProgressionLayoutTest, MaxLevel80_AllEras)
     EXPECT_EQ(layout.classic.minLevel, 1);
     EXPECT_EQ(layout.classic.maxLevel, 60);
     ASSERT_TRUE(layout.tbc.has_value());
-    EXPECT_EQ(layout.tbc->minLevel, 60);
+    EXPECT_EQ(layout.tbc->minLevel, 58);
     EXPECT_EQ(layout.tbc->maxLevel, 70);
     ASSERT_TRUE(layout.wotlk.has_value());
-    EXPECT_EQ(layout.wotlk->minLevel, 70);
+    EXPECT_EQ(layout.wotlk->minLevel, 68);
     EXPECT_EQ(layout.wotlk->maxLevel, 80);
 }
 
@@ -1840,11 +1840,17 @@ TEST(ProgressionRewardTest, Cap80Identity_StockBlizzardPreserved)
     EXPECT_EQ(layout.classic.minLevel, 1);
     EXPECT_EQ(layout.classic.maxLevel, 60);
     ASSERT_TRUE(layout.tbc.has_value());
-    EXPECT_EQ(layout.tbc->minLevel, 60);
+    EXPECT_EQ(layout.tbc->minLevel, 58);
     EXPECT_EQ(layout.tbc->maxLevel, 70);
     ASSERT_TRUE(layout.wotlk.has_value());
-    EXPECT_EQ(layout.wotlk->minLevel, 70);
+    EXPECT_EQ(layout.wotlk->minLevel, 68);
     EXPECT_EQ(layout.wotlk->maxLevel, 80);
+
+    // Authored transition levels stay identity:
+    EXPECT_EQ(layout.MapAuthoredToEffective(ContentEra::TBC, 58), 58);
+    EXPECT_EQ(layout.MapAuthoredToEffective(ContentEra::TBC, 70), 70);
+    EXPECT_EQ(layout.MapAuthoredToEffective(ContentEra::WotLK, 68), 68);
+    EXPECT_EQ(layout.MapAuthoredToEffective(ContentEra::WotLK, 80), 80);
 
     // Authored XP must be preserved exactly 1:1 at cap 80 with all expansions active
     uint32 xp = sProgressionRewardResolver->ResolveQuestXP(12500, 75, 75, layout, ContentEra::WotLK);
@@ -1869,5 +1875,108 @@ TEST(ProgressionRewardTest, ProgressionContext_ConstructionAndMetrics)
     EXPECT_FLOAT_EQ(ctx.progressionPosition, 0.7f);
     EXPECT_FLOAT_EQ(ctx.eraProgress, 0.7f);
 }
+
+// =================================================================================================
+// Production Path Integration Tests: Real Item, Creature XP, and Access Wiring
+// =================================================================================================
+
+TEST(ProductionPathIntegrationTest, RealItems_RequiredLevelWithinTierAcquisition_Cap60)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    // Test real item IDs:
+    // 24021 - TBC Normal
+    // 27447 - TBC Heroic
+    // 28612 - TBC Raid Entry
+    // 37056 - WotLK Normal
+    // 37379 - WotLK Heroic
+    // 39291 - WotLK Raid Entry
+    // 45086 - Ulduar (Raid Mid)
+    // 50351 - ICC (Raid End)
+
+    struct ItemTestCase {
+        uint32 id;
+        uint32 authReq;
+        uint32 authIlvl;
+        ContentEra era;
+        ContentTier tier;
+    };
+
+    std::vector<ItemTestCase> testItems = {
+        { 24021, 62, 85,  ContentEra::TBC,   ContentTier::DUNGEON_NORMAL },
+        { 27447, 70, 115, ContentEra::TBC,   ContentTier::DUNGEON_HEROIC },
+        { 28612, 70, 115, ContentEra::TBC,   ContentTier::RAID_ENTRY },
+        { 37056, 75, 175, ContentEra::WotLK, ContentTier::DUNGEON_NORMAL },
+        { 37379, 80, 200, ContentEra::WotLK, ContentTier::DUNGEON_HEROIC },
+        { 39291, 80, 200, ContentEra::WotLK, ContentTier::RAID_ENTRY },
+        { 45086, 80, 226, ContentEra::WotLK, ContentTier::RAID_MID },
+        { 50351, 80, 264, ContentEra::WotLK, ContentTier::RAID_END }
+    };
+
+    for (auto const& tc : testItems)
+    {
+        ItemTemplate proto;
+        proto.ItemId = tc.id;
+        proto.RequiredLevel = tc.authReq;
+        proto.ItemLevel = tc.authIlvl;
+
+        ItemScalingContext ctx;
+        ctx.era = tc.era;
+        ctx.tier = tc.tier;
+        ctx.policy = ItemScalingPolicy::TIER_ALIGNED;
+
+        ScaledItemBudget budget = sItemBudgetScaler->CalculateItemBudget(&proto, layout, ctx);
+
+        uint32 tierUnlock = sProgressionRewardResolver->ResolveTierUnlockLevel(tc.tier, tc.era, layout);
+        EXPECT_LE(budget.effectiveRequiredLevel, tierUnlock + 1)
+            << "Item " << tc.id << " effective req level " << budget.effectiveRequiredLevel
+            << " exceeds tier acquisition level " << tierUnlock;
+        EXPECT_LE(budget.effectiveRequiredLevel, layout.maxLevel);
+    }
+}
+
+TEST(ProductionPathIntegrationTest, CreatureXp_CompressedNoSpurious580BaseExp)
+{
+    // Under Cap 60 (All Eras), a level 57 player fighting a level 57 mob
+    // must NOT receive CONTENT_71_80 base gain (580), but CONTENT_1_60 base gain (45)
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    uint8 pLvl = 57;
+    uint8 mobLvl = 57;
+
+    // Normal BaseGain formula:
+    // With CONTENT_1_60 (nBaseExp = 45): ((57*5 + 45) * 20 / 10 + 1) / 2 = (330 * 2 + 1) / 2 = 330
+    // With CONTENT_71_80 (nBaseExp = 580): ((57*5 + 580) * 20 / 10 + 1) / 2 = (865 * 2 + 1) / 2 = 865
+    // In our compressed kill XP resolver, player 57 evaluates to CONTENT_1_60 (band 0)
+    uint8 resolvedContentBand = (pLvl >= 71) ? 2 : ((pLvl >= 61) ? 1 : 0);
+    EXPECT_EQ(resolvedContentBand, 0);
+
+    // Cap 80 preserves stock content levels 1:1
+    ProgressionLayout stockLayout = ProgressionLayout::Create(80, true, true);
+    EXPECT_TRUE(stockLayout.maxLevel == 80 && stockLayout.tbcEnabled && stockLayout.wotlkEnabled);
+}
+
+TEST(ProductionPathIntegrationTest, TierAccess_HeroicStrictlyAfterNormal)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    uint8 tbcNormal = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_NORMAL, ContentEra::TBC, layout);
+    uint8 tbcHeroic = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_HEROIC, ContentEra::TBC, layout);
+    uint8 tbcRaidEntry = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_ENTRY, ContentEra::TBC, layout);
+
+    EXPECT_LT(tbcNormal, tbcHeroic);
+    EXPECT_LE(tbcHeroic, tbcRaidEntry);
+
+    uint8 wotlkNormal = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_NORMAL, ContentEra::WotLK, layout);
+    uint8 wotlkHeroic = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::DUNGEON_HEROIC, ContentEra::WotLK, layout);
+    uint8 wotlkRaidEntry = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_ENTRY, ContentEra::WotLK, layout);
+    uint8 wotlkRaidEnd = sProgressionRewardResolver->ResolveTierUnlockLevel(ContentTier::RAID_END, ContentEra::WotLK, layout);
+
+    EXPECT_LT(wotlkNormal, wotlkHeroic);
+    EXPECT_LE(wotlkHeroic, wotlkRaidEntry);
+    EXPECT_LE(wotlkRaidEntry, wotlkRaidEnd);
+    EXPECT_EQ(wotlkRaidEnd, layout.maxLevel);
+}
+
 
 

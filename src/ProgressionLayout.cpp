@@ -68,12 +68,23 @@ ProgressionLayout ProgressionLayout::Create(uint8 maxLevel, bool tbcEnabled, boo
     // 4. Classic + TBC + WotLK
     else
     {
-        uint8 const effectiveClassicEnd = std::min(classicEnd, maxLevel);
-        uint8 const effectiveTbcEnd     = std::clamp<uint8>(tbcEnd, effectiveClassicEnd, maxLevel);
+        if (maxLevel == 80 && customClassicEnd == 0 && customTbcEnd == 0)
+        {
+            // Authentic Blizzard Stock Identity:
+            // Classic: 1..60, TBC: 58..70, WotLK: 68..80
+            layout.classic = LevelRange(1, 60);
+            layout.tbc     = LevelRange(58, 70);
+            layout.wotlk   = LevelRange(68, 80);
+        }
+        else
+        {
+            uint8 const effectiveClassicEnd = std::min(classicEnd, maxLevel);
+            uint8 const effectiveTbcEnd     = std::clamp<uint8>(tbcEnd, effectiveClassicEnd, maxLevel);
 
-        layout.classic = LevelRange(1, effectiveClassicEnd);
-        layout.tbc     = LevelRange(effectiveClassicEnd, effectiveTbcEnd);
-        layout.wotlk   = LevelRange(effectiveTbcEnd, maxLevel);
+            layout.classic = LevelRange(1, effectiveClassicEnd);
+            layout.tbc     = LevelRange(effectiveClassicEnd, effectiveTbcEnd);
+            layout.wotlk   = LevelRange(effectiveTbcEnd, maxLevel);
+        }
     }
 
     return layout;
@@ -93,6 +104,11 @@ bool ProgressionLayout::Validate(std::string& outError) const
         return false;
     }
 
+    bool const isStockCap80Identity = (maxLevel == 80 && tbcEnabled && wotlkEnabled &&
+                                       classic.maxLevel == 60 &&
+                                       tbc.has_value() && tbc->minLevel == 58 && tbc->maxLevel == 70 &&
+                                       wotlk.has_value() && wotlk->minLevel == 68 && wotlk->maxLevel == 80);
+
     if (tbc.has_value())
     {
         if (!tbc->IsValid())
@@ -100,7 +116,7 @@ bool ProgressionLayout::Validate(std::string& outError) const
             outError = "TBC range is invalid";
             return false;
         }
-        if (tbc->minLevel != classic.maxLevel)
+        if (!isStockCap80Identity && tbc->minLevel != classic.maxLevel)
         {
             outError = "TBC does not seamlessly continue Classic boundary";
             return false;
@@ -115,7 +131,7 @@ bool ProgressionLayout::Validate(std::string& outError) const
             return false;
         }
         uint8 const expectedWotlkStart = tbc.has_value() ? tbc->maxLevel : classic.maxLevel;
-        if (wotlk->minLevel != expectedWotlkStart)
+        if (!isStockCap80Identity && wotlk->minLevel != expectedWotlkStart)
         {
             outError = "WotLK does not seamlessly continue preceding era boundary";
             return false;

@@ -10,6 +10,7 @@
 #include "ItemTemplate.h"
 #include "Log.h"
 #include "ObjectMgr.h"
+#include "ProgressionRewardResolver.h"
 #include <algorithm>
 #include <cmath>
 
@@ -183,24 +184,13 @@ ScaledItemBudget ItemBudgetScaler::CalculateItemBudget(ItemTemplate const* proto
     // 1. Required level scaling
     if (proto->RequiredLevel > 0)
     {
-        switch (ctx.era)
+        uint32 expectedContentLevel = 0;
+        if (ctx.tier != ContentTier::WORLD)
         {
-            case ContentEra::Classic:
-                budget.effectiveRequiredLevel = layout.MapAuthoredToEffective(
-                    ContentEra::Classic, proto->RequiredLevel, 1, 60);
-                break;
-            case ContentEra::TBC:
-                budget.effectiveRequiredLevel = layout.MapAuthoredToEffective(
-                    ContentEra::TBC, proto->RequiredLevel, 58, 70);
-                break;
-            case ContentEra::WotLK:
-                budget.effectiveRequiredLevel = layout.MapAuthoredToEffective(
-                    ContentEra::WotLK, proto->RequiredLevel, 68, 80);
-                break;
-            default:
-                budget.effectiveRequiredLevel = std::min<uint32>(proto->RequiredLevel, layout.maxLevel);
-                break;
+            expectedContentLevel = sProgressionRewardResolver->ResolveTierUnlockLevel(ctx.tier, ctx.era, layout);
         }
+        budget.effectiveRequiredLevel = sProgressionRewardResolver->ResolveItemRequiredLevel(
+            proto->RequiredLevel, ctx.era, expectedContentLevel, layout);
     }
 
     budget.effectiveRequiredLevel = std::min<uint32>(budget.effectiveRequiredLevel, layout.maxLevel);
