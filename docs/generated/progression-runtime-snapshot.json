@@ -912,60 +912,60 @@
       "id": 6,
       "title": "Bounty on Garrick Padfoot",
       "authoredLevel": 5,
-      "authoredXP": 450,
+      "authoredXP": 675,
       "effectiveLevel": 4,
-      "calibratedXP": 330,
-      "atCapMoneyCopper": 1980,
+      "calibratedXP": 495,
+      "atCapMoneyCopper": 2970,
       "era": "Classic"
     },
     {
       "id": 10,
       "title": "The Scrimshank Redemption",
       "authoredLevel": 48,
-      "authoredXP": 4950,
+      "authoredXP": 12600,
       "effectiveLevel": 36,
-      "calibratedXP": 4080,
-      "atCapMoneyCopper": 24480,
+      "calibratedXP": 10384,
+      "atCapMoneyCopper": 62304,
       "era": "Classic"
     },
     {
       "id": 236,
       "title": "Fueling the Demolishers",
       "authoredLevel": 80,
-      "authoredXP": 22050,
+      "authoredXP": 44100,
       "effectiveLevel": 60,
-      "calibratedXP": 19018,
-      "atCapMoneyCopper": 114108,
+      "calibratedXP": 38036,
+      "atCapMoneyCopper": 228216,
       "era": "WotLK"
     },
     {
       "id": 10129,
       "title": "Mission: Gateways Murketh and Shaadraz",
       "authoredLevel": 62,
-      "authoredXP": 10750,
+      "authoredXP": 25200,
       "effectiveLevel": 48,
-      "calibratedXP": 8115,
-      "atCapMoneyCopper": 48690,
+      "calibratedXP": 19022,
+      "atCapMoneyCopper": 114132,
       "era": "TBC"
     },
     {
       "id": 10742,
       "title": "Showdown",
       "authoredLevel": 70,
-      "authoredXP": 15800,
+      "authoredXP": 38000,
       "effectiveLevel": 55,
-      "calibratedXP": 14276,
-      "atCapMoneyCopper": 85656,
+      "calibratedXP": 34336,
+      "atCapMoneyCopper": 206016,
       "era": "TBC"
     },
     {
       "id": 12671,
       "title": "Reconnaissance Flight",
       "authoredLevel": 77,
-      "authoredXP": 21400,
+      "authoredXP": 42800,
       "effectiveLevel": 59,
-      "calibratedXP": 18037,
-      "atCapMoneyCopper": 108222,
+      "calibratedXP": 36074,
+      "atCapMoneyCopper": 216444,
       "era": "WotLK"
     }
   ],
@@ -975,7 +975,7 @@
       "difficulty": 0,
       "name": "Deadmines",
       "era": "Classic",
-      "tier": "",
+      "tier": "DUNGEON_NORMAL",
       "authoredMin": 10,
       "effectiveAccessMin": 8,
       "tierUnlockGate": 1
@@ -985,7 +985,7 @@
       "difficulty": 0,
       "name": "Stratholme",
       "era": "Classic",
-      "tier": "",
+      "tier": "DUNGEON_NORMAL",
       "authoredMin": 45,
       "effectiveAccessMin": 34,
       "tierUnlockGate": 1
@@ -995,7 +995,7 @@
       "difficulty": 0,
       "name": "Molten Core",
       "era": "Classic",
-      "tier": "",
+      "tier": "RAID_MID",
       "authoredMin": 50,
       "effectiveAccessMin": 38,
       "tierUnlockGate": 38
@@ -1005,7 +1005,7 @@
       "difficulty": 0,
       "name": "Blackwing Lair",
       "era": "Classic",
-      "tier": "",
+      "tier": "RAID_END",
       "authoredMin": 60,
       "effectiveAccessMin": 41,
       "tierUnlockGate": 41
@@ -1015,7 +1015,7 @@
       "difficulty": 0,
       "name": "Ahn'Qiraj Temple",
       "era": "Classic",
-      "tier": "",
+      "tier": "RAID_PINNACLE",
       "authoredMin": 50,
       "effectiveAccessMin": 45,
       "tierUnlockGate": 45
@@ -1025,7 +1025,7 @@
       "difficulty": 0,
       "name": "Hellfire Citadel: Ramparts",
       "era": "TBC",
-      "tier": "",
+      "tier": "DUNGEON_NORMAL",
       "authoredMin": 55,
       "effectiveAccessMin": 45,
       "tierUnlockGate": 45
@@ -1035,7 +1035,7 @@
       "difficulty": 1,
       "name": "Hellfire Citadel: Ramparts (Heroic)",
       "era": "TBC",
-      "tier": "",
+      "tier": "DUNGEON_HEROIC",
       "authoredMin": 70,
       "effectiveAccessMin": 52,
       "tierUnlockGate": 52
@@ -1045,7 +1045,7 @@
       "difficulty": 0,
       "name": "Karazhan",
       "era": "TBC",
-      "tier": "",
+      "tier": "RAID_ENTRY",
       "authoredMin": 68,
       "effectiveAccessMin": 53,
       "tierUnlockGate": 53
@@ -1055,7 +1055,7 @@
       "difficulty": 0,
       "name": "Black Temple",
       "era": "TBC",
-      "tier": "",
+      "tier": "RAID_END",
       "authoredMin": 70,
       "effectiveAccessMin": 54,
       "tierUnlockGate": 54
@@ -1065,7 +1065,7 @@
       "difficulty": 0,
       "name": "Utgarde Keep",
       "era": "WotLK",
-      "tier": "",
+      "tier": "DUNGEON_NORMAL",
       "authoredMin": 65,
       "effectiveAccessMin": 55,
       "tierUnlockGate": 55
@@ -1075,7 +1075,7 @@
       "difficulty": 1,
       "name": "Utgarde Keep (Heroic)",
       "era": "WotLK",
-      "tier": "",
+      "tier": "DUNGEON_HEROIC",
       "authoredMin": 80,
       "effectiveAccessMin": 57,
       "tierUnlockGate": 57
@@ -1085,7 +1085,7 @@
       "difficulty": 0,
       "name": "Naxxramas",
       "era": "WotLK",
-      "tier": "",
+      "tier": "RAID_ENTRY",
       "authoredMin": 80,
       "effectiveAccessMin": 57,
       "tierUnlockGate": 57
@@ -1095,7 +1095,7 @@
       "difficulty": 1,
       "name": "Naxxramas (25)",
       "era": "WotLK",
-      "tier": "",
+      "tier": "RAID_ENTRY",
       "authoredMin": 80,
       "effectiveAccessMin": 57,
       "tierUnlockGate": 57
@@ -1105,7 +1105,7 @@
       "difficulty": 0,
       "name": "Ulduar",
       "era": "WotLK",
-      "tier": "",
+      "tier": "RAID_MID",
       "authoredMin": 80,
       "effectiveAccessMin": 58,
       "tierUnlockGate": 58
@@ -1115,7 +1115,7 @@
       "difficulty": 1,
       "name": "Ulduar (25)",
       "era": "WotLK",
-      "tier": "",
+      "tier": "RAID_MID",
       "authoredMin": 80,
       "effectiveAccessMin": 58,
       "tierUnlockGate": 58
@@ -1125,7 +1125,7 @@
       "difficulty": 0,
       "name": "Icecrown Citadel",
       "era": "WotLK",
-      "tier": "",
+      "tier": "RAID_PINNACLE",
       "authoredMin": 80,
       "effectiveAccessMin": 60,
       "tierUnlockGate": 60
@@ -1135,7 +1135,7 @@
       "difficulty": 1,
       "name": "Icecrown Citadel (25)",
       "era": "WotLK",
-      "tier": "",
+      "tier": "RAID_PINNACLE",
       "authoredMin": 80,
       "effectiveAccessMin": 60,
       "tierUnlockGate": 60

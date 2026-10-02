@@ -2309,6 +2309,38 @@ namespace
         return "UNKNOWN";
     }
 
+    uint32 GetDbcQuestXP(uint32 questLevel, uint32 diffIdx)
+    {
+        struct LevelExpRecord { uint32 level; uint32 exp[10]; };
+        static LevelExpRecord const sSampleLevelExp[] = {
+            { 5,  { 0, 45, 110, 225, 335, 450, 560, 670, 900, 1080 } },
+            { 48, { 0, 625, 1570, 3100, 4700, 6290, 7850, 9400, 12580, 15096 } },
+            { 62, { 0, 1000, 2550, 5000, 7600, 10050, 12600, 15050, 20100, 24120 } },
+            { 70, { 0, 1250, 3150, 6250, 9500, 12650, 15800, 19000, 25300, 30360 } },
+            { 77, { 0, 2150, 5350, 10700, 16050, 21400, 26750, 32100, 42800, 51360 } },
+            { 80, { 0, 2200, 5500, 11050, 16550, 22050, 27550, 33100, 44100, 52920 } }
+        };
+
+        if (diffIdx >= 10)
+            return 0;
+
+        for (auto const& rec : sSampleLevelExp)
+        {
+            if (rec.level == questLevel)
+            {
+                uint32 const rawXp = 20 * rec.exp[diffIdx] / 10;
+                if (rawXp <= 100)
+                    return 5 * ((rawXp + 2) / 5);
+                if (rawXp <= 500)
+                    return 10 * ((rawXp + 5) / 10);
+                if (rawXp <= 1000)
+                    return 25 * ((rawXp + 12) / 25);
+                return 50 * ((rawXp + 25) / 50);
+            }
+        }
+        return 0;
+    }
+
     std::string GenerateProgressionRuntimeSnapshotJson()
     {
         std::ostringstream ss;
@@ -2403,31 +2435,42 @@ namespace
         }
         ss << "  },\n";
 
-        // Sample Quests in Cap 60 all eras
+        // Sample Quests in Cap 60 all eras derived strictly from GeneratedQuestProfile and DBC XP
         ProgressionLayout lay60 = ProgressionLayout::Create(60, true, true);
         ss << "  \"sampleQuests\": [\n";
-        struct QuestSpec { uint32 id; char const* title; uint8 authLvl; uint32 authXP; ContentEra era; };
-        QuestSpec const qspecs[] = {
-            { 6, "Bounty on Garrick Padfoot", 5, 450, ContentEra::Classic },
-            { 10, "The Scrimshank Redemption", 48, 4950, ContentEra::Classic },
-            { 236, "Fueling the Demolishers", 80, 22050, ContentEra::WotLK },
-            { 10129, "Mission: Gateways Murketh and Shaadraz", 62, 10750, ContentEra::TBC },
-            { 10742, "Showdown", 70, 15800, ContentEra::TBC },
-            { 12671, "Reconnaissance Flight", 77, 21400, ContentEra::WotLK }
+        struct SampleQuestSpec
+        {
+            uint32 id;
+            char const* title;
+            uint32 rewardXpDifficulty;
         };
+        SampleQuestSpec const qspecs[] = {
+            { 6, "Bounty on Garrick Padfoot", 4 },
+            { 10, "The Scrimshank Redemption", 5 },
+            { 236, "Fueling the Demolishers", 5 },
+            { 10129, "Mission: Gateways Murketh and Shaadraz", 6 },
+            { 10742, "Showdown", 7 },
+            { 12671, "Reconnaissance Flight", 5 }
+        };
+
         for (size_t q = 0; q < 6; ++q)
         {
             auto const& qs = qspecs[q];
-            uint8 effLvl = lay60.MapAuthoredToEffective(qs.era, qs.authLvl);
-            uint32 calibXP = sProgressionRewardResolver->ResolveQuestXP(qs.authXP, qs.authLvl, effLvl, lay60, qs.era);
-            int32 atCapMoney = sProgressionRewardResolver->ResolveMoneyAtCap(calibXP, 1.0f);
-            char const* eraName = (qs.era == ContentEra::Classic) ? "Classic" : ((qs.era == ContentEra::TBC) ? "TBC" : "WotLK");
+            auto const* prof = FindGeneratedQuestProfile(qs.id);
+            uint8 const authLvl = (prof && prof->authoredLevel > 0) ? static_cast<uint8>(prof->authoredLevel) : 1;
+            ContentEra const era = prof ? prof->era : ContentEra::Classic;
+            uint32 const authXP = GetDbcQuestXP(authLvl, qs.rewardXpDifficulty);
+
+            uint8 const effLvl = lay60.MapAuthoredToEffective(era, authLvl);
+            uint32 const calibXP = sProgressionRewardResolver->ResolveQuestXP(authXP, authLvl, effLvl, lay60, era);
+            int32 const atCapMoney = sProgressionRewardResolver->ResolveMoneyAtCap(calibXP, 1.0f);
+            char const* eraName = (era == ContentEra::Classic) ? "Classic" : ((era == ContentEra::TBC) ? "TBC" : "WotLK");
 
             ss << "    {\n";
             ss << "      \"id\": " << qs.id << ",\n";
             ss << "      \"title\": \"" << qs.title << "\",\n";
-            ss << "      \"authoredLevel\": " << uint32(qs.authLvl) << ",\n";
-            ss << "      \"authoredXP\": " << qs.authXP << ",\n";
+            ss << "      \"authoredLevel\": " << uint32(authLvl) << ",\n";
+            ss << "      \"authoredXP\": " << authXP << ",\n";
             ss << "      \"effectiveLevel\": " << uint32(effLvl) << ",\n";
             ss << "      \"calibratedXP\": " << calibXP << ",\n";
             ss << "      \"atCapMoneyCopper\": " << atCapMoney << ",\n";
@@ -2436,43 +2479,56 @@ namespace
         }
         ss << "  ],\n";
 
-        // Sample Instances in Cap 60 all eras
+        // Sample Instances in Cap 60 all eras derived strictly from GeneratedInstanceProfile and GeneratedAccessProfile
         ss << "  \"sampleInstances\": [\n";
-        struct InstSpec { uint32 mapId; uint8 difficulty; char const* name; ContentEra era; ContentTier tier; uint8 authMin; };
-        InstSpec const ispecs[] = {
-            { 36, 0, "Deadmines", ContentEra::Classic, ContentTier::DUNGEON_NORMAL, 10 },
-            { 329, 0, "Stratholme", ContentEra::Classic, ContentTier::DUNGEON_NORMAL, 45 },
-            { 409, 0, "Molten Core", ContentEra::Classic, ContentTier::RAID_MID, 50 },
-            { 469, 0, "Blackwing Lair", ContentEra::Classic, ContentTier::RAID_END, 60 },
-            { 531, 0, "Ahn'Qiraj Temple", ContentEra::Classic, ContentTier::RAID_PINNACLE, 50 },
-            { 543, 0, "Hellfire Citadel: Ramparts", ContentEra::TBC, ContentTier::DUNGEON_NORMAL, 55 },
-            { 543, 1, "Hellfire Citadel: Ramparts (Heroic)", ContentEra::TBC, ContentTier::DUNGEON_HEROIC, 70 },
-            { 532, 0, "Karazhan", ContentEra::TBC, ContentTier::RAID_ENTRY, 68 },
-            { 564, 0, "Black Temple", ContentEra::TBC, ContentTier::RAID_END, 70 },
-            { 574, 0, "Utgarde Keep", ContentEra::WotLK, ContentTier::DUNGEON_NORMAL, 65 },
-            { 574, 1, "Utgarde Keep (Heroic)", ContentEra::WotLK, ContentTier::DUNGEON_HEROIC, 80 },
-            { 533, 0, "Naxxramas", ContentEra::WotLK, ContentTier::RAID_ENTRY, 80 },
-            { 533, 1, "Naxxramas (25)", ContentEra::WotLK, ContentTier::RAID_ENTRY, 80 },
-            { 603, 0, "Ulduar", ContentEra::WotLK, ContentTier::RAID_MID, 80 },
-            { 603, 1, "Ulduar (25)", ContentEra::WotLK, ContentTier::RAID_MID, 80 },
-            { 631, 0, "Icecrown Citadel", ContentEra::WotLK, ContentTier::RAID_PINNACLE, 80 },
-            { 631, 1, "Icecrown Citadel (25)", ContentEra::WotLK, ContentTier::RAID_PINNACLE, 80 }
+        struct SampleInstTarget
+        {
+            uint32 mapId;
+            uint8 difficulty;
         };
+        SampleInstTarget const itargets[] = {
+            { 36, 0 },   // Deadmines
+            { 329, 0 },  // Stratholme
+            { 409, 0 },  // Molten Core
+            { 469, 0 },  // Blackwing Lair
+            { 531, 0 },  // Ahn'Qiraj Temple
+            { 543, 0 },  // Hellfire Citadel: Ramparts (Normal)
+            { 543, 1 },  // Hellfire Citadel: Ramparts (Heroic)
+            { 532, 0 },  // Karazhan
+            { 564, 0 },  // Black Temple
+            { 574, 0 },  // Utgarde Keep (Normal)
+            { 574, 1 },  // Utgarde Keep (Heroic)
+            { 533, 0 },  // Naxxramas (10)
+            { 533, 1 },  // Naxxramas (25)
+            { 603, 0 },  // Ulduar (10)
+            { 603, 1 },  // Ulduar (25)
+            { 631, 0 },  // Icecrown Citadel (10)
+            { 631, 1 }   // Icecrown Citadel (25)
+        };
+
         for (size_t s = 0; s < 17; ++s)
         {
-            auto const& is = ispecs[s];
-            uint8 effAccess = sProgressionRewardResolver->ResolveEffectiveAccessMin(is.era, is.tier, is.authMin, lay60);
-            uint8 tierGate = sProgressionRewardResolver->ResolveTierUnlockLevel(is.tier, is.era, lay60);
-            char const* eraName = (is.era == ContentEra::Classic) ? "Classic" : ((is.era == ContentEra::TBC) ? "TBC" : "WotLK");
-            char const* tierName = TierToString(is.tier).c_str();
+            auto const& target = itargets[s];
+            auto const* instProf = FindGeneratedInstanceProfile(target.mapId, target.difficulty, true);
+            auto const* accProf = FindGeneratedAccessProfile(target.mapId, target.difficulty, true);
+
+            char const* name = instProf ? instProf->name : "Unknown Instance";
+            ContentEra const era = instProf ? instProf->era : (accProf ? accProf->era : ContentEra::Classic);
+            ContentTier const tier = instProf ? instProf->tier : ContentTier::WORLD;
+            uint8 const authMin = accProf ? accProf->authoredMin : 1;
+
+            uint8 const effAccess = sProgressionRewardResolver->ResolveEffectiveAccessMin(era, tier, authMin, lay60);
+            uint8 const tierGate = sProgressionRewardResolver->ResolveTierUnlockLevel(tier, era, lay60);
+            char const* eraName = (era == ContentEra::Classic) ? "Classic" : ((era == ContentEra::TBC) ? "TBC" : "WotLK");
+            std::string const tierName = std::string(ContentTierToString(tier));
 
             ss << "    {\n";
-            ss << "      \"mapId\": " << is.mapId << ",\n";
-            ss << "      \"difficulty\": " << uint32(is.difficulty) << ",\n";
-            ss << "      \"name\": \"" << is.name << "\",\n";
+            ss << "      \"mapId\": " << target.mapId << ",\n";
+            ss << "      \"difficulty\": " << uint32(target.difficulty) << ",\n";
+            ss << "      \"name\": \"" << name << "\",\n";
             ss << "      \"era\": \"" << eraName << "\",\n";
             ss << "      \"tier\": \"" << tierName << "\",\n";
-            ss << "      \"authoredMin\": " << uint32(is.authMin) << ",\n";
+            ss << "      \"authoredMin\": " << uint32(authMin) << ",\n";
             ss << "      \"effectiveAccessMin\": " << uint32(effAccess) << ",\n";
             ss << "      \"tierUnlockGate\": " << uint32(tierGate) << "\n";
             ss << "    }" << (s + 1 < 17 ? ",\n" : "\n");
@@ -2489,11 +2545,25 @@ TEST(ProgressionRuntimeSnapshotTest, MatchesCommittedSnapshot)
     std::string const generatedJson = GenerateProgressionRuntimeSnapshotJson();
     ASSERT_FALSE(generatedJson.empty());
 
+    // Sanity assertions on generated snapshot structure
+    EXPECT_NE(generatedJson.find("\"sampleQuests\": ["), std::string::npos);
+    EXPECT_NE(generatedJson.find("\"sampleInstances\": ["), std::string::npos);
+    EXPECT_NE(generatedJson.find("\"tier\": \"DUNGEON_NORMAL\""), std::string::npos);
+    EXPECT_NE(generatedJson.find("\"tier\": \"DUNGEON_HEROIC\""), std::string::npos);
+    EXPECT_NE(generatedJson.find("\"tier\": \"RAID_PINNACLE\""), std::string::npos);
+    EXPECT_EQ(generatedJson.find("\"tier\": \"\""), std::string::npos);
+
     std::vector<std::string> candidatePaths = {
         "modules/mod-coa-content-scaling/docs/generated/progression-runtime-snapshot.json",
-        "docs/generated/progression-runtime-snapshot.json",
-        "C:/games/source/mod-coa-content-scaling/docs/generated/progression-runtime-snapshot.json"
+        "docs/generated/progression-runtime-snapshot.json"
     };
+
+    char const* envRoot = std::getenv("COA_REPO_ROOT");
+    if (envRoot && *envRoot)
+    {
+        std::string custom = std::string(envRoot) + "/docs/generated/progression-runtime-snapshot.json";
+        candidatePaths.insert(candidatePaths.begin(), custom);
+    }
 
     std::string existingContent;
     std::string foundPath;
@@ -2511,7 +2581,7 @@ TEST(ProgressionRuntimeSnapshotTest, MatchesCommittedSnapshot)
         }
     }
 
-    bool updateRequested = (std::getenv("UPDATE_PROGRESSION_SNAPSHOT") != nullptr) || existingContent.empty();
+    bool const updateRequested = (std::getenv("UPDATE_PROGRESSION_SNAPSHOT") != nullptr);
     if (updateRequested)
     {
         for (auto const& p : candidatePaths)
@@ -2522,8 +2592,13 @@ TEST(ProgressionRuntimeSnapshotTest, MatchesCommittedSnapshot)
                 out << generatedJson;
             }
         }
-        if (existingContent.empty())
-            existingContent = generatedJson;
+        existingContent = generatedJson;
+    }
+    else
+    {
+        ASSERT_FALSE(foundPath.empty())
+            << "Progression runtime snapshot file not found in any candidate path! "
+            << "Run with UPDATE_PROGRESSION_SNAPSHOT=1 to generate.";
     }
 
     EXPECT_EQ(existingContent, generatedJson)

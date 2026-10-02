@@ -38,10 +38,11 @@ def run_query(cmd_base, sql):
     # Drop header line
     return [line.split("\t") for line in lines[1:] if line.strip()]
 
-def resolve_era(quest_level):
-    if quest_level >= 68:
+def resolve_era(qlvl, qmin=0):
+    lvl = qlvl if qlvl > 0 else qmin
+    if lvl >= 68:
         return "WotLK"
-    elif quest_level >= 58:
+    elif lvl >= 58:
         return "TBC"
     return "Classic"
 
@@ -53,6 +54,93 @@ def load_snapshot(repo_root):
         data = json.load(f)
     sha256 = compute_sha256(snap_path)
     return data, sha256
+
+def classify_chain_link(q1_id, q1_lvl, q1_min, q2_id, q2_lvl, q2_min, link_type, layout_mappings, active_eras={'Classic', 'TBC', 'WotLK'}, max_cap=60):
+    """
+    Testable classification helper evaluating chain link progression between two quests.
+    Distinguishes Predecessor and Successor based on link_type semantics:
+    - For NextQuest / Breadcrumb: Q1 is predecessor, Q2 is successor.
+    - For PrevQuest: Q2 is predecessor, Q1 is successor.
+    """
+    if link_type in ('NextQuest', 'Breadcrumb'):
+        pred_id, pred_lvl, pred_min = q1_id, q1_lvl, q1_min
+        succ_id, succ_lvl, succ_min = q2_id, q2_lvl, q2_min
+    else:
+        pred_id, pred_lvl, pred_min = q2_id, q2_lvl, q2_min
+        succ_id, succ_lvl, succ_min = q1_id, q1_lvl, q1_min
+
+    era_pred = resolve_era(pred_lvl, pred_min)
+    era_succ = resolve_era(succ_lvl, succ_min)
+
+    # Rule 1: Target era disabled in simulated layout
+    if era_succ not in active_eras:
+        return 'CONFLICT', f'Target era {era_succ} disabled in active layout'
+
+    def get_eff(auth, era):
+        if auth <= 0:
+            return None
+        m = layout_mappings.get(era, {})
+        if str(auth) in m:
+            return m[str(auth)]
+        # Fallback linear interpolation within era boundaries if exact authored level not present
+        if era == 'Classic':
+            if auth < 1: return 1
+            if auth >= 60: return 45
+            return int(round(1.0 + (auth - 1.0) / 59.0 * 44.0))
+        elif era == 'TBC':
+            if auth <= 58: return 45
+            if auth >= 70: return 55
+            return int(round(45.0 + (auth - 58.0) / 12.0 * 10.0))
+        elif era == 'WotLK':
+            if auth <= 68: return 55
+            if auth >= 80: return 60
+            return int(round(55.0 + (auth - 68.0) / 12.0 * 5.0))
+        return auth
+
+    eff_pred = get_eff(pred_lvl, era_pred)
+    eff_pred_min = get_eff(pred_min, era_pred) if pred_min > 0 else 1
+    eff_succ = get_eff(succ_lvl, era_succ)
+    eff_succ_min = get_eff(succ_min, era_succ) if succ_min > 0 else 1
+
+    # Rule 2: Effective MinLevel of successor exceeds cap
+    if eff_succ_min is not None and eff_succ_min > max_cap:
+        return 'CONFLICT', f'Target effective min level ({eff_succ_min}) exceeds level cap ({max_cap})'
+
+    # Special internal/debug MinLevel flags (> 80)
+    if succ_min > 80:
+        return 'WARNING', f'Special/internal MinLevel flag ({succ_min})'
+
+    # Rule 3: Effective MinLevel > Effective QuestLevel when both valid static
+    if succ_lvl > 0 and (0 < succ_min <= 80) and eff_succ is not None and eff_succ_min is not None:
+        if eff_succ_min > eff_succ:
+            return 'CONFLICT', f'Target effective min level ({eff_succ_min}) exceeds quest level ({eff_succ})'
+
+    # Reachable point after predecessor
+    p_reach = max(eff_pred if eff_pred else 1, eff_pred_min)
+
+    # Rule 4: Direct chain progression gap (successor min level unreachable after predecessor)
+    if link_type == 'NextQuest' and pred_lvl > 0 and (0 < succ_min <= 80) and eff_succ_min is not None:
+        if eff_succ_min > (p_reach + 8):
+            return 'CONFLICT', f'Target effective min level ({eff_succ_min}) unreachable after predecessor (reaches {p_reach})'
+
+    # Warnings
+    if pred_lvl <= 0 or succ_lvl <= 0:
+        return 'WARNING', f'Dynamic/special quest level semantics ({pred_lvl} -> {succ_lvl})'
+
+    if succ_min > 80:
+        return 'WARNING', f'Special/internal MinLevel flag ({succ_min})'
+
+    if link_type == 'Breadcrumb' and succ_lvl < pred_lvl:
+        return 'WARNING', f'Breadcrumb level regression ({pred_lvl} -> {succ_lvl})'
+
+    if (pred_lvl - succ_lvl) > 6:
+        return 'WARNING', f'Authored level regression gap ({pred_lvl} -> {succ_lvl})'
+
+    if era_pred != era_succ:
+        if eff_succ_min is not None and eff_succ_min < (p_reach - 10):
+            return 'WARNING', f'Cross-era jump with large level gap ({era_pred} -> {era_succ})'
+
+    return 'PASS', 'Chain monotonic and reachable'
 
 def generate_reports(repo_root, cmd_base):
     output_dir = Path(repo_root) / "docs" / "generated"
@@ -138,11 +226,11 @@ def generate_reports(repo_root, cmd_base):
         f"Scanned real DB quest chains and breadcrumbs from `quest_template` and `quest_template_addon` "
         f"({len(rows)} chained links evaluated). Effective levels evaluated across Cap 60 (All Eras) layout.\n\n"
         "### Audit Classification Rules:\n"
-        "- **Rule A (Enabled Destination)**: All destination quests belong to active content packs (Classic, TBC, WotLK).\n"
-        "- **Rule B (Pickup Reachability)**: Player completing quest 1 has level sufficient to accept quest 2.\n"
-        "- **Rule C (Level Sanity)**: Effective minimum and quest levels are positive and strictly bounded by Cap 60.\n"
-        "- **Rule D (Cross-Era Progression)**: Quest handoffs across expansion boundaries (Classic \u2192 TBC, TBC \u2192 WotLK).\n"
-        "- **Rule E (Breadcrumb / Reverse Branch)**: Authored level gaps (>6 levels) flagged as non-blocking informational warnings.\n\n"
+        "- **Rule 1 (Enabled Destination)**: Target quest era must be active in layout (CONFLICT if disabled).\n"
+        "- **Rule 2 (Cap Safety)**: Effective minimum level of successor must not exceed MaxPlayerLevel (CONFLICT if > Cap).\n"
+        "- **Rule 3 (Level Sanity)**: Effective minimum level must not exceed effective quest level for static quests (CONFLICT if min > quest level).\n"
+        "- **Rule 4 (Chain Reachability)**: In direct chains (NextQuest), successor MinLevel must not require a progression gap > 8 effective levels (CONFLICT if unreachable).\n"
+        "- **Warnings**: Dynamic/special quest levels, authored level drops, and cross-era level disparities flagged as non-blocking WARNINGs.\n\n"
     )
     conflicts_md += "## 2. Sampled Real Quest Chain Audit\n\n"
     conflicts_md += "| Quest ID | Target Quest ID | Link Type | Authored Lvl (Q1 -> Q2) | Effective Lvl (Q1 -> Q2) | Era | Status | Reason |\n"
@@ -150,18 +238,20 @@ def generate_reports(repo_root, cmd_base):
 
     cap60_mappings = snapshot["layouts"]["cap60_all"]["levelMappings"]
 
-    def get_effective_level(auth_lvl, era):
-        if auth_lvl <= 0:
+    def get_eff_sample(auth, era):
+        if auth <= 0:
             return 1
-        era_map = cap60_mappings.get(era, {})
-        return era_map.get(str(auth_lvl), auth_lvl)
+        return cap60_mappings.get(era, {}).get(str(auth), auth)
 
     pass_count = 0
     warn_count = 0
     conflict_count = 0
     cross_era_count = 0
+    transitions = {"Classic->TBC": 0, "Classic->WotLK": 0, "TBC->WotLK": 0, "Other": 0}
 
     sample_rows = []
+    conflict_samples = []
+
     for r in rows:
         q1_id = int(r[0])
         q1_lvl = int(r[1])
@@ -171,39 +261,58 @@ def generate_reports(repo_root, cmd_base):
         q2_min = int(r[5])
         link_type = r[6]
 
-        era1 = resolve_era(q1_lvl)
-        era2 = resolve_era(q2_lvl)
+        era1 = resolve_era(q1_lvl, q1_min)
+        era2 = resolve_era(q2_lvl, q2_min)
         if era1 != era2:
             cross_era_count += 1
+            key = f"{era1}->{era2}"
+            if key in transitions:
+                transitions[key] += 1
+            else:
+                transitions["Other"] += 1
 
-        eff1 = get_effective_level(q1_lvl, era1)
-        eff2 = get_effective_level(q2_lvl, era2)
+        status, reason = classify_chain_link(
+            q1_id, q1_lvl, q1_min, q2_id, q2_lvl, q2_min, link_type, cap60_mappings, max_cap=60
+        )
 
-        # Rule check
-        if q1_lvl > 0 and q2_lvl > 0 and (q1_lvl - q2_lvl) > 6:
-            status = "WARNING"
-            reason = f"Authored level regression gap ({q1_lvl} -> {q2_lvl})"
-            warn_count += 1
-        else:
-            status = "PASS"
-            reason = "Chain monotonic and reachable"
+        if status == "PASS":
             pass_count += 1
+        elif status == "WARNING":
+            warn_count += 1
+        elif status == "CONFLICT":
+            conflict_count += 1
+            if len(conflict_samples) < 10:
+                eff1 = get_eff_sample(q1_lvl, era1)
+                eff2 = get_eff_sample(q2_lvl, era2)
+                conflict_samples.append((q1_id, q2_id, link_type, f"{q1_lvl} -> {q2_lvl}", f"{eff1} -> {eff2}", era1, status, reason))
 
         if len(sample_rows) < 25:
+            eff1 = get_eff_sample(q1_lvl, era1)
+            eff2 = get_eff_sample(q2_lvl, era2)
             sample_rows.append((q1_id, q2_id, link_type, f"{q1_lvl} -> {q2_lvl}", f"{eff1} -> {eff2}", era1, status, reason))
 
     for item in sample_rows:
         conflicts_md += f"| {item[0]} | {item[1]} | {item[2]} | {item[3]} | {item[4]} | {item[5]} | {item[6]} | {item[7]} |\n"
 
+    total = len(rows)
+    reachability_pct = ((total - conflict_count) / total * 100.0) if total > 0 else 100.0
+
     conflicts_md += (
         f"\n## 3. Audit Verification Summary\n\n"
-        f"- **Total Chain Links Evaluated**: {len(rows)}\n"
+        f"- **Total Chain Links Evaluated**: {total}\n"
         f"- **PASS (Fully Reachable)**: {pass_count}\n"
-        f"- **WARNING (Catch-up / Reverse Gap)**: {warn_count}\n"
-        f"- **CONFLICT (Blocking progression gap)**: {conflict_count}\n"
-        f"- **Cross-Era Chain Links**: {cross_era_count}\n"
-        f"- **Reachability Rate**: 100.0% (0 blocking conflicts)\n"
+        f"- **WARNING (Catch-up / Reverse Gap / Dynamic)**: {warn_count}\n"
+        f"- **CONFLICT (Blocking progression gap / Invalid constraint)**: {conflict_count}\n"
+        f"- **Cross-Era Chain Links**: {cross_era_count} (Classic\u2192TBC: {transitions['Classic->TBC']}, Classic\u2192WotLK: {transitions['Classic->WotLK']}, TBC\u2192WotLK: {transitions['TBC->WotLK']}, Other/Reverse: {transitions['Other']})\n"
+        f"- **Calculated Reachability Rate**: {reachability_pct:.2f}%\n"
     )
+
+    if conflict_samples:
+        conflicts_md += "\n### Sample Identified Progression Conflicts\n\n"
+        conflicts_md += "| Quest ID | Target Quest ID | Link Type | Authored Lvl (Q1 -> Q2) | Effective Lvl (Q1 -> Q2) | Era | Status | Reason |\n"
+        conflicts_md += "|---|---|---|---|---|---|---|---|\n"
+        for item in conflict_samples:
+            conflicts_md += f"| {item[0]} | {item[1]} | {item[2]} | {item[3]} | {item[4]} | {item[5]} | {item[6]} | {item[7]} |\n"
 
     with open(output_dir / "quest-progression-conflicts.md", "w", encoding="utf-8") as f:
         f.write(conflicts_md)
@@ -214,8 +323,8 @@ def generate_reports(repo_root, cmd_base):
     budget_md = header + "# Progression Reward Budget Report\n\n"
     budget_md += "## 1. Executive Summary\n\n"
     budget_md += "Authoritative XP calibration, gold conversion limits, and item requirement scaling across progression layouts derived directly from C++ runtime snapshot.\n\n"
-    budget_md += "## 2. Real Quests Runtime-Equivalent XP & Max-Level Money Conversion\n\n"
-    budget_md += "| Quest ID | Quest Title | Authored Level | Authored XP (Approx) | Cap 60 Effective Level | Runtime-Equivalent XP | At-Cap Gold (Safe Guard) |\n"
+    budget_md += "## 2. Real Quests Core-Equivalent XP & Max-Level Money Conversion\n\n"
+    budget_md += "| Quest ID | Quest Title | Authored Level | Authored XP (DBC) | Cap 60 Effective Level | Core-Equivalent XP | At-Cap Gold (Safe Guard) |\n"
     budget_md += "|---|---|---|---|---|---|---|\n"
 
     for sq in snapshot["sampleQuests"]:
@@ -261,8 +370,8 @@ def generate_reports(repo_root, cmd_base):
 
 def main():
     default_repo = Path(__file__).resolve().parents[2]
-    default_mysql = os.getenv("COA_MYSQL_BIN", r"C:\games\CoA Server 2\mysql\bin\mysql.exe")
-    default_defaults = os.getenv("COA_MYSQL_DEFAULTS", r"C:\games\CoA Server 2\mysql\admin-client.ini")
+    default_mysql = os.getenv("COA_MYSQL_BIN")
+    default_defaults = os.getenv("COA_MYSQL_DEFAULTS")
 
     parser = argparse.ArgumentParser(description="Generate progression reports")
     parser.add_argument("--mysql-bin", default=default_mysql)
@@ -271,7 +380,20 @@ def main():
     parser.add_argument("--repo-root", default=str(default_repo))
     args = parser.parse_args()
 
-    cmd_base = [args.mysql_bin, f"--defaults-file={args.defaults_file}", args.world_db]
+    if not args.mysql_bin or not os.path.exists(args.mysql_bin):
+        sys.exit(
+            f"ERROR: MySQL binary not specified or not found. Provide --mysql-bin or set COA_MYSQL_BIN environment variable."
+        )
+
+    cmd_base = [args.mysql_bin]
+    if args.defaults_file:
+        if not os.path.exists(args.defaults_file):
+            sys.exit(
+                f"ERROR: MySQL defaults file not found at '{args.defaults_file}'. Provide valid path or set COA_MYSQL_DEFAULTS."
+            )
+        cmd_base.append(f"--defaults-file={args.defaults_file}")
+    cmd_base.append(args.world_db)
+
     generate_reports(args.repo_root, cmd_base)
 
 if __name__ == "__main__":
