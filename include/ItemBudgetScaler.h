@@ -83,6 +83,17 @@ enum class ItemModCategory : uint8
     }
 }
 
+enum GeneratedItemSpecialFlags : uint8
+{
+    ITEM_SPECIAL_NONE     = 0,
+    ITEM_SPECIAL_PROC     = 1 << 0, // tr1/tr2 in (1, 2)
+    ITEM_SPECIAL_USE      = 1 << 1, // tr1/tr2 == 0 with sp > 0
+    ITEM_SPECIAL_SET      = 1 << 2, // ItemSet > 0
+    ITEM_SPECIAL_SOCKET   = 1 << 3, // Sockets present
+    ITEM_SPECIAL_CUSTOM   = 1 << 4, // Custom entry (>= 100000)
+    ITEM_SPECIAL_PRESERVE = 1 << 5  // Cosmetic / Class unlocker (no combat stats)
+};
+
 enum class ItemScalingPolicy : uint8
 {
     STANDARD       = 0, // Normal stat normalization

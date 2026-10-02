@@ -1093,10 +1093,10 @@ TEST(ContentCensusIntegrityTest, PvPMapsExcludedFromInstanceRegistry)
 
 TEST(ContentCensusIntegrityTest, GeneratedCensusSchemaAndCounts)
 {
-    EXPECT_EQ(GENERATED_CONTENT_CENSUS_SCHEMA_VERSION, 310);
+    EXPECT_EQ(GENERATED_CONTENT_CENSUS_SCHEMA_VERSION, 311);
     EXPECT_EQ(sGeneratedMapProfiles.size(), 374u);
     EXPECT_EQ(sGeneratedInstanceProfiles.size(), 221u); // 221 PvE instance difficulty variants
-    EXPECT_EQ(sGeneratedCreaturePlacements.size(), 4125u);
+    EXPECT_EQ(sGeneratedCreaturePlacements.size(), 18751u); // 100% active production spawns
     EXPECT_EQ(sGeneratedQuestProfiles.size(), 10106u);
     EXPECT_EQ(sGeneratedItemProfiles.size(), 3857u);
     EXPECT_EQ(sGeneratedLfgProfiles.size(), 423u);
@@ -1172,19 +1172,19 @@ TEST(ContentCensusIntegrityTest, LfgAndDungeonAccessScaling)
 TEST(ContentCensusIntegrityTest, ItemSourceTiersAndOutlierClassification)
 {
     // Landmark items in census
-    // Classic raid item: Elementium Reinforced Bulwark (Item 19354, BWL)
+    // Classic raid item: Elementium Reinforced Bulwark (Item 19354, BWL Map 469 -> RAID_END)
     auto const* bwlShield = FindGeneratedItemProfile(19354);
     ASSERT_NE(bwlShield, nullptr);
     EXPECT_EQ(bwlShield->era, ContentEra::Classic);
-    EXPECT_EQ(bwlShield->tier, ContentTier::RAID_MID);
+    EXPECT_EQ(bwlShield->tier, ContentTier::RAID_END);
 
-    // TBC Legendary: Warglaive of Azzinoth (BT, Item 32837)
+    // TBC Legendary: Warglaive of Azzinoth (BT Map 564, Item 32837 -> RAID_END)
     auto const* warglaive = FindGeneratedItemProfile(32837);
     ASSERT_NE(warglaive, nullptr);
     EXPECT_EQ(warglaive->era, ContentEra::TBC);
-    EXPECT_EQ(warglaive->tier, ContentTier::RAID_PINNACLE);
+    EXPECT_EQ(warglaive->tier, ContentTier::RAID_END);
 
-    // WotLK Pinnacle: Item 50351
+    // WotLK Pinnacle: Item 50351 (ICC Map 631 -> RAID_PINNACLE)
     auto const* iccTrinket = FindGeneratedItemProfile(50351);
     ASSERT_NE(iccTrinket, nullptr);
     EXPECT_EQ(iccTrinket->era, ContentEra::WotLK);
@@ -1198,7 +1198,7 @@ TEST(ContentCensusIntegrityTest, ItemSourceTiersAndOutlierClassification)
 TEST(ItemRuntimeAuthorityTest, GeneratedTierWinsOverMisleadingIlvl)
 {
     ItemTemplate fakeItem;
-    fakeItem.ItemId = 32837; // Warglaive of Azzinoth in census (BT, RAID_PINNACLE)
+    fakeItem.ItemId = 32837; // Warglaive of Azzinoth in census (BT, RAID_END)
     fakeItem.ItemLevel = 156;
     fakeItem.RequiredLevel = 70;
 
@@ -1206,7 +1206,7 @@ TEST(ItemRuntimeAuthorityTest, GeneratedTierWinsOverMisleadingIlvl)
     EXPECT_TRUE(ctx.hasGeneratedProfile);
     EXPECT_FALSE(ctx.fallbackTierInference);
     EXPECT_EQ(ctx.era, ContentEra::TBC);
-    EXPECT_EQ(ctx.tier, ContentTier::RAID_PINNACLE);
+    EXPECT_EQ(ctx.tier, ContentTier::RAID_END);
     EXPECT_EQ(ctx.policy, ItemScalingPolicy::REVIEW_SPECIAL); // Has proc / use flags
 }
 
@@ -1392,6 +1392,144 @@ TEST(ItemRuntimeAuthorityTest, ScaleAllItemsIdempotenceProtection)
     EXPECT_TRUE(sItemBudgetScaler->AreItemsScaled());
 }
 
+// ============================================================================
+// Round 3.3 — Source Graph Authority & Census Completeness Tests
+// ============================================================================
 
+TEST(SourceGraphAuthorityTest, WarglaiveOfAzzinothIsRaidEndNotPinnacle)
+{
+    // Item 32837: Warglaive of Azzinoth
+    // Authoritative source: Illidan Stormrage (Creature 22917) in Black Temple (Map 564)
+    // Must be classified as RAID_END with sourceMap = 564, NOT RAID_PINNACLE
+    auto const* prof = FindGeneratedItemProfile(32837);
+    ASSERT_NE(prof, nullptr);
+    EXPECT_EQ(prof->era, ContentEra::TBC);
+    EXPECT_EQ(prof->tier, ContentTier::RAID_END);
+    EXPECT_EQ(prof->sourceMap, 564u); // Black Temple
 
+    ItemTemplate warglaive;
+    warglaive.ItemId = 32837;
+    warglaive.ItemLevel = 156;
+    warglaive.RequiredLevel = 70;
 
+    ItemScalingContext ctx = ItemScalingContext::Resolve(&warglaive);
+    EXPECT_TRUE(ctx.hasGeneratedProfile);
+    EXPECT_EQ(ctx.tier, ContentTier::RAID_END);
+    EXPECT_EQ(ctx.sourceMap, 564u);
+}
+
+TEST(SourceGraphAuthorityTest, SunwellItemsPreserveRaidPinnacle)
+{
+    // Item 34334: Thori'dal, the Stars' Fury
+    // Authoritative source: Kil'jaeden (Creature 25315) in Sunwell Plateau (Map 580)
+    auto const* prof = FindGeneratedItemProfile(34334);
+    ASSERT_NE(prof, nullptr);
+    EXPECT_EQ(prof->era, ContentEra::TBC);
+    EXPECT_EQ(prof->tier, ContentTier::RAID_PINNACLE);
+    EXPECT_EQ(prof->sourceMap, 580u); // Sunwell Plateau
+
+    ItemTemplate thoridal;
+    thoridal.ItemId = 34334;
+    thoridal.ItemLevel = 155;
+    thoridal.RequiredLevel = 70;
+
+    ItemScalingContext ctx = ItemScalingContext::Resolve(&thoridal);
+    EXPECT_TRUE(ctx.hasGeneratedProfile);
+    EXPECT_EQ(ctx.tier, ContentTier::RAID_PINNACLE);
+    EXPECT_EQ(ctx.sourceMap, 580u);
+}
+
+TEST(SourceGraphAuthorityTest, WotlkRaidTiersDrivenBySourceMap)
+{
+    // Naxxramas (Map 533): Item 39291 (Torment of the Banished) -> RAID_ENTRY
+    auto const* profNaxx = FindGeneratedItemProfile(39291);
+    ASSERT_NE(profNaxx, nullptr);
+    EXPECT_EQ(profNaxx->era, ContentEra::WotLK);
+    EXPECT_EQ(profNaxx->tier, ContentTier::RAID_ENTRY);
+    EXPECT_EQ(profNaxx->sourceMap, 533u);
+
+    // Ulduar (Map 603): Item 45086 (Rising Sun) -> RAID_MID
+    auto const* profUlduar = FindGeneratedItemProfile(45086);
+    ASSERT_NE(profUlduar, nullptr);
+    EXPECT_EQ(profUlduar->era, ContentEra::WotLK);
+    EXPECT_EQ(profUlduar->tier, ContentTier::RAID_MID);
+    EXPECT_EQ(profUlduar->sourceMap, 603u);
+
+    // Icecrown Citadel (Map 631): Item 50351 (Tiny Abomination in a Jar) -> RAID_PINNACLE
+    auto const* profIcc = FindGeneratedItemProfile(50351);
+    ASSERT_NE(profIcc, nullptr);
+    EXPECT_EQ(profIcc->era, ContentEra::WotLK);
+    EXPECT_EQ(profIcc->tier, ContentTier::RAID_PINNACLE);
+    EXPECT_EQ(profIcc->sourceMap, 631u);
+}
+
+TEST(SourceGraphAuthorityTest, DungeonHeroicPowerBandDistinctFromRaidEntry)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    // TBC: Dungeon Normal < Dungeon Heroic < Raid Entry
+    ItemTemplate tbcNorm;
+    tbcNorm.ItemId = 900001;
+    tbcNorm.ItemLevel = 100;
+    tbcNorm.RequiredLevel = 70;
+    ItemScalingContext ctxNorm;
+    ctxNorm.era = ContentEra::TBC;
+    ctxNorm.tier = ContentTier::DUNGEON_NORMAL;
+
+    ItemTemplate tbcHeroic;
+    tbcHeroic.ItemId = 900002;
+    tbcHeroic.ItemLevel = 118;
+    tbcHeroic.RequiredLevel = 70;
+    ItemScalingContext ctxHeroic;
+    ctxHeroic.era = ContentEra::TBC;
+    ctxHeroic.tier = ContentTier::DUNGEON_HEROIC;
+
+    ItemTemplate tbcRaid;
+    tbcRaid.ItemId = 900003;
+    tbcRaid.ItemLevel = 125;
+    tbcRaid.RequiredLevel = 70;
+    ItemScalingContext ctxRaid;
+    ctxRaid.era = ContentEra::TBC;
+    ctxRaid.tier = ContentTier::RAID_ENTRY;
+
+    ScaledItemBudget bNorm = sItemBudgetScaler->CalculateItemBudget(&tbcNorm, layout, ctxNorm);
+    ScaledItemBudget bHeroic = sItemBudgetScaler->CalculateItemBudget(&tbcHeroic, layout, ctxHeroic);
+    ScaledItemBudget bRaid = sItemBudgetScaler->CalculateItemBudget(&tbcRaid, layout, ctxRaid);
+
+    EXPECT_LE(bNorm.effectiveItemLevel, bHeroic.effectiveItemLevel);
+    EXPECT_LT(bHeroic.effectiveItemLevel, bRaid.effectiveItemLevel);
+
+    // WotLK: Dungeon Normal < Dungeon Heroic < Raid Entry
+    ItemTemplate wotlkHeroic;
+    wotlkHeroic.ItemId = 900004;
+    wotlkHeroic.ItemLevel = 195;
+    wotlkHeroic.RequiredLevel = 80;
+    ItemScalingContext ctxWotlkHeroic;
+    ctxWotlkHeroic.era = ContentEra::WotLK;
+    ctxWotlkHeroic.tier = ContentTier::DUNGEON_HEROIC;
+
+    ItemTemplate wotlkRaid;
+    wotlkRaid.ItemId = 900005;
+    wotlkRaid.ItemLevel = 213;
+    wotlkRaid.RequiredLevel = 80;
+    ItemScalingContext ctxWotlkRaid;
+    ctxWotlkRaid.era = ContentEra::WotLK;
+    ctxWotlkRaid.tier = ContentTier::RAID_ENTRY;
+
+    ScaledItemBudget bWotlkHeroic = sItemBudgetScaler->CalculateItemBudget(&wotlkHeroic, layout, ctxWotlkHeroic);
+    ScaledItemBudget bWotlkRaid = sItemBudgetScaler->CalculateItemBudget(&wotlkRaid, layout, ctxWotlkRaid);
+
+    EXPECT_LT(bWotlkHeroic.effectiveItemLevel, bWotlkRaid.effectiveItemLevel);
+}
+
+TEST(SourceGraphAuthorityTest, HighEntryCreaturePlacementIndexed)
+{
+    // The Lich King (Entry 36597) in ICC (Map 631)
+    // In Round 3.1, [:4000] capped entries and missed 36597.
+    // In Round 3.3, 100% of production spawns are indexed.
+    auto const* lkPlacement = FindGeneratedCreaturePlacement(36597, 631);
+    ASSERT_NE(lkPlacement, nullptr);
+    EXPECT_EQ(lkPlacement->entry, 36597u);
+    EXPECT_EQ(lkPlacement->mapId, 631u);
+    EXPECT_EQ(lkPlacement->era, ContentEra::WotLK);
+}

@@ -1,4 +1,4 @@
-# Content Census Summary Report (Round 3.1)
+# Content Census Summary Report (Round 3.3)
 
 ## 1. Database & DBC Overview
 
@@ -7,6 +7,7 @@
 - **Total LFG Dungeons**: 430 (Active: 423, Deactivated: 7)
 - **Creature Templates (DB)**: 32043
 - **World Spawns (DB)**: 151500
+- **Creature Placements Indexed**: 18751 (100% active spawned creatures)
 - **Quests (DB)**: 10106
 - **Items (DB)**: 562555
 

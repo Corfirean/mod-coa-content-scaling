@@ -1,8 +1,8 @@
 {
-  "schema_version": 310,
+  "schema_version": 311,
   "metadata": {
-    "schema_version": 310,
-    "generator_version": "3.1.0",
+    "schema_version": 311,
+    "generator_version": "3.3.0",
     "inputs": {
       "Map.dbc": "04a4d696b53a65e3579f6329af9c1948dd865cf05cb6dd5df8def68897b8d328",
       "AreaTable.dbc": "696a8fa876b55503217827d92ddb48c57078ab9cfde8af3c46023a1f7b15c8ec",
@@ -16,6 +16,7 @@
       "maps": 374,
       "pve_instances": 221,
       "excluded_pvp": 65,
+      "creature_placements": 18751,
       "quests": 10106,
       "items": 3857,
       "access": 121,

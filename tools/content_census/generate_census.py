@@ -358,7 +358,7 @@ def main():
     print(f"Classified {len(all_map_profiles)} maps. Excluded {len(excluded_pvp_maps)} PvP maps from PvE registry. Generated {len(pve_instance_profiles)} PvE instance variants.")
 
     print("=== Step 5: Creature Spawns & Placement-Aware Profiles ===")
-    spawn_rows = run_query(cmd_base, f"SELECT id, map, areaId FROM {world_db}.creature GROUP BY id, map, areaId;")
+    spawn_rows = run_query(cmd_base, f"SELECT id, map FROM {world_db}.creature GROUP BY id, map;")
     creature_placements = []
     entry_maps = defaultdict(set)
     for r in spawn_rows:
@@ -366,9 +366,9 @@ def main():
         c_map = int(r[1])
         entry_maps[c_entry].add(c_map)
 
-    # For top/landmark creatures and multi-map creatures
+    # Full production coverage: 100% of spawned creature entries across all active maps
     sample_creatures = sorted(entry_maps.keys())
-    for c_entry in sample_creatures[:4000]: # Index top 4,000 production creatures
+    for c_entry in sample_creatures:
         maps_present = entry_maps[c_entry]
         for m_id in sorted(maps_present):
             m_info = dbc_maps.get(m_id, {"expansion_id": 0})
@@ -386,7 +386,7 @@ def main():
                 "era": c_era,
                 "confidence": confidence
             })
-    print(f"Generated {len(creature_placements)} creature placement entries.")
+    print(f"Generated {len(creature_placements)} creature placement entries (100% production coverage).")
 
     print("=== Step 6: Quests Census & Chain Traversal ===")
     quest_rows = run_query(cmd_base, f"SELECT qt.ID, qt.QuestType, qt.QuestLevel, qt.MinLevel, qt.QuestSortID, IFNULL(qta.PrevQuestID, 0), IFNULL(qta.NextQuestID, 0) FROM {world_db}.quest_template qt LEFT JOIN {world_db}.quest_template_addon qta ON qt.ID = qta.ID;")
@@ -439,6 +439,50 @@ def main():
     print(f"Classified {len(quest_profiles)} quests: {dict(quest_era_counts)}")
 
     print("=== Step 7: Items Census, Sources, Outliers & Scaling Calculation ===")
+    # 7.1 Build Authoritative Loot-to-Map Source Graph
+    # Index creature templates for lootid, difficulty child entries and unique names
+    c_templates = run_query(cmd_base, f"SELECT entry, name, lootid, difficulty_entry_1, difficulty_entry_2, difficulty_entry_3 FROM {world_db}.creature_template;")
+    name_to_maps = defaultdict(set)
+    for r in c_templates:
+        entry = int(r[0])
+        name = r[1]
+        if entry in entry_maps:
+            name_to_maps[name].update(entry_maps[entry])
+
+    loot_to_maps = defaultdict(set)
+    for r in c_templates:
+        entry = int(r[0])
+        name = r[1]
+        lootid = int(r[2])
+        diffs = [int(r[3]), int(r[4]), int(r[5])]
+        maps = set(entry_maps.get(entry, set()))
+        if not maps and name in name_to_maps and len(name_to_maps[name]) == 1 and len(name) > 3 and name not in ("World Trigger", "Trigger", "Waypoint"):
+            maps.update(name_to_maps[name])
+        if maps:
+            loot_to_maps[entry].update(maps)
+            if lootid > 0:
+                loot_to_maps[lootid].update(maps)
+            for d in diffs:
+                if d > 0:
+                    loot_to_maps[d].update(maps)
+
+    # Query all creature loot entries to map item -> maps with drop counts
+    clt_all = run_query(cmd_base, f"SELECT item, entry FROM {world_db}.creature_loot_template WHERE item > 0;")
+    item_map_counts = defaultdict(lambda: defaultdict(int))
+    for r in clt_all:
+        item = int(r[0])
+        entry = int(r[1])
+        maps = loot_to_maps.get(entry, set())
+        for m in maps:
+            item_map_counts[item][m] += 1
+
+    # Map instance profiles by map_id for quick lookup
+    inst_profiles_by_map = {}
+    for ip in pve_instance_profiles:
+        m = ip["map_id"]
+        if m not in inst_profiles_by_map or ip["difficulty"] == 0:
+            inst_profiles_by_map[m] = ip
+
     loot_rows = run_query(cmd_base, f"""
         SELECT clt.Item, it.ItemLevel, it.Quality, it.InventoryType, it.RequiredLevel, it.Flags,
                it.spellid_1, it.spelltrigger_1, it.spellid_2, it.spelltrigger_2, it.itemset
@@ -450,6 +494,7 @@ def main():
 
     item_profiles = []
     item_outliers = []
+    item_source_conflicts = []
     tier_item_stats = defaultdict(list)
 
     for r in loot_rows:
@@ -466,20 +511,55 @@ def main():
         era = "Classic"
         tier = "WORLD"
         source_map = 0
+        policy_code = 0 # 0=STANDARD, 1=TIER_ALIGNED, 2=PRESERVE, 3=REVIEW_SPECIAL
 
-        if req_lvl >= 75 or ilvl >= 200:
-            era = "WotLK"
-            tier = "RAID_ENTRY" if ilvl <= 213 else ("RAID_MID" if ilvl <= 226 else ("RAID_END" if ilvl <= 245 else "RAID_PINNACLE"))
-        elif req_lvl >= 68 or ilvl >= 115:
-            era = "TBC"
-            tier = "RAID_ENTRY" if ilvl <= 128 else ("RAID_MID" if ilvl <= 138 else ("RAID_END" if ilvl <= 151 else "RAID_PINNACLE"))
-        elif req_lvl >= 55 or ilvl >= 60:
-            era = "Classic"
-            tier = "DUNGEON_NORMAL" if ilvl < 66 else ("RAID_ENTRY" if ilvl <= 68 else ("RAID_MID" if ilvl <= 75 else ("RAID_END" if ilvl <= 83 else "RAID_PINNACLE")))
+        # 7.2 Resolve Source Map from Loot Graph
+        counts = item_map_counts.get(item_id, {})
+        inst_counts = {m: c for m, c in counts.items() if m not in (0, 1, 530, 571)}
+        if len(inst_counts) > 1:
+            # Multi-instance drop detected -> track conflict
+            resolved_m = sorted(inst_counts.items(), key=lambda x: (-x[1], -x[0]))[0][0]
+            item_source_conflicts.append({
+                "item_id": item_id,
+                "ilvl": ilvl,
+                "instances": inst_counts,
+                "resolved_map": resolved_m
+            })
+            source_map = resolved_m
+        elif len(inst_counts) == 1:
+            source_map = list(inst_counts.keys())[0]
+        elif counts:
+            source_map = sorted(counts.items(), key=lambda x: -x[1])[0][0]
         else:
-            era = "Classic"
-            tier = "DUNGEON_NORMAL"
+            source_map = 0
 
+        # 7.3 Determine Era and Tier: Source Graph Authority Wins Over Raw ilvl
+        if source_map in inst_profiles_by_map:
+            inst = inst_profiles_by_map[source_map]
+            era = inst["era"]
+            tier = inst["tier"]
+        elif source_map in (530,):
+            era = "TBC"
+            tier = "WORLD"
+        elif source_map in (571,):
+            era = "WotLK"
+            tier = "WORLD"
+        else:
+            # Fallback for open world or unknown sources
+            if req_lvl >= 75 or ilvl >= 200:
+                era = "WotLK"
+                tier = "RAID_ENTRY" if ilvl <= 213 else ("RAID_MID" if ilvl <= 226 else ("RAID_END" if ilvl <= 245 else "RAID_PINNACLE"))
+            elif req_lvl >= 68 or ilvl >= 115:
+                era = "TBC"
+                tier = "RAID_ENTRY" if ilvl <= 128 else ("RAID_MID" if ilvl <= 138 else ("RAID_END" if ilvl <= 151 else "RAID_PINNACLE"))
+            elif req_lvl >= 55 or ilvl >= 60:
+                era = "Classic"
+                tier = "DUNGEON_NORMAL" if ilvl < 66 else ("RAID_ENTRY" if ilvl <= 68 else ("RAID_MID" if ilvl <= 75 else ("RAID_END" if ilvl <= 83 else "RAID_PINNACLE")))
+            else:
+                era = "Classic"
+                tier = "DUNGEON_NORMAL"
+
+        # 7.4 Special Flags & Policy Determination
         special_flags = 0
         has_proc = (tr1 in (1, 2) and sp1 > 0) or (tr2 in (1, 2) and sp2 > 0)
         has_use = (tr1 == 0 and sp1 > 0) or (tr2 == 0 and sp2 > 0)
@@ -490,7 +570,31 @@ def main():
         if has_use: special_flags |= 2
         if has_set: special_flags |= 4
         if has_socket: special_flags |= 8
-        if item_id >= 100000: special_flags |= 16
+
+        # 7.5 Apply Custom Content Overrides (Single Source of Truth)
+        matched_custom = False
+        for rule in custom_ov:
+            r_min, r_max = rule.get("entry_range", [0, 0])
+            if r_min <= item_id <= r_max:
+                matched_custom = True
+                special_flags |= 16 # ITEM_SPECIAL_CUSTOM
+                rule_pol = rule.get("scaling_policy", "")
+                if rule_pol == "EXEMPT_PRESERVE":
+                    special_flags |= 32 # ITEM_SPECIAL_PRESERVE
+                    policy_code = 2 # PRESERVE
+                elif rule_pol == "TIER_ALIGNED":
+                    policy_code = 1 # TIER_ALIGNED
+                break
+
+        if not matched_custom:
+            if special_flags & 32: # Preserve
+                policy_code = 2
+            elif special_flags & 15: # Proc/Use/Set/Socket
+                policy_code = 3 # REVIEW_SPECIAL
+            elif tier != "WORLD":
+                policy_code = 1 # TIER_ALIGNED
+            else:
+                policy_code = 0 # STANDARD
 
         eff_ilvl = ilvl
         if era == "WotLK":
@@ -507,7 +611,7 @@ def main():
                 "effective_ilvl": eff_ilvl,
                 "tier": tier,
                 "flags": special_flags,
-                "reason": ("PROC " if has_proc else "") + ("USE " if has_use else "") + ("SET " if has_set else "") + ("CUSTOM" if item_id >= 100000 else "")
+                "reason": ("PROC " if has_proc else "") + ("USE " if has_use else "") + ("SET " if has_set else "") + ("CUSTOM " if matched_custom else "")
             })
 
         item_profiles.append({
@@ -516,10 +620,11 @@ def main():
             "tier": tier,
             "source_map": source_map,
             "special_flags": special_flags,
+            "policy": policy_code,
             "authored_ilvl": ilvl,
             "effective_ilvl": eff_ilvl
         })
-    print(f"Generated {len(item_profiles)} item source profiles and flagged {len(item_outliers)} outliers.")
+    print(f"Generated {len(item_profiles)} item source profiles, flagged {len(item_outliers)} outliers, detected {len(item_source_conflicts)} multi-instance conflicts.")
 
     print("=== Step 8: Generating Access & LFG Profiles ===")
     access_profiles = []
@@ -573,13 +678,14 @@ def main():
 
     # 1. content-census-summary.md
     with open(docs_dir / "content-census-summary.md", "w", encoding="utf-8") as f:
-        f.write("# Content Census Summary Report (Round 3.1)\n\n")
+        f.write("# Content Census Summary Report (Round 3.3)\n\n")
         f.write("## 1. Database & DBC Overview\n\n")
         f.write(f"- **Total DBC Maps**: {len(dbc_maps)}\n")
         f.write(f"- **Total DBC Areas**: {len(dbc_areas)}\n")
         f.write(f"- **Total LFG Dungeons**: {len(dbc_lfg)} (Active: {len(lfg_profiles)}, Deactivated: {len(dbc_lfg)-len(lfg_profiles)})\n")
         f.write(f"- **Creature Templates (DB)**: {creature_total}\n")
         f.write(f"- **World Spawns (DB)**: {spawn_total}\n")
+        f.write(f"- **Creature Placements Indexed**: {len(creature_placements)} (100% active spawned creatures)\n")
         f.write(f"- **Quests (DB)**: {quest_total}\n")
         f.write(f"- **Items (DB)**: {item_total}\n\n")
         f.write("## 2. PvE vs PvP Classification\n\n")
@@ -601,7 +707,17 @@ def main():
         f.write("| DEACTIVATED_LFG_LEGACY | LFGDungeons 1, 2, 14 (WC, Scholo, Gnome) | Set to min=100 max=100 by client developers | Superseded by wing entries (1003-1039), tagged DEACTIVATED_LEGACY |\n")
         f.write("| HIGH_ENTRY_ITEMS | Entries >= 100000 | 469,388 Ascension cosmetic & trait items | Isolated into CUSTOM_COSMETIC / CUSTOM_CLASS_ITEM and preserved 1:1 |\n")
 
-    # 3. progression-calibration.md
+    # 3. item-source-conflicts.md
+    with open(docs_dir / "item-source-conflicts.md", "w", encoding="utf-8") as f:
+        f.write("# Item Source Conflicts and Tie-Breaking Resolution Report\n\n")
+        f.write(f"Total multi-instance conflicts detected: {len(item_source_conflicts)}\n\n")
+        f.write("| Item ID | Authored ilvl | Competing Instances (Map ID: Drop Count) | Resolved Map | Resolution Rationale |\n")
+        f.write("|---|---|---|---|---|\n")
+        for sc in item_source_conflicts:
+            inst_str = ", ".join(f"{m}:{c}" for m, c in sc["instances"].items())
+            f.write(f"| {sc['item_id']} | {sc['ilvl']} | {inst_str} | {sc['resolved_map']} | Highest drop count with deterministic tie-break |\n")
+
+    # 4. progression-calibration.md
     with open(docs_dir / "progression-calibration.md", "w", encoding="utf-8") as f:
         f.write("# Progression Calibration & Density Report\n\n")
         f.write("## Progression Density Bands (Cap 60 All Eras)\n\n")
@@ -617,7 +733,7 @@ def main():
         f.write(f"| Levels 61 - 70 | TBC | 58 - 70 | {quest_era_counts['TBC']} | 23 | 1:1 Stock Blizzard Identity |\n")
         f.write(f"| Levels 71 - 80 | WotLK | 68 - 80 | {quest_era_counts['WotLK']} | 25 | 1:1 Stock Blizzard Identity |\n")
 
-    # 4. item-progression-report.md
+    # 5. item-progression-report.md
     with open(docs_dir / "item-progression-report.md", "w", encoding="utf-8") as f:
         f.write("# Computed Item Progression Report\n\n")
         f.write("| Tier | Item Count | Authored Median ilvl | Effective Median ilvl (Cap 60) | Stat Multiplier |\n")
@@ -636,7 +752,7 @@ def main():
                 med_a, med_e, mult = 0, 0, 1.0
             f.write(f"| {t} | {cnt} | {med_a} | {med_e} | {mult:.2f} |\n")
 
-    # 5. item-outliers.md
+    # 6. item-outliers.md
     with open(docs_dir / "item-outliers.md", "w", encoding="utf-8") as f:
         f.write("# Item Outliers & Special Effects Report\n\n")
         f.write("| Item ID | Tier | Authored ilvl | Effective ilvl | Special Mechanics Detected |\n")
@@ -644,7 +760,7 @@ def main():
         for o in item_outliers[:50]:
             f.write(f"| {o['item_id']} | {o['tier']} | {o['authored_ilvl']} | {o['effective_ilvl']} | {o['reason'].strip()} |\n")
 
-    # 6. lfg-access-report.md
+    # 7. lfg-access-report.md
     with open(docs_dir / "lfg-access-report.md", "w", encoding="utf-8") as f:
         f.write("# LFG and Access Scaling Report\n\n")
         f.write("| LFG ID | Dungeon Name | Map | Authored Min-Max | Cap 60 Effective Span | Cap 80 Span | Status |\n")
@@ -654,7 +770,7 @@ def main():
             eff_max = map_authored_to_effective(l["era"], l["max_level"], 60)
             f.write(f"| {l['dungeon_id']} | {l['map_id']} | {l['map_id']} | {l['min_level']}-{l['max_level']} | {eff_min}-{eff_max} | {l['min_level']}-{l['max_level']} | VALIDATED_RUNTIME_SCALED |\n")
 
-    # 7. encounter-adaptation-manifest.md
+    # 8. encounter-adaptation-manifest.md
     with open(docs_dir / "encounter-adaptation-manifest.md", "w", encoding="utf-8") as f:
         f.write("# Encounter Adaptation Manifest (Curated Round 4 Seed Manifest)\n\n")
         f.write("Curated seed catalog of boss encounter mechanics requiring adaptive scaling in Round 4.\n\n")
@@ -672,10 +788,10 @@ def main():
         f.write("| 631 | Valithria Dreamwalker | Complex | HEALER_OBJECTIVE | CURATED | ADAPTER_REQUIRED |\n")
         f.write("| 631 | The Lich King | Complex | DEFILE, SHADOW_TRAP | CURATED | AUTO_FLEX |\n")
 
-    # 8. artifacts/census-metadata.json
+    # 9. artifacts/census-metadata.json
     metadata = {
-        "schema_version": 310,
-        "generator_version": "3.1.0",
+        "schema_version": 311,
+        "generator_version": "3.3.0",
         "inputs": {
             "Map.dbc": compute_sha256(dbc_dir / "Map.dbc"),
             "AreaTable.dbc": compute_sha256(dbc_dir / "AreaTable.dbc"),
@@ -689,6 +805,7 @@ def main():
             "maps": len(all_map_profiles),
             "pve_instances": len(pve_instance_profiles),
             "excluded_pvp": len(excluded_pvp_maps),
+            "creature_placements": len(creature_placements),
             "quests": len(quest_profiles),
             "items": len(item_profiles),
             "access": len(access_profiles),
@@ -698,10 +815,10 @@ def main():
     with open(artifacts_dir / "census-metadata.json", "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
 
-    # 9. artifacts/content-census.json
+    # 10. artifacts/content-census.json
     with open(artifacts_dir / "content-census.json", "w", encoding="utf-8") as f:
         json.dump({
-            "schema_version": 310,
+            "schema_version": 311,
             "metadata": metadata,
             "instances": pve_instance_profiles,
             "access": access_profiles,
@@ -728,7 +845,7 @@ def main():
 #include <array>
 #include <cstdint>
 
-#define GENERATED_CONTENT_CENSUS_SCHEMA_VERSION 310
+#define GENERATED_CONTENT_CENSUS_SCHEMA_VERSION 311
 
 struct GeneratedMapProfile
 {
@@ -774,6 +891,7 @@ struct GeneratedItemSourceProfile
     ContentTier tier;
     uint32 sourceMap;
     uint8 specialFlags;
+    uint8 policy;
 };
 
 struct GeneratedLfgProfile
@@ -831,7 +949,7 @@ struct GeneratedAccessProfile
         # Items
         f.write(f"inline constexpr std::array<GeneratedItemSourceProfile, {len(item_profiles)}> sGeneratedItemProfiles =\n{{\n")
         for it in sorted(item_profiles, key=lambda x: x["item_id"]):
-            f.write(f'    GeneratedItemSourceProfile{{ {it["item_id"]}, ContentEra::{it["era"]}, ContentTier::{it["tier"]}, {it["source_map"]}, {it["special_flags"]} }},\n')
+            f.write(f'    GeneratedItemSourceProfile{{ {it["item_id"]}, ContentEra::{it["era"]}, ContentTier::{it["tier"]}, {it["source_map"]}, {it["special_flags"]}, {it["policy"]} }},\n')
         f.write("};\n\n")
 
         # LFG Profiles

@@ -221,9 +221,24 @@ private:
         ItemScalingContext const ctx = ItemScalingContext::Resolve(item);
         ScaledItemBudget const budget = sItemBudgetScaler->CalculateItemBudget(item, layout, ctx);
 
+        char const* authorityOrigin = "FALLBACK_ILVL";
+        if (ctx.hasGeneratedProfile)
+        {
+            if (ctx.sourceMap != 0)
+                authorityOrigin = "INSTANCE_LOOT";
+            else if (ctx.specialFlags & ITEM_SPECIAL_CUSTOM)
+                authorityOrigin = "CUSTOM_OVERRIDE";
+            else
+                authorityOrigin = "CENSUS_PROFILE";
+        }
+        else if (ctx.specialFlags & ITEM_SPECIAL_CUSTOM)
+        {
+            authorityOrigin = "CUSTOM_FALLBACK";
+        }
+
         handler->PSendSysMessage("=== Item Scaling: %s (ID: %u) ===", item->Name1.c_str(), itemId);
-        handler->PSendSysMessage("Generated Profile: %s | Fallback Tier Inference: %s",
-            ctx.hasGeneratedProfile ? "Yes" : "No", ctx.fallbackTierInference ? "Yes" : "No");
+        handler->PSendSysMessage("Authority Origin: %s | Generated Profile: %s | Fallback: %s",
+            authorityOrigin, ctx.hasGeneratedProfile ? "Yes" : "No", ctx.fallbackTierInference ? "Yes" : "No");
         handler->PSendSysMessage("Era: %s | Tier: %s | Policy: %s",
             ContentEraToString(ctx.era).data(), ContentTierToString(ctx.tier).data(), ItemScalingPolicyToString(ctx.policy).data());
         handler->PSendSysMessage("Source Map: %u | Special Flags: 0x%02X", ctx.sourceMap, uint32(ctx.specialFlags));

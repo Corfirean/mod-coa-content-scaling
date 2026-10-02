@@ -41,7 +41,7 @@ ItemScalingContext ItemScalingContext::Resolve(ItemTemplate const* proto)
     if (!proto)
         return ctx;
 
-    // 1. Check generated census profile
+    // 1. Check generated census profile (Authoritative Source of Truth)
     if (auto const* prof = FindGeneratedItemProfile(proto->ItemId))
     {
         ctx.hasGeneratedProfile = true;
@@ -49,49 +49,32 @@ ItemScalingContext ItemScalingContext::Resolve(ItemTemplate const* proto)
         ctx.tier = prof->tier;
         ctx.sourceMap = prof->sourceMap;
         ctx.specialFlags = prof->specialFlags;
-
-        if (ctx.specialFlags & ITEM_SPECIAL_PRESERVE)
-            ctx.policy = ItemScalingPolicy::PRESERVE;
-        else if (ctx.specialFlags & (ITEM_SPECIAL_PROC | ITEM_SPECIAL_USE | ITEM_SPECIAL_SET | ITEM_SPECIAL_SOCKET))
-            ctx.policy = ItemScalingPolicy::REVIEW_SPECIAL;
-        else
-            ctx.policy = ItemScalingPolicy::TIER_ALIGNED;
+        ctx.policy = static_cast<ItemScalingPolicy>(prof->policy);
 
         return ctx;
     }
 
-    // 2. Custom Item Classification & Safety Rules
-    if (proto->ItemId >= 100000)
+    // 2. Custom Item Classification & Safety Rules Fallback (for unprofiled custom items within custom ranges)
+    if (proto->ItemId >= 100000 && proto->ItemId <= 600000)
     {
         ctx.specialFlags |= ITEM_SPECIAL_CUSTOM;
         ctx.sourceMap = 0;
+        ctx.era = ContentEra::Custom;
 
-        if (proto->ItemId <= 200000)
+        if (proto->ItemId >= 350001)
         {
-            // CUSTOM_COSMETIC: Ascension vanity, mounts, illusions, toys
-            ctx.specialFlags |= ITEM_SPECIAL_PRESERVE;
-            ctx.policy = ItemScalingPolicy::PRESERVE;
-            ctx.era = ContentEra::Custom;
-            ctx.tier = ContentTier::WORLD;
-            return ctx;
-        }
-        else if (proto->ItemId <= 350000)
-        {
-            // CUSTOM_CLASS_ITEM: Trait scrolls, ability unlocks, skill books
-            ctx.specialFlags |= ITEM_SPECIAL_PRESERVE;
-            ctx.policy = ItemScalingPolicy::PRESERVE;
-            ctx.era = ContentEra::Custom;
-            ctx.tier = ContentTier::WORLD;
-            return ctx;
-        }
-        else if (proto->ItemId <= 600000)
-        {
-            // CUSTOM_GAMEPLAY: Custom gear, event items, mystic enchants
+            // CUSTOM_GAMEPLAY (350001..600000): TIER_ALIGNED, active combat scaling
             ctx.policy = ItemScalingPolicy::TIER_ALIGNED;
-            ctx.era = ContentEra::Custom;
             ctx.tier = ContentTier::DUNGEON_NORMAL;
-            return ctx;
         }
+        else
+        {
+            // CUSTOM_COSMETIC (100000..200000) & CUSTOM_CLASS_ITEM (200001..350000): EXEMPT_PRESERVE
+            ctx.specialFlags |= ITEM_SPECIAL_PRESERVE;
+            ctx.policy = ItemScalingPolicy::PRESERVE;
+            ctx.tier = ContentTier::WORLD;
+        }
+        return ctx;
     }
 
     // 3. Fallback: Era resolution through registry
@@ -274,8 +257,10 @@ ScaledItemBudget ItemBudgetScaler::CalculateItemBudget(ItemTemplate const* proto
                 newIlvl = MapThroughBand(proto->ItemLevel, { 85, 115, tr.minLevel, tr.maxLevel });
                 break;
             case ContentTier::DUNGEON_HEROIC:
+                newIlvl = MapThroughBand(proto->ItemLevel, { 115, 120, uint32(tr.maxLevel + 1), uint32(tr.maxLevel + 3) });
+                break;
             case ContentTier::RAID_ENTRY: // Karazhan, Gruul, Magtheridon (T4)
-                newIlvl = MapThroughBand(proto->ItemLevel, { 116, 128, uint32(tr.maxLevel + 1), uint32(tr.maxLevel + 8) });
+                newIlvl = MapThroughBand(proto->ItemLevel, { 121, 128, uint32(tr.maxLevel + 4), uint32(tr.maxLevel + 8) });
                 break;
             case ContentTier::RAID_MID: // SSC, TK (T5)
                 newIlvl = MapThroughBand(proto->ItemLevel, { 129, 141, uint32(tr.maxLevel + 9), uint32(tr.maxLevel + 16) });
@@ -299,8 +284,10 @@ ScaledItemBudget ItemBudgetScaler::CalculateItemBudget(ItemTemplate const* proto
                 newIlvl = MapThroughBand(proto->ItemLevel, { 138, 187, wr.minLevel, wr.maxLevel });
                 break;
             case ContentTier::DUNGEON_HEROIC:
+                newIlvl = MapThroughBand(proto->ItemLevel, { 188, 200, uint32(wr.maxLevel + 1), uint32(wr.maxLevel + 4) });
+                break;
             case ContentTier::RAID_ENTRY: // Naxxramas, OS, EoE, VoA (Tier 7)
-                newIlvl = MapThroughBand(proto->ItemLevel, { 188, 226, uint32(wr.maxLevel + 1), uint32(wr.maxLevel + 9) });
+                newIlvl = MapThroughBand(proto->ItemLevel, { 200, 226, uint32(wr.maxLevel + 5), uint32(wr.maxLevel + 9) });
                 break;
             case ContentTier::RAID_MID: // Ulduar (Tier 8)
                 newIlvl = MapThroughBand(proto->ItemLevel, { 227, 252, uint32(wr.maxLevel + 10), uint32(wr.maxLevel + 18) });
