@@ -2124,5 +2124,411 @@ TEST(RealItemAcquisitionGateTest, RealItemsWithProfileMatchAcquisitionGate)
     }
 }
 
+TEST(DifficultyAwareAccessTest, HellfireRamparts_NormalVsHeroic)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    auto const* instNorm = FindGeneratedInstanceProfile(543, 0);
+    auto const* instHeroic = FindGeneratedInstanceProfile(543, 1);
+    ASSERT_NE(instNorm, nullptr);
+    ASSERT_NE(instHeroic, nullptr);
+
+    EXPECT_EQ(instNorm->tier, ContentTier::DUNGEON_NORMAL);
+    EXPECT_EQ(instHeroic->tier, ContentTier::DUNGEON_HEROIC);
+
+    auto const* accNorm = FindGeneratedAccessProfile(543, 0);
+    auto const* accHeroic = FindGeneratedAccessProfile(543, 1);
+    ASSERT_NE(accNorm, nullptr);
+    ASSERT_NE(accHeroic, nullptr);
+
+    EXPECT_EQ(accNorm->authoredMin, 55);
+    EXPECT_EQ(accHeroic->authoredMin, 70);
+
+    uint8 effMinNorm = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        accNorm->era, instNorm->tier, accNorm->authoredMin, layout);
+    uint8 effMinHeroic = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        accHeroic->era, instHeroic->tier, accHeroic->authoredMin, layout);
+
+    EXPECT_LT(effMinNorm, effMinHeroic);
+    EXPECT_EQ(effMinNorm, 45);
+    EXPECT_EQ(effMinHeroic, 52);
+}
+
+TEST(DifficultyAwareAccessTest, UtgardeKeep_NormalVsHeroic)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+
+    auto const* instNorm = FindGeneratedInstanceProfile(574, 0);
+    auto const* instHeroic = FindGeneratedInstanceProfile(574, 1);
+    ASSERT_NE(instNorm, nullptr);
+    ASSERT_NE(instHeroic, nullptr);
+
+    EXPECT_EQ(instNorm->tier, ContentTier::DUNGEON_NORMAL);
+    EXPECT_EQ(instHeroic->tier, ContentTier::DUNGEON_HEROIC);
+
+    auto const* accNorm = FindGeneratedAccessProfile(574, 0);
+    auto const* accHeroic = FindGeneratedAccessProfile(574, 1);
+    ASSERT_NE(accNorm, nullptr);
+    ASSERT_NE(accHeroic, nullptr);
+
+    EXPECT_EQ(accNorm->authoredMin, 65);
+    EXPECT_EQ(accHeroic->authoredMin, 80);
+
+    uint8 effMinNorm = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        accNorm->era, instNorm->tier, accNorm->authoredMin, layout);
+    uint8 effMinHeroic = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+        accHeroic->era, instHeroic->tier, accHeroic->authoredMin, layout);
+
+    EXPECT_LT(effMinNorm, effMinHeroic);
+    EXPECT_EQ(effMinNorm, 55);
+    EXPECT_EQ(effMinHeroic, 57);
+}
+
+TEST(DifficultyAwareAccessTest, DeterministicFallbackToCanonicalDefault)
+{
+    // Exact difficulty 3 does not exist for map 543
+    auto const* accExact = FindGeneratedAccessProfile(543, 3, /*allowFallback=*/false);
+    EXPECT_EQ(accExact, nullptr);
+
+    // Deterministic canonical fallback to difficulty 0
+    auto const* accFallback = FindGeneratedAccessProfile(543, 3, /*allowFallback=*/true);
+    ASSERT_NE(accFallback, nullptr);
+    EXPECT_EQ(accFallback->difficulty, 0);
+    EXPECT_EQ(accFallback->authoredMin, 55);
+
+    // Exact difficulty 0 matches fallback
+    auto const* accCanon = FindGeneratedAccessProfile(543, 0);
+    EXPECT_EQ(accFallback, accCanon);
+}
+
+TEST(AccessProfileFullSweepTest, EffectiveMinLeqEffectiveMaxAcrossAllLayouts)
+{
+    struct LayoutDef { uint8 maxL; bool tbc; bool wotlk; };
+    LayoutDef const layouts[] = {
+        { 60, true, true },
+        { 60, true, false },
+        { 60, false, true },
+        { 70, true, true },
+        { 80, true, true }
+    };
+
+    for (auto const& ld : layouts)
+    {
+        ProgressionLayout layout = ProgressionLayout::Create(ld.maxL, ld.tbc, ld.wotlk);
+        for (auto const& prof : sGeneratedAccessProfiles)
+        {
+            if (!layout.IsEraEnabled(prof.era))
+                continue;
+
+            auto const* instProf = FindGeneratedInstanceProfile(prof.mapId, prof.difficulty);
+            if (!instProf && prof.difficulty != 0)
+                instProf = FindGeneratedInstanceProfile(prof.mapId, 0);
+
+            ContentTier const tier = instProf ? instProf->tier : ContentTier::WORLD;
+            uint8 const effMin = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+                prof.era, tier, prof.authoredMin, layout);
+
+            uint8 effMax = (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+                ? prof.authoredMax
+                : (prof.authoredMax > 0 ? layout.MapAuthoredToEffective(prof.era, prof.authoredMax) : layout.maxLevel);
+
+            if (effMax > 0 && effMax < effMin)
+                effMax = std::max(effMin, layout.maxLevel);
+
+            if (effMax > 0)
+            {
+                EXPECT_LE(effMin, effMax)
+                    << "AccessProfile map " << prof.mapId << " diff " << uint32(prof.difficulty)
+                    << " effMin " << uint32(effMin) << " > effMax " << uint32(effMax);
+            }
+        }
+    }
+}
+
+TEST(LfgProfileFullSweepTest, EffectiveMinLeqEffectiveMaxAcrossAllLayouts)
+{
+    struct LayoutDef { uint8 maxL; bool tbc; bool wotlk; };
+    LayoutDef const layouts[] = {
+        { 60, true, true },
+        { 60, true, false },
+        { 60, false, true },
+        { 70, true, true },
+        { 80, true, true }
+    };
+
+    for (auto const& ld : layouts)
+    {
+        ProgressionLayout layout = ProgressionLayout::Create(ld.maxL, ld.tbc, ld.wotlk);
+        for (auto const& prof : sGeneratedLfgProfiles)
+        {
+            if (!layout.IsEraEnabled(prof.era))
+                continue;
+
+            auto const* instProf = FindGeneratedInstanceProfile(prof.mapId, prof.difficulty);
+            if (!instProf && prof.difficulty != 0)
+                instProf = FindGeneratedInstanceProfile(prof.mapId, 0);
+
+            ContentTier const tier = instProf ? instProf->tier : ContentTier::WORLD;
+            uint8 const effMin = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+                prof.era, tier, prof.authoredMin, layout);
+
+            uint8 effMax = (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+                ? prof.authoredMax
+                : (prof.authoredMax > 0 ? layout.MapAuthoredToEffective(prof.era, prof.authoredMax) : layout.maxLevel);
+
+            if (effMax > 0 && effMax < effMin)
+                effMax = std::max(effMin, layout.maxLevel);
+
+            EXPECT_LE(effMin, effMax)
+                << "LFG dungeon " << prof.dungeonId << " map " << prof.mapId
+                << " effMin " << uint32(effMin) << " > effMax " << uint32(effMax);
+
+            if (ld.maxL == 80 && ld.tbc && ld.wotlk)
+            {
+                EXPECT_EQ(effMin, prof.authoredMin);
+                EXPECT_EQ(effMax, prof.authoredMax);
+            }
+        }
+    }
+}
+
+namespace
+{
+    std::string TierToString(ContentTier tier)
+    {
+        switch (tier)
+        {
+            case ContentTier::WORLD: return "WORLD";
+            case ContentTier::DUNGEON_NORMAL: return "DUNGEON_NORMAL";
+            case ContentTier::DUNGEON_HEROIC: return "DUNGEON_HEROIC";
+            case ContentTier::RAID_ENTRY: return "RAID_ENTRY";
+            case ContentTier::RAID_MID: return "RAID_MID";
+            case ContentTier::RAID_END: return "RAID_END";
+            case ContentTier::RAID_PINNACLE: return "RAID_PINNACLE";
+        }
+        return "UNKNOWN";
+    }
+
+    std::string GenerateProgressionRuntimeSnapshotJson()
+    {
+        std::ostringstream ss;
+        ss << "{\n";
+        ss << "  \"generatorVersion\": \"5.3.0\",\n";
+        ss << "  \"censusVersion\": \"3.1.1\",\n";
+        ss << "  \"layouts\": {\n";
+
+        struct LayoutDef
+        {
+            char const* name;
+            uint8 maxL;
+            bool tbc;
+            bool wotlk;
+        };
+
+        LayoutDef const defs[] = {
+            { "cap60_classic", 60, false, false },
+            { "cap60_classic_tbc", 60, true, false },
+            { "cap60_classic_wotlk", 60, false, true },
+            { "cap60_all", 60, true, true },
+            { "cap70_classic_tbc", 70, true, false },
+            { "cap70_classic_wotlk", 70, false, true },
+            { "cap70_all", 70, true, true },
+            { "cap80_all", 80, true, true }
+        };
+
+        for (size_t i = 0; i < 8; ++i)
+        {
+            auto const& d = defs[i];
+            ProgressionLayout layout = ProgressionLayout::Create(d.maxL, d.tbc, d.wotlk);
+            ss << "    \"" << d.name << "\": {\n";
+            ss << "      \"maxLevel\": " << uint32(layout.maxLevel) << ",\n";
+            ss << "      \"tbcEnabled\": " << (layout.tbcEnabled ? "true" : "false") << ",\n";
+            ss << "      \"wotlkEnabled\": " << (layout.wotlkEnabled ? "true" : "false") << ",\n";
+            ss << "      \"classic\": [" << uint32(layout.classic.minLevel) << ", " << uint32(layout.classic.maxLevel) << "],\n";
+            ss << "      \"tbc\": " << (layout.tbc ? ("[" + std::to_string(layout.tbc->minLevel) + ", " + std::to_string(layout.tbc->maxLevel) + "]") : "null") << ",\n";
+            ss << "      \"wotlk\": " << (layout.wotlk ? ("[" + std::to_string(layout.wotlk->minLevel) + ", " + std::to_string(layout.wotlk->maxLevel) + "]") : "null") << ",\n";
+
+            // Tier unlocks
+            ss << "      \"tierUnlocks\": {\n";
+            ContentEra const eras[] = { ContentEra::Classic, ContentEra::TBC, ContentEra::WotLK };
+            char const* eraNames[] = { "Classic", "TBC", "WotLK" };
+            ContentTier const tiers[] = {
+                ContentTier::WORLD, ContentTier::DUNGEON_NORMAL, ContentTier::DUNGEON_HEROIC,
+                ContentTier::RAID_ENTRY, ContentTier::RAID_MID, ContentTier::RAID_END, ContentTier::RAID_PINNACLE
+            };
+            char const* tierNames[] = {
+                "WORLD", "DUNGEON_NORMAL", "DUNGEON_HEROIC", "RAID_ENTRY", "RAID_MID", "RAID_END", "RAID_PINNACLE"
+            };
+
+            bool firstEraTier = true;
+            for (size_t e = 0; e < 3; ++e)
+            {
+                if (!layout.IsEraEnabled(eras[e]))
+                    continue;
+                if (!firstEraTier)
+                    ss << ",\n";
+                firstEraTier = false;
+                ss << "        \"" << eraNames[e] << "\": {\n";
+                for (size_t t = 0; t < 7; ++t)
+                {
+                    uint8 unlock = sProgressionRewardResolver->ResolveTierUnlockLevel(tiers[t], eras[e], layout);
+                    ss << "          \"" << tierNames[t] << "\": " << uint32(unlock) << (t + 1 < 7 ? ",\n" : "\n");
+                }
+                ss << "        }";
+            }
+            ss << "\n      },\n";
+
+            // Level mappings
+            ss << "      \"levelMappings\": {\n";
+            bool firstEraMap = true;
+            for (size_t e = 0; e < 3; ++e)
+            {
+                if (!layout.IsEraEnabled(eras[e]))
+                    continue;
+                if (!firstEraMap)
+                    ss << ",\n";
+                firstEraMap = false;
+                ss << "        \"" << eraNames[e] << "\": {\n";
+                uint8 startLvl = (eras[e] == ContentEra::Classic) ? 1 : ((eras[e] == ContentEra::TBC) ? 58 : 68);
+                uint8 endLvl = (eras[e] == ContentEra::Classic) ? 60 : ((eras[e] == ContentEra::TBC) ? 70 : 80);
+                for (uint8 l = startLvl; l <= endLvl; ++l)
+                {
+                    uint8 mapped = layout.MapAuthoredToEffective(eras[e], l);
+                    ss << "          \"" << uint32(l) << "\": " << uint32(mapped) << (l < endLvl ? ",\n" : "\n");
+                }
+                ss << "        }";
+            }
+            ss << "\n      }\n";
+            ss << "    }" << (i + 1 < 8 ? ",\n" : "\n");
+        }
+        ss << "  },\n";
+
+        // Sample Quests in Cap 60 all eras
+        ProgressionLayout lay60 = ProgressionLayout::Create(60, true, true);
+        ss << "  \"sampleQuests\": [\n";
+        struct QuestSpec { uint32 id; char const* title; uint8 authLvl; uint32 authXP; ContentEra era; };
+        QuestSpec const qspecs[] = {
+            { 6, "Bounty on Garrick Padfoot", 5, 450, ContentEra::Classic },
+            { 10, "The Scrimshank Redemption", 48, 4950, ContentEra::Classic },
+            { 236, "Fueling the Demolishers", 80, 22050, ContentEra::WotLK },
+            { 10129, "Mission: Gateways Murketh and Shaadraz", 62, 10750, ContentEra::TBC },
+            { 10742, "Showdown", 70, 15800, ContentEra::TBC },
+            { 12671, "Reconnaissance Flight", 77, 21400, ContentEra::WotLK }
+        };
+        for (size_t q = 0; q < 6; ++q)
+        {
+            auto const& qs = qspecs[q];
+            uint8 effLvl = lay60.MapAuthoredToEffective(qs.era, qs.authLvl);
+            uint32 calibXP = sProgressionRewardResolver->ResolveQuestXP(qs.authXP, qs.authLvl, effLvl, lay60, qs.era);
+            int32 atCapMoney = sProgressionRewardResolver->ResolveMoneyAtCap(calibXP, 1.0f);
+            char const* eraName = (qs.era == ContentEra::Classic) ? "Classic" : ((qs.era == ContentEra::TBC) ? "TBC" : "WotLK");
+
+            ss << "    {\n";
+            ss << "      \"id\": " << qs.id << ",\n";
+            ss << "      \"title\": \"" << qs.title << "\",\n";
+            ss << "      \"authoredLevel\": " << uint32(qs.authLvl) << ",\n";
+            ss << "      \"authoredXP\": " << qs.authXP << ",\n";
+            ss << "      \"effectiveLevel\": " << uint32(effLvl) << ",\n";
+            ss << "      \"calibratedXP\": " << calibXP << ",\n";
+            ss << "      \"atCapMoneyCopper\": " << atCapMoney << ",\n";
+            ss << "      \"era\": \"" << eraName << "\"\n";
+            ss << "    }" << (q + 1 < 6 ? ",\n" : "\n");
+        }
+        ss << "  ],\n";
+
+        // Sample Instances in Cap 60 all eras
+        ss << "  \"sampleInstances\": [\n";
+        struct InstSpec { uint32 mapId; uint8 difficulty; char const* name; ContentEra era; ContentTier tier; uint8 authMin; };
+        InstSpec const ispecs[] = {
+            { 36, 0, "Deadmines", ContentEra::Classic, ContentTier::DUNGEON_NORMAL, 10 },
+            { 329, 0, "Stratholme", ContentEra::Classic, ContentTier::DUNGEON_NORMAL, 45 },
+            { 409, 0, "Molten Core", ContentEra::Classic, ContentTier::RAID_MID, 50 },
+            { 469, 0, "Blackwing Lair", ContentEra::Classic, ContentTier::RAID_END, 60 },
+            { 531, 0, "Ahn'Qiraj Temple", ContentEra::Classic, ContentTier::RAID_PINNACLE, 50 },
+            { 543, 0, "Hellfire Citadel: Ramparts", ContentEra::TBC, ContentTier::DUNGEON_NORMAL, 55 },
+            { 543, 1, "Hellfire Citadel: Ramparts (Heroic)", ContentEra::TBC, ContentTier::DUNGEON_HEROIC, 70 },
+            { 532, 0, "Karazhan", ContentEra::TBC, ContentTier::RAID_ENTRY, 68 },
+            { 564, 0, "Black Temple", ContentEra::TBC, ContentTier::RAID_END, 70 },
+            { 574, 0, "Utgarde Keep", ContentEra::WotLK, ContentTier::DUNGEON_NORMAL, 65 },
+            { 574, 1, "Utgarde Keep (Heroic)", ContentEra::WotLK, ContentTier::DUNGEON_HEROIC, 80 },
+            { 533, 0, "Naxxramas", ContentEra::WotLK, ContentTier::RAID_ENTRY, 80 },
+            { 533, 1, "Naxxramas (25)", ContentEra::WotLK, ContentTier::RAID_ENTRY, 80 },
+            { 603, 0, "Ulduar", ContentEra::WotLK, ContentTier::RAID_MID, 80 },
+            { 603, 1, "Ulduar (25)", ContentEra::WotLK, ContentTier::RAID_MID, 80 },
+            { 631, 0, "Icecrown Citadel", ContentEra::WotLK, ContentTier::RAID_PINNACLE, 80 },
+            { 631, 1, "Icecrown Citadel (25)", ContentEra::WotLK, ContentTier::RAID_PINNACLE, 80 }
+        };
+        for (size_t s = 0; s < 17; ++s)
+        {
+            auto const& is = ispecs[s];
+            uint8 effAccess = sProgressionRewardResolver->ResolveEffectiveAccessMin(is.era, is.tier, is.authMin, lay60);
+            uint8 tierGate = sProgressionRewardResolver->ResolveTierUnlockLevel(is.tier, is.era, lay60);
+            char const* eraName = (is.era == ContentEra::Classic) ? "Classic" : ((is.era == ContentEra::TBC) ? "TBC" : "WotLK");
+            char const* tierName = TierToString(is.tier).c_str();
+
+            ss << "    {\n";
+            ss << "      \"mapId\": " << is.mapId << ",\n";
+            ss << "      \"difficulty\": " << uint32(is.difficulty) << ",\n";
+            ss << "      \"name\": \"" << is.name << "\",\n";
+            ss << "      \"era\": \"" << eraName << "\",\n";
+            ss << "      \"tier\": \"" << tierName << "\",\n";
+            ss << "      \"authoredMin\": " << uint32(is.authMin) << ",\n";
+            ss << "      \"effectiveAccessMin\": " << uint32(effAccess) << ",\n";
+            ss << "      \"tierUnlockGate\": " << uint32(tierGate) << "\n";
+            ss << "    }" << (s + 1 < 17 ? ",\n" : "\n");
+        }
+        ss << "  ]\n";
+        ss << "}\n";
+
+        return ss.str();
+    }
+}
+
+TEST(ProgressionRuntimeSnapshotTest, MatchesCommittedSnapshot)
+{
+    std::string const generatedJson = GenerateProgressionRuntimeSnapshotJson();
+    ASSERT_FALSE(generatedJson.empty());
+
+    std::vector<std::string> candidatePaths = {
+        "modules/mod-coa-content-scaling/docs/generated/progression-runtime-snapshot.json",
+        "docs/generated/progression-runtime-snapshot.json",
+        "C:/games/source/mod-coa-content-scaling/docs/generated/progression-runtime-snapshot.json"
+    };
+
+    std::string existingContent;
+    std::string foundPath;
+
+    for (auto const& p : candidatePaths)
+    {
+        std::ifstream in(p);
+        if (in.is_open())
+        {
+            std::ostringstream buffer;
+            buffer << in.rdbuf();
+            existingContent = buffer.str();
+            foundPath = p;
+            break;
+        }
+    }
+
+    bool updateRequested = (std::getenv("UPDATE_PROGRESSION_SNAPSHOT") != nullptr) || existingContent.empty();
+    if (updateRequested)
+    {
+        for (auto const& p : candidatePaths)
+        {
+            std::ofstream out(p);
+            if (out.is_open())
+            {
+                out << generatedJson;
+            }
+        }
+        if (existingContent.empty())
+            existingContent = generatedJson;
+    }
+
+    EXPECT_EQ(existingContent, generatedJson)
+        << "Progression runtime snapshot drift detected! Logic has diverged from committed snapshot at " << foundPath;
+}
+
 
 

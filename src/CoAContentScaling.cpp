@@ -447,7 +447,12 @@ bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId, ui
 
     // Check difficulty-specific instance access profile and tier unlock level
     auto const* accessProf = FindGeneratedAccessProfile(mapId, difficulty);
+    if (!accessProf && difficulty != 0)
+        accessProf = FindGeneratedAccessProfile(mapId, 0);
+
     auto const* instProf = FindGeneratedInstanceProfile(mapId, difficulty);
+    if (!instProf && difficulty != 0)
+        instProf = FindGeneratedInstanceProfile(mapId, 0);
 
     if (accessProf || instProf)
     {
@@ -892,12 +897,18 @@ namespace
             // Compute effective min and max levels
             auto const& layout = sCoAContentScaling->GetLayout();
             auto const* instProf = FindGeneratedInstanceProfile(lfgProf->mapId, lfgProf->difficulty);
+            if (!instProf && lfgProf->difficulty != 0)
+                instProf = FindGeneratedInstanceProfile(lfgProf->mapId, 0);
+
             ContentTier const tier = instProf ? instProf->tier : ContentTier::WORLD;
             uint8 const effMin = sProgressionRewardResolver->ResolveEffectiveAccessMin(
                 lfgProf->era, tier, lfgProf->authoredMin, layout);
-            uint8 const effMax = (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+            uint8 effMax = (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
                 ? lfgProf->authoredMax
                 : layout.MapAuthoredToEffective(lfgProf->era, lfgProf->authoredMax);
+
+            if (effMax > 0 && effMax < effMin)
+                effMax = std::max(effMin, layout.maxLevel);
 
             uint8 const playerLevel = player->GetLevel();
 
@@ -1187,12 +1198,16 @@ namespace
             // Note: expansion rate resolution is preserved by authored quest era
         }
 
-        void OnResolveDungeonAccessLevels(Player const* player, uint32 mapId, uint8& minLevel, uint8& maxLevel) override
+        void OnResolveDungeonAccessLevels(Player const* player, uint32 mapId, Difficulty difficulty, uint8& minLevel, uint8& maxLevel) override
         {
             if (!sCoAContentScaling->IsEnabled() || !player)
                 return;
 
-            auto const* accessProf = FindGeneratedAccessProfile(mapId);
+            uint8 const diff = static_cast<uint8>(difficulty);
+            auto const* accessProf = FindGeneratedAccessProfile(mapId, diff);
+            if (!accessProf && diff != 0)
+                accessProf = FindGeneratedAccessProfile(mapId, 0);
+
             if (!accessProf)
                 return;
 
@@ -1201,11 +1216,15 @@ namespace
                 (accessProf->era == ContentEra::WotLK && !sCoAContentScaling->IsWotlkEnabled()))
             {
                 minLevel = 255; // Lock out
+                maxLevel = 255;
                 return;
             }
 
             auto const& layout = sCoAContentScaling->GetLayout();
-            auto const* instProf = FindGeneratedInstanceProfile(mapId, accessProf->difficulty);
+            auto const* instProf = FindGeneratedInstanceProfile(mapId, diff);
+            if (!instProf && diff != 0)
+                instProf = FindGeneratedInstanceProfile(mapId, 0);
+
             ContentTier const tier = instProf ? instProf->tier : ContentTier::WORLD;
 
             minLevel = sProgressionRewardResolver->ResolveEffectiveAccessMin(
@@ -1216,6 +1235,9 @@ namespace
                 maxLevel = (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
                     ? accessProf->authoredMax
                     : layout.MapAuthoredToEffective(accessProf->era, accessProf->authoredMax);
+
+                if (maxLevel < minLevel)
+                    maxLevel = std::max(minLevel, layout.maxLevel);
             }
         }
 

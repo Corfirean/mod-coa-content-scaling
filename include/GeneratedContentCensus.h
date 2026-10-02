@@ -33990,18 +33990,21 @@ inline GeneratedMapProfile const* FindGeneratedMapProfile(uint32 mapId)
     return nullptr;
 }
 
-inline GeneratedInstanceProfile const* FindGeneratedInstanceProfile(uint32 mapId, uint8 difficulty = 0)
+inline GeneratedInstanceProfile const* FindGeneratedInstanceProfile(uint32 mapId, uint8 difficulty = 0, bool allowFallback = true)
 {
     for (auto const& p : sGeneratedInstanceProfiles)
     {
         if (p.mapId == mapId && p.difficulty == difficulty)
             return &p;
     }
-    // Fallback to diff 0 if specific diff not found
-    for (auto const& p : sGeneratedInstanceProfiles)
+    // Deterministic canonical fallback to difficulty 0 if specific diff not found
+    if (allowFallback && difficulty != 0)
     {
-        if (p.mapId == mapId)
-            return &p;
+        for (auto const& p : sGeneratedInstanceProfiles)
+        {
+            if (p.mapId == mapId && p.difficulty == 0)
+                return &p;
+        }
     }
     return nullptr;
 }
@@ -34046,17 +34049,21 @@ inline GeneratedLfgProfile const* FindGeneratedLfgProfile(uint32 dungeonId)
     return nullptr;
 }
 
-inline GeneratedAccessProfile const* FindGeneratedAccessProfile(uint32 mapId, uint8 difficulty = 0)
+inline GeneratedAccessProfile const* FindGeneratedAccessProfile(uint32 mapId, uint8 difficulty = 0, bool allowFallback = true)
 {
     for (auto const& a : sGeneratedAccessProfiles)
     {
         if (a.mapId == mapId && a.difficulty == difficulty)
             return &a;
     }
-    for (auto const& a : sGeneratedAccessProfiles)
+    // Deterministic canonical fallback to difficulty 0 if specific diff not found
+    if (allowFallback && difficulty != 0)
     {
-        if (a.mapId == mapId)
-            return &a;
+        for (auto const& a : sGeneratedAccessProfiles)
+        {
+            if (a.mapId == mapId && a.difficulty == 0)
+                return &a;
+        }
     }
     return nullptr;
 }
