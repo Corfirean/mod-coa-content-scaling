@@ -52,6 +52,9 @@ using int16=std::int16_t; using int32=std::int32_t;
         (out / 'regression.cpp').write_text((ROOT / 'tools/content_census/starting_zones_regression.cpp').read_text())
         exe = out / ('regression.exe' if os.name == 'nt' else 'regression')
         files = ['regression.cpp', 'ContentPackRegistry.cpp', 'ProgressionLayout.cpp']
+        if 'extern std::array<GeneratedItemSourceProfile' in source('include/GeneratedContentCensus.h'):
+            (out / 'GeneratedItemProfiles.cpp').write_text(source('src/GeneratedItemProfiles.cpp'), encoding='utf-8')
+            files.append('GeneratedItemProfiles.cpp')
         flags = (['/nologo', '/std:c++20', '/EHsc', '/utf-8', *files, '/Fe' + str(exe)]
                  if Path(compiler).stem.lower() == 'cl' else ['-std=c++20', *files, '-o', str(exe)])
         subprocess.run([compiler, *flags], cwd=out, check=True)

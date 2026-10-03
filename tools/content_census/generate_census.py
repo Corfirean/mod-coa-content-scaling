@@ -1105,11 +1105,15 @@ struct GeneratedAccessProfile
             f.write(f'    GeneratedQuestProfile{{ {q["quest_id"]}, ContentEra::{q["era"]}, {q["authored_level"]}, {q["authored_min_level"]}, {q["confidence"]} }},\n')
         f.write("};\n\n")
 
-        # Items
-        f.write(f"inline constexpr std::array<GeneratedItemSourceProfile, {len(item_profiles)}> sGeneratedItemProfiles =\n{{\n")
-        for it in sorted(item_profiles, key=lambda x: x["item_id"]):
-            f.write(f'    GeneratedItemSourceProfile{{ {it["item_id"]}, ContentEra::{it["era"]}, ContentTier::{it["tier"]}, {it["source_map"]}, {it["special_flags"]}, {it["policy"]} }},\n')
-        f.write("};\n\n")
+        f.write(f"extern std::array<GeneratedItemSourceProfile, {len(item_profiles)}> const sGeneratedItemProfiles;\n\n")
+        cpp_items_path = output_dir / "src/GeneratedItemProfiles.cpp"
+        cpp_items_path.parent.mkdir(parents=True, exist_ok=True)
+        with cpp_items_path.open("w", encoding="utf-8", newline="\n") as items_file:
+            items_file.write('#include "GeneratedContentCensus.h"\n\n')
+            items_file.write(f"const std::array<GeneratedItemSourceProfile, {len(item_profiles)}> sGeneratedItemProfiles =\n{{\n")
+            for it in sorted(item_profiles, key=lambda x: x["item_id"]):
+                items_file.write(f'    GeneratedItemSourceProfile{{ {it["item_id"]}, ContentEra::{it["era"]}, ContentTier::{it["tier"]}, {it["source_map"]}, {it["special_flags"]}, {it["policy"]} }},\n')
+            items_file.write("};\n")
 
         # LFG Profiles
         f.write(f"inline constexpr std::array<GeneratedLfgProfile, {len(lfg_profiles)}> sGeneratedLfgProfiles =\n{{\n")
