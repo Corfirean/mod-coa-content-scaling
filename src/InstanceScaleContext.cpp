@@ -571,6 +571,15 @@ void InstanceScalingMgr::LoadCalibratedBossFlex()
     LOG_INFO("server.loading", "UniversalContentScaling: Loaded {} calibrated boss flex profiles from coa_boss_flex", count);
 }
 
+void InstanceScalingMgr::RemoveMapContext(uint32 mapId, uint32 instanceId)
+{
+    uint64 const key = (static_cast<uint64>(mapId) << 32) | instanceId;
+    std::lock_guard<std::mutex> lock(_lock);
+    _contexts.erase(key);
+    _challengeSizes.erase(key);
+    _compositionModes.erase(key);
+}
+
 void InstanceScalingMgr::Clear()
 {
     std::lock_guard<std::mutex> lock(_lock);

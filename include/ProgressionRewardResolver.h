@@ -33,7 +33,7 @@ public:
             return 0;
 
         // If identity cap 80 with all expansions active, preserve authored XP 1:1
-        if (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+        if (layout.IsStockIdentity())
             return authoredXP;
 
         if (authoredLevel <= 0 || effectiveLevel <= 0)
@@ -83,7 +83,7 @@ public:
             return 0;
 
         // Identity layout check
-        if (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+        if (layout.IsStockIdentity())
             return authoredRequiredLevel;
 
         uint32 mappedLevel = layout.MapAuthoredToEffective(era, static_cast<uint8>(authoredRequiredLevel));
@@ -171,7 +171,7 @@ public:
                                                   ProgressionLayout const& layout) const
     {
         // Stock cap 80 identity preserves authored access requirements 1:1
-        if (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+        if (layout.IsStockIdentity())
             return authoredMin;
 
         // If era is not enabled, access is locked out
@@ -198,7 +198,7 @@ public:
     [[nodiscard]] uint8 ResolveLfgRewardLevel(ContentEra era, uint8 playerLevel,
                                               ProgressionLayout const& layout) const
     {
-        if (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+        if (layout.IsStockIdentity())
             return playerLevel;
 
         LevelRange const eraRange = layout.GetEraRange(era);

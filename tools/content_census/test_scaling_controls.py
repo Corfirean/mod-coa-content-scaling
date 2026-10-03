@@ -27,6 +27,7 @@ def main(source_ref):
     controller = source('src/CoAContentScaling.cpp')
     bodies = '\n'.join(method(controller, signature) for signature in (
         'void CoAContentScaling::FinalizeAndInitialize()',
+        'void CoAContentScaling::InitializeLayout()',
         'void CoAContentScaling::UnregisterLocalLevelScalingHooks()',
         'void CoAContentScaling::OnResolveLfgQueuePolicy(',
         'uint8 CoAContentScaling::GetEffectiveCreatureLevel(',
@@ -34,6 +35,7 @@ def main(source_ref):
         'uint32 CoAContentScaling::GetEffectiveQuestMinLevel(',
     ))
     bodies += '\n' + method(source('src/ItemBudgetScaler.cpp'), 'ItemScalingContext ItemScalingContext::Resolve(')
+    bodies += '\n' + method(source('src/InstanceScaleContext.cpp'), 'void InstanceScalingMgr::RemoveMapContext(')
     keys = source('include/CoAContentScalingConfig.h')
     keys = keys[keys.index('namespace CoAContentScalingConfigKeys'):keys.index('namespace CoAContentScalingConfig\n')]
     harness = (ROOT / 'tools/content_census/scaling_controls_regression.cpp').read_text()
@@ -41,12 +43,12 @@ def main(source_ref):
     with tempfile.TemporaryDirectory(prefix='coa-scaling-controls-') as folder:
         out = Path(folder)
         for name in ('ContentPackRegistry', 'ProgressionLayout', 'ContentEra', 'ContentTier', 'InstanceProfile',
-                     'GeneratedContentCensus', 'ItemBudgetScaler'):
+                     'GeneratedContentCensus', 'ItemBudgetScaler', 'ProgressionContext', 'ProgressionRewardResolver'):
             (out / f'{name}.h').write_text(source(f'include/{name}.h'), encoding='utf-8')
         for name in ('ContentPackRegistry', 'ProgressionLayout'):
             (out / f'{name}.cpp').write_text(source(f'src/{name}.cpp'), encoding='utf-8')
-        (out / 'Define.h').write_text('#pragma once\n#include <cstdint>\nusing uint8=std::uint8_t; using uint16=std::uint16_t; using uint32=std::uint32_t; using int16=std::int16_t; using int32=std::int32_t;\n')
-        (out / 'Log.h').write_text('#pragma once\n#define LOG_INFO(...)\n#define LOG_ERROR(...)\n#define LOG_WARN(...)\n')
+        (out / 'Define.h').write_text('#pragma once\n#include <cstdint>\nusing uint8=std::uint8_t; using uint16=std::uint16_t; using uint32=std::uint32_t; using uint64=std::uint64_t; using int16=std::int16_t; using int32=std::int32_t;\n')
+        (out / 'Log.h').write_text('#pragma once\n#define LOG_INFO(...)\n#define LOG_ERROR(...)\n#define LOG_WARN(...)\n#define LOG_FATAL(...)\n')
         (out / 'regression.cpp').write_text(harness, encoding='utf-8')
         exe = out / ('regression.exe' if os.name == 'nt' else 'regression')
         files = ['regression.cpp', 'ContentPackRegistry.cpp', 'ProgressionLayout.cpp']

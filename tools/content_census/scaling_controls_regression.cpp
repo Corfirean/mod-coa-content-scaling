@@ -3,6 +3,7 @@
 #include "InstanceProfile.h"
 #include "ItemBudgetScaler.h"
 #include "Log.h"
+#include "ProgressionRewardResolver.h"
 #include <atomic>
 #include <iostream>
 #include <mutex>
@@ -44,8 +45,23 @@ struct Config
     template <typename T> T GetOption(char const*, T) { return T(scaleItems); }
 } config;
 Config* sConfigMgr = &config;
-struct InstanceMgr { unsigned loads = 0; void LoadCalibratedBossFlex() { ++loads; } } instances;
-InstanceMgr* sInstanceScalingMgr = &instances;
+constexpr unsigned CONFIG_MAX_PLAYER_LEVEL = 0;
+struct World
+{
+    uint32 cap = 60;
+    unsigned reads = 0;
+    uint32 getIntConfig(unsigned) { ++reads; return cap; }
+} world;
+World* sWorld = &world;
+struct InstanceScalingMgr
+{
+    unsigned loads = 0;
+    std::unordered_map<uint64, unsigned> _contexts, _challengeSizes, _compositionModes, _bossFlexCache;
+    std::mutex _lock;
+    void LoadCalibratedBossFlex() { ++loads; }
+    void RemoveMapContext(uint32 mapId, uint32 instanceId);
+} instances;
+InstanceScalingMgr* sInstanceScalingMgr = &instances;
 unsigned itemMutations = 0;
 ItemBudgetScaler* ItemBudgetScaler::Instance() { static ItemBudgetScaler scaler; return &scaler; }
 void ItemBudgetScaler::ScaleAllItems(ProgressionLayout const&) { ++itemMutations; }
@@ -82,14 +98,17 @@ class CoAContentScaling
 {
 public:
     bool _enabled = false;
-    unsigned layouts = 0, hooks = 0;
+    unsigned hooks = 0;
+    bool _tbcEnabled = true, _wotlkEnabled = true;
+    std::string _progressionMode = "Auto";
+    uint8 _customClassicEnd = 0, _customTbcEnd = 0;
     ProgressionLayout _layout = ProgressionLayout::Create(60, true, true);
     std::mutex _lfgSettingsLock;
     std::unordered_map<ObjectGuid, PlayerLfgSettings> _playerLfgSettings;
     lfg::LfgCompositionMode _defaultLfgCompositionMode = lfg::LfgCompositionMode::CURRENT_PARTY;
     uint32 _defaultLfgChallengeSize = 20;
     void FinalizeAndInitialize();
-    void InitializeLayout() { ++layouts; }
+    void InitializeLayout();
     void RegisterLocalLevelScalingHooks() { ++hooks; }
     void UnregisterLocalLevelScalingHooks();
     void OnResolveLfgQueuePolicy(ObjectGuid const&, lfg::LfgQueuePolicy&);
@@ -115,7 +134,7 @@ int main()
     CoAContentScaling disabled;
     disabled.FinalizeAndInitialize();
     check(registry->IsFinalized(), "disabled lifecycle remains finalized for restart-only enable changes");
-    check(disabled.layouts == 0 && instances.loads == 0 && itemMutations == 0 && disabled.hooks == 0,
+    check(world.reads == 0 && instances.loads == 0 && itemMutations == 0 && disabled.hooks == 0,
           "disabled startup must not initialize scaling or mutate items");
     check(!LocalLevelScaling::ContentScalingActive && !LocalLevelScaling::QuestBaseLevelOwner &&
           !LocalLevelScaling::QuestMinLevelOwner && !LocalLevelScaling::CreatureBaseLevelOwner &&
@@ -136,11 +155,58 @@ int main()
     enabled._enabled = true;
     enabled.FinalizeAndInitialize();
     enabled.FinalizeAndInitialize();
-    check(enabled.layouts == 1 && instances.loads == 1 && itemMutations == 1 && enabled.hooks == 1,
+    check(world.reads == 1 && instances.loads == 1 && itemMutations == 1 && enabled.hooks == 1,
           "enabled startup initializes once and scales items");
     enabled.OnResolveLfgQueuePolicy(1, policy);
     check(policy.compositionMode == lfg::LfgCompositionMode::CURRENT_PARTY && policy.challengeSize == 20 &&
           policy.minPlayers == 1 && !policy.requireStandardRoles, "enabled LFG control remains active");
+    registry->Clear();
+    world.cap = 50;
+    CoAContentScaling invalid;
+    invalid._enabled = true;
+    LocalLevelScaling::ContentScalingActive = true;
+    LocalLevelScaling::QuestBaseLevelOwner = reinterpret_cast<void*>(1);
+    invalid.FinalizeAndInitialize();
+    invalid.FinalizeAndInitialize();
+    check(!invalid._enabled && invalid.hooks == 0 && instances.loads == 1 && itemMutations == 1,
+          "invalid layout stops startup before boss loading, item mutation and hook registration");
+    check(world.reads == 2 && registry->IsFinalized() && !LocalLevelScaling::ContentScalingActive &&
+          !LocalLevelScaling::QuestBaseLevelOwner, "invalid startup clears callbacks and cannot retry initialization");
+    world.cap = 60;
+    uint64 const removedKey = (uint64(530) << 32) | 42;
+    uint64 const otherInstance = (uint64(530) << 32) | 43;
+    uint64 const otherMap = (uint64(571) << 32) | 42;
+    for (auto key : {removedKey, otherInstance, otherMap})
+    {
+        instances._contexts[key] = 1;
+        instances._challengeSizes[key] = 5;
+        instances._compositionModes[key] = 1;
+    }
+    instances._bossFlexCache[123] = 1;
+    instances.RemoveMapContext(530, 42);
+    instances.RemoveMapContext(530, 42);
+    check(!instances._contexts.contains(removedKey) && !instances._challengeSizes.contains(removedKey) &&
+          !instances._compositionModes.contains(removedKey), "destroyed map drops encounter and group state");
+    check(instances._contexts.contains(otherInstance) && instances._contexts.contains(otherMap) &&
+          instances._challengeSizes.size() == 2 && instances._compositionModes.size() == 2 &&
+          instances._bossFlexCache.contains(123), "map cleanup preserves other instances and boss calibration");
+    auto stock = ProgressionLayout::Create(80, true, true);
+    auto custom = ProgressionLayout::Create(80, true, true, 45, 55);
+    std::string error;
+    check(stock.IsStockIdentity() && !custom.IsStockIdentity() && custom.Validate(error),
+          "custom cap80 is valid but does not preserve stock budgets");
+    auto* rewards = ProgressionRewardResolver::Instance();
+    check(rewards->ResolveItemRequiredLevel(60, ContentEra::Classic, 45, custom) == 45 &&
+          rewards->ResolveEffectiveAccessMin(ContentEra::Classic, ContentTier::DUNGEON_NORMAL, 60, custom) == 45,
+          "custom cap80 maps item requirements and dungeon access with creature levels");
+    check(rewards->ResolveQuestXP(10000, 60, 45, custom, ContentEra::Classic) == 8625 &&
+          rewards->ResolveLfgRewardLevel(ContentEra::Classic, 45, custom) == 60,
+          "custom cap80 calibrates quest XP and LFG reward lookup");
+    check(rewards->ResolveItemRequiredLevel(60, ContentEra::Classic, 60, stock) == 60 &&
+          rewards->ResolveEffectiveAccessMin(ContentEra::Classic, ContentTier::DUNGEON_NORMAL, 60, stock) == 60 &&
+          rewards->ResolveQuestXP(10000, 60, 60, stock, ContentEra::Classic) == 10000 &&
+          rewards->ResolveLfgRewardLevel(ContentEra::Classic, 45, stock) == 45,
+          "stock cap80 preserves authored requirements and rewards");
     registry->Clear();
     ItemTemplate item;
     auto original = ItemScalingContext::Resolve(&item);

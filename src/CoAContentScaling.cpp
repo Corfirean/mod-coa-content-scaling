@@ -144,6 +144,12 @@ void CoAContentScaling::FinalizeAndInitialize()
     // 2. Compute immutable progression layout
     InitializeLayout();
 
+    if (!_enabled)
+    {
+        UnregisterLocalLevelScalingHooks();
+        return;
+    }
+
     // 3. Load calibrated boss flex profiles
     sInstanceScalingMgr->LoadCalibratedBossFlex();
 
@@ -204,7 +210,7 @@ void CoAContentScaling::RegisterLocalLevelScalingHooks()
 
             auto const& layout = sCoAContentScaling->GetLayout();
             // In cap80 identity with all eras active, preserve stock content level 1:1
-            if (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+            if (layout.IsStockIdentity())
                 return defaultContent;
 
             // In compressed mode, determine content band from effective player level to avoid 580 base XP skew
@@ -984,7 +990,7 @@ namespace
             ContentTier const tier = instProf ? instProf->tier : ContentTier::WORLD;
             uint8 const effMin = sProgressionRewardResolver->ResolveEffectiveAccessMin(
                 lfgProf->era, tier, lfgProf->authoredMin, layout);
-            uint8 effMax = (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+            uint8 effMax = (layout.IsStockIdentity())
                 ? lfgProf->authoredMax
                 : layout.MapAuthoredToEffective(lfgProf->era, lfgProf->authoredMax);
 
@@ -1331,7 +1337,7 @@ namespace
 
             if (maxLevel > 0)
             {
-                maxLevel = (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+                maxLevel = (layout.IsStockIdentity())
                     ? accessProf->authoredMax
                     : layout.MapAuthoredToEffective(accessProf->era, accessProf->authoredMax);
 
@@ -1421,6 +1427,11 @@ namespace
     {
     public:
         coa_content_scaling_map() : AllMapScript("coa_content_scaling_map") { }
+
+        void OnDestroyMap(Map* map) override
+        {
+            sInstanceScalingMgr->RemoveMapContext(map->GetId(), map->GetInstanceId());
+        }
 
         void OnResolveEncounterMechanic(Map* map, uint32 encounterId, uint32 mechanicId, uint8 mechanicType, uint32 authoredValue, uint32& resolvedValue) override
         {
