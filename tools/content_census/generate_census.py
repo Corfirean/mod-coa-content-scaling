@@ -379,6 +379,25 @@ def main():
                     "name": f"{name} (Heroic)"
                 })
 
+    indexed_profiles = {(profile["map_id"], profile["difficulty"]): profile for profile in pve_instance_profiles}
+    requested_difficulties = {(row["map_id"], row["difficulty"]) for row in dungeon_access}
+    requested_difficulties.update((row["map_id"], row["difficulty"]) for row in dbc_lfg.values())
+    difficulty_path = Path(args.dbc_dir) / "MapDifficulty.dbc"
+    difficulty_data = difficulty_path.read_bytes()
+    _, count, _, record_size, _ = struct.unpack_from("<4s4I", difficulty_data)
+    requested_difficulties.update(struct.unpack_from("<II", difficulty_data, 24 + row * record_size)
+                                  for row in range(count))
+    for map_id, difficulty in sorted(requested_difficulties):
+        if (map_id, difficulty) in indexed_profiles or (map_id, 0) not in indexed_profiles:
+            continue
+        profile = dict(indexed_profiles[(map_id, 0)])
+        profile["difficulty"] = difficulty
+        profile["name"] += f" (difficulty {difficulty})"
+        if not profile["is_raid"] and difficulty > 0:
+            profile["tier"] = "DUNGEON_HEROIC"
+        pve_instance_profiles.append(profile)
+        indexed_profiles[(map_id, difficulty)] = profile
+
     print(f"Classified {len(all_map_profiles)} maps. Excluded {len(excluded_pvp_maps)} PvP maps from PvE registry. Generated {len(pve_instance_profiles)} PvE instance variants.")
 
     print("=== Step 5: Creature Spawns & Placement-Aware Profiles ===")
@@ -441,8 +460,9 @@ def main():
                 era = "TBC"
             elif map_of_area == 571:
                 era = "WotLK"
-            elif map_of_area in (0, 1):
-                era = "Classic"
+            elif map_of_area in dbc_maps:
+                expansion = dbc_maps[map_of_area]["expansion_id"]
+                era = "WotLK" if expansion == 2 else "TBC" if expansion == 1 else "Classic"
         else: # Heuristic fallback
             if qlevel >= 68:
                 era = "WotLK"
@@ -514,15 +534,37 @@ def main():
                 if d > 0:
                     loot_to_sources[d].add((m, idx + 1, is_boss, conf, source_era))
 
+    template_loot = {int(row[0]): int(row[2]) for row in c_templates}
+    for row in c_templates:
+        for child in (int(value) for value in row[3:6]):
+            if child and template_loot.get(child):
+                loot_to_sources[template_loot[child]].update(loot_to_sources.get(child, set()))
+
     # Query creature loot entries to map item -> drop sources
-    clt_all = run_query(cmd_base, f"SELECT item, entry FROM {world_db}.creature_loot_template WHERE item > 0;")
+    clt_all = run_query(cmd_base, f"SELECT item,entry,Reference FROM {world_db}.creature_loot_template;")
+    reference_rows = run_query(cmd_base, f"SELECT item,entry,Reference FROM {world_db}.reference_loot_template;")
+    references = defaultdict(list)
+    for row in reference_rows:
+        references[int(row[1])].append((int(row[0]), int(row[2])))
     item_sources = defaultdict(set)
-    for r in clt_all:
-        item = int(r[0])
-        entry = int(r[1])
-        sources = loot_to_sources.get(entry, set())
-        for s in sources:
-            item_sources[item].add(s)
+    for row in clt_all:
+        sources = loot_to_sources.get(int(row[1]), set())
+        if not sources:
+            continue
+        if int(row[0]) > 0:
+            item_sources[int(row[0])].update(sources)
+        pending = [int(row[2])] if int(row[2]) > 0 else []
+        visited = set()
+        while pending:
+            reference = pending.pop()
+            if reference in visited:
+                continue
+            visited.add(reference)
+            for item, nested in references[reference]:
+                if item > 0:
+                    item_sources[item].update(sources)
+                if nested > 0:
+                    pending.append(nested)
 
     TIER_PRIORITY = {
         "DUNGEON_NORMAL": 1,
@@ -580,7 +622,9 @@ def main():
         if iid not in seen_item_ids:
             seen_item_ids.add(iid)
             combined_items.append(r)
-    for r in custom_rows:
+    combat_rows = run_query(cmd_base, f"SELECT entry,ItemLevel,Quality,InventoryType,RequiredLevel,Flags,spellid_1,spelltrigger_1,spellid_2,spelltrigger_2,itemset FROM {world_db}.item_template WHERE class IN (2,4) AND InventoryType>0 AND RequiredLevel>=55 AND ItemLevel>1 AND (Armor>0 OR dmg_min1>0 OR stat_value1<>0 OR stat_value2<>0 OR stat_value3<>0 OR stat_value4<>0 OR stat_value5<>0 OR stat_value6<>0 OR stat_value7<>0 OR stat_value8<>0 OR stat_value9<>0 OR stat_value10<>0);")
+    combat_item_ids = {int(r[0]) for r in combat_rows}
+    for r in custom_rows + combat_rows:
         iid = int(r[0])
         if iid not in seen_item_ids:
             seen_item_ids.add(iid)
@@ -619,11 +663,13 @@ def main():
         if has_set: special_flags |= 4
         if has_socket: special_flags |= 8
 
+        combat_variant = item_id >= 100000 and item_id in combat_item_ids
+
         # 7.2 Apply Custom Content Overrides (Single Source of Truth)
         matched_custom = False
         for rule in custom_ov:
             r_min, r_max = rule.get("entry_range", [0, 0])
-            if r_min <= item_id <= r_max:
+            if r_min <= item_id <= r_max and not combat_variant:
                 matched_custom = True
                 special_flags |= 16 # ITEM_SPECIAL_CUSTOM
                 rule_pol = rule.get("scaling_policy", "")
@@ -665,13 +711,13 @@ def main():
                 else:
                     era = source_era
                     tier = "WORLD"
-            else:
+            if not sources or (tier == "WORLD" and req_lvl > {"Classic": 60, "TBC": 70, "WotLK": 80}.get(era, 80)):
                 source_map = 0
                 # Fallback for open world or unknown sources
-                if req_lvl >= 75 or ilvl >= 200:
+                if req_lvl > 70 or (not combat_variant and ilvl >= 200):
                     era = "WotLK"
                     tier = "RAID_ENTRY" if ilvl <= 213 else ("RAID_MID" if ilvl <= 226 else ("RAID_END" if ilvl <= 245 else "RAID_PINNACLE"))
-                elif req_lvl >= 68 or ilvl >= 115:
+                elif req_lvl > 60 or (not combat_variant and ilvl >= 115):
                     era = "TBC"
                     tier = "RAID_ENTRY" if ilvl <= 128 else ("RAID_MID" if ilvl <= 138 else ("RAID_END" if ilvl <= 151 else "RAID_PINNACLE"))
                 elif req_lvl >= 55 or ilvl >= 60:
@@ -681,8 +727,13 @@ def main():
                     era = "Classic"
                     tier = "DUNGEON_NORMAL"
 
+            if combat_variant:
+                special_flags |= 16
+
             if special_flags & 32:
                 policy_code = 2 # PRESERVE
+            elif combat_variant and tier != "WORLD":
+                policy_code = 1
             elif special_flags & 15:
                 policy_code = 3 # REVIEW_SPECIAL
             elif tier != "WORLD":
@@ -753,6 +804,10 @@ def main():
         if m_id in reused_ov:
             l_era = reused_ov[m_id]["era"]
 
+        instance = indexed_profiles.get((m_id, diff))
+        tier = instance["tier"] if instance else "WORLD"
+        if l["type_id"] == 6:
+            tier = "DUNGEON_HEROIC" if any(word in l["name"] for word in ("Heroic", "Mythic")) else "DUNGEON_NORMAL"
         lfg_profiles.append({
             "dungeon_id": lid,
             "map_id": m_id,
@@ -760,7 +815,8 @@ def main():
             "era": l_era,
             "min_level": l["min_lvl"],
             "max_level": l["max_lvl"],
-            "target_level": l["target_lvl"]
+            "target_level": l["target_lvl"],
+            "tier": tier
         })
     print(f"Generated {len(access_profiles)} access profiles and {len(lfg_profiles)} LFG profiles.")
 
@@ -884,7 +940,7 @@ def main():
 
     # 9. artifacts/census-metadata.json
     metadata = {
-        "schema_version": 311,
+        "schema_version": 312,
         "generator_version": "3.3.0",
         "inputs": {
             "Map.dbc": compute_sha256(dbc_dir / "Map.dbc"),
@@ -912,7 +968,7 @@ def main():
     # 10. artifacts/content-census.json
     with open(artifacts_dir / "content-census.json", "w", encoding="utf-8") as f:
         json.dump({
-            "schema_version": 311,
+            "schema_version": 312,
             "metadata": metadata,
             "instances": pve_instance_profiles,
             "access": access_profiles,
@@ -940,7 +996,7 @@ def main():
 #include <array>
 #include <cstdint>
 
-#define GENERATED_CONTENT_CENSUS_SCHEMA_VERSION 311
+#define GENERATED_CONTENT_CENSUS_SCHEMA_VERSION 312
 
 struct GeneratedMapProfile
 {
@@ -998,6 +1054,7 @@ struct GeneratedLfgProfile
     uint8 authoredMin;
     uint8 authoredMax;
     uint8 authoredTarget;
+    ContentTier tier;
 };
 
 struct GeneratedAccessProfile
@@ -1057,7 +1114,7 @@ struct GeneratedAccessProfile
         # LFG Profiles
         f.write(f"inline constexpr std::array<GeneratedLfgProfile, {len(lfg_profiles)}> sGeneratedLfgProfiles =\n{{\n")
         for l in sorted(lfg_profiles, key=lambda x: x["dungeon_id"]):
-            f.write(f'    GeneratedLfgProfile{{ {l["dungeon_id"]}, {l["map_id"]}, {l["difficulty"]}, ContentEra::{l["era"]}, {l["min_level"]}, {l["max_level"]}, {l["target_level"]} }},\n')
+            f.write(f'    GeneratedLfgProfile{{ {l["dungeon_id"]}, {l["map_id"]}, {l["difficulty"]}, ContentEra::{l["era"]}, {l["min_level"]}, {l["max_level"]}, {l["target_level"]}, ContentTier::{l["tier"]} }},\n')
         f.write("};\n\n")
 
         # Access Profiles
@@ -1080,7 +1137,7 @@ inline GeneratedMapProfile const* FindGeneratedMapProfile(uint32 mapId)
     return nullptr;
 }
 
-inline GeneratedInstanceProfile const* FindGeneratedInstanceProfile(uint32 mapId, uint8 difficulty = 0)
+inline GeneratedInstanceProfile const* FindGeneratedInstanceProfile(uint32 mapId, uint8 difficulty = 0, bool allowFallback = true)
 {
     for (auto const& p : sGeneratedInstanceProfiles)
     {
@@ -1088,10 +1145,13 @@ inline GeneratedInstanceProfile const* FindGeneratedInstanceProfile(uint32 mapId
             return &p;
     }
     // Fallback to diff 0 if specific diff not found
-    for (auto const& p : sGeneratedInstanceProfiles)
+    if (allowFallback && difficulty != 0)
     {
-        if (p.mapId == mapId)
-            return &p;
+        for (auto const& p : sGeneratedInstanceProfiles)
+        {
+            if (p.mapId == mapId && p.difficulty == 0)
+                return &p;
+        }
     }
     return nullptr;
 }
@@ -1136,17 +1196,20 @@ inline GeneratedLfgProfile const* FindGeneratedLfgProfile(uint32 dungeonId)
     return nullptr;
 }
 
-inline GeneratedAccessProfile const* FindGeneratedAccessProfile(uint32 mapId, uint8 difficulty = 0)
+inline GeneratedAccessProfile const* FindGeneratedAccessProfile(uint32 mapId, uint8 difficulty = 0, bool allowFallback = true)
 {
     for (auto const& a : sGeneratedAccessProfiles)
     {
         if (a.mapId == mapId && a.difficulty == difficulty)
             return &a;
     }
-    for (auto const& a : sGeneratedAccessProfiles)
+    if (allowFallback && difficulty != 0)
     {
-        if (a.mapId == mapId)
-            return &a;
+        for (auto const& a : sGeneratedAccessProfiles)
+        {
+            if (a.mapId == mapId && a.difficulty == 0)
+                return &a;
+        }
     }
     return nullptr;
 }

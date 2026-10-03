@@ -4,12 +4,12 @@
  */
 
 #include "CoAContentScaling.h"
+#include "Chat.h"
 #include "AdaptiveEncounterAPI.h"
 #include "AllMapScript.h"
 #include "CoAContentScalingConfig.h"
 #include "CombatBudgetProfile.h"
 #include "Config.h"
-#include "Containers.h"
 #include "ContentPackRegistry.h"
 #include "Creature.h"
 #include "CreatureData.h"
@@ -40,6 +40,7 @@
 #include "SpellAuras.h"
 #include "SpellInfo.h"
 #include "World.h"
+#include "WorldPacket.h"
 #include <algorithm>
 #include <cmath>
 
@@ -72,8 +73,8 @@ void CoAContentScaling::LoadConfig()
 
     if (_defaultLfgCompositionMode == lfg::LfgCompositionMode::BOT_FILL && !sScriptMgr->HasLfgAutoFillProvider())
     {
-        LOG_WARN("module.coa_content_scaling", "CoAContentScaling: LFG default mode configured as BotFill, but no bot fill provider is registered! Falling back to Matchmaking.");
-        _defaultLfgCompositionMode = lfg::LfgCompositionMode::MATCHMAKING;
+        LOG_WARN("module.coa_content_scaling", "CoAContentScaling: LFG default mode configured as BotFill, but no bot fill provider is registered! Falling back to CURRENT_PARTY.");
+        _defaultLfgCompositionMode = lfg::LfgCompositionMode::CURRENT_PARTY;
     }
 
     uint32 const rawChallenge = sConfigMgr->GetOption<uint32>(CoAContentScalingConfigKeys::LfgDefaultChallengeSize, 0);
@@ -105,8 +106,8 @@ void CoAContentScaling::LoadReloadableConfig()
     _defaultLfgCompositionMode = CoAContentScalingConfig::ParseLfgCompositionMode(defaultModeStr);
     if (_defaultLfgCompositionMode == lfg::LfgCompositionMode::BOT_FILL && !sScriptMgr->HasLfgAutoFillProvider())
     {
-        LOG_WARN("module.coa_content_scaling", "CoAContentScaling: LFG default mode configured as BotFill, but no bot fill provider is registered! Falling back to Matchmaking.");
-        _defaultLfgCompositionMode = lfg::LfgCompositionMode::MATCHMAKING;
+        LOG_WARN("module.coa_content_scaling", "CoAContentScaling: LFG default mode configured as BotFill, but no bot fill provider is registered! Falling back to CURRENT_PARTY.");
+        _defaultLfgCompositionMode = lfg::LfgCompositionMode::CURRENT_PARTY;
     }
 
     uint32 const rawChallenge = sConfigMgr->GetOption<uint32>(CoAContentScalingConfigKeys::LfgDefaultChallengeSize, 0);
@@ -153,12 +154,6 @@ void CoAContentScaling::FinalizeAndInitialize()
     // 3. Load calibrated boss flex profiles
     sInstanceScalingMgr->LoadCalibratedBossFlex();
 
-    // 4. Scale item templates if enabled
-    if (sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::ScaleItems, true))
-    {
-        sItemBudgetScaler->ScaleAllItems(_layout);
-    }
-
     // 5. Register production hooks
     RegisterLocalLevelScalingHooks();
 
@@ -169,6 +164,8 @@ void CoAContentScaling::FinalizeAndInitialize()
 void CoAContentScaling::RegisterLocalLevelScalingHooks()
 {
     bool const enabled = _enabled;
+    LocalLevelScaling::FlightUnlockLevel.store(
+        enabled ? (_layout.tbcEnabled ? _layout.GetEraRange(ContentEra::TBC).minLevel : 255) : 60, std::memory_order_relaxed);
     LocalLevelScaling::ContentScalingActive.store(enabled, std::memory_order_relaxed);
 
     if (enabled)
@@ -344,6 +341,16 @@ uint32 CoAContentScaling::GetEffectiveQuestMinLevel(Quest const* quest) const
     return static_cast<uint32>(_layout.MapAuthoredToEffective(era, static_cast<uint8>(authoredMin)));
 }
 
+void RescaleLootDamageRequirement(Creature* creature, uint32 previousMaxHealth)
+{
+    if (!creature || !previousMaxHealth || creature->GetMaxHealth() >= previousMaxHealth)
+        return;
+    uint32 const previousRequirement = creature->GetPlayerDamageReq();
+    uint32 const requirement = static_cast<uint32>(
+        uint64(previousRequirement) * creature->GetMaxHealth() / previousMaxHealth);
+    creature->LowerPlayerDamageReq(previousRequirement - requirement, false);
+}
+
 void CoAContentScaling::ApplyCreatureScaling(CreatureTemplate const* cinfo, Creature* creature)
 {
     if (!_enabled || !cinfo || !creature)
@@ -371,11 +378,13 @@ void CoAContentScaling::ApplyCreatureScaling(CreatureTemplate const* cinfo, Crea
     if (calibratedHp > 0)
         budget.health = calibratedHp;
 
-    float const pct = creature->GetMaxHealth() ? creature->GetHealthPct() : 100.0f;
+    uint32 const previousMaxHealth = creature->GetMaxHealth();
+    float const pct = previousMaxHealth ? creature->GetHealthPct() : 100.0f;
     creature->SetCreateHealth(budget.health);
     creature->SetStatFlatModifier(UNIT_MOD_HEALTH, BASE_VALUE, float(budget.health));
     creature->UpdateMaxHealth();
     creature->SetHealth(std::max<uint32>(1, static_cast<uint32>(std::round(float(creature->GetMaxHealth()) * pct / 100.0f))));
+    RescaleLootDamageRequirement(creature, previousMaxHealth);
 
     if (budget.mana > 0)
     {
@@ -456,6 +465,7 @@ void CoAContentScaling::RecalculateEncounterCombatStats(Creature* boss, Encounte
             newCurHp = 1;
     }
     boss->SetHealth(newCurHp);
+    RescaleLootDamageRequirement(boss, oldMaxHp);
 
     if (budget.mana > 0)
     {
@@ -518,7 +528,7 @@ bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId, ui
     if (accessProf || instProf)
     {
         uint8 const authoredMin = accessProf ? accessProf->authoredMin : 0;
-        ContentTier const tier = instProf ? instProf->tier : ContentTier::WORLD;
+        ContentTier const tier = instProf ? instProf->tier : ContentTier::DUNGEON_NORMAL;
 
         uint8 const effectiveMin = sProgressionRewardResolver->ResolveEffectiveAccessMin(
             era, tier, authoredMin, _layout);
@@ -713,13 +723,13 @@ void CoAContentScaling::OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::Lfg
         }
     }
 
-    // Capability check: If player selected BOT_FILL but server has no provider, fall back to MATCHMAKING
-    if (settings.compositionMode == lfg::LfgCompositionMode::BOT_FILL && !sScriptMgr->HasLfgAutoFillProvider())
+    // Capability check: If player selected BOT_FILL but server has no provider, fall back to CURRENT_PARTY
+    if (settings.compositionMode != lfg::LfgCompositionMode::CURRENT_PARTY && !sScriptMgr->HasLfgAutoFillProvider())
     {
         LOG_WARN("module.coa_content_scaling",
-                 "CoAContentScaling: Player {} requested BOT_FILL but no provider registered. Falling back to MATCHMAKING.",
+                 "CoAContentScaling: Player {} has no bot fill provider available. Falling back to CURRENT_PARTY.",
                  guid.ToString());
-        settings.compositionMode = lfg::LfgCompositionMode::MATCHMAKING;
+        settings.compositionMode = lfg::LfgCompositionMode::CURRENT_PARTY;
     }
 
     policy.compositionMode = settings.compositionMode;
@@ -952,6 +962,43 @@ namespace
         {
             sCoAContentScaling->FinalizeAndInitialize();
         }
+
+        void OnStartup() override
+        {
+            if (sCoAContentScaling->IsEnabled() &&
+                sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::ScaleItems, true))
+                sItemBudgetScaler->ScaleAllItems(sCoAContentScaling->GetLayout());
+            auto const& layout = sCoAContentScaling->GetLayout();
+            if (!sCoAContentScaling->IsEnabled() || layout.IsStockIdentity())
+                return;
+            for (auto const& profile : sGeneratedLfgProfiles)
+            {
+                auto* dungeon = const_cast<lfg::LFGDungeonData*>(sLFGMgr->GetLFGDungeon(profile.dungeonId));
+                if (!dungeon)
+                    continue;
+                auto const* access = FindGeneratedAccessProfile(profile.mapId, profile.difficulty);
+                dungeon->minlevel = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+                    profile.era, profile.tier, access ? access->authoredMin : profile.authoredMin, layout);
+                dungeon->maxlevel = sProgressionRewardResolver->ResolveEffectiveAccessMax(
+                    profile.era, profile.authoredMax, layout);
+            }
+            if (!sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::ScaleItems, true))
+                return;
+            for (auto const& profile : sGeneratedAccessProfiles)
+            {
+                auto* access = const_cast<DungeonProgressionRequirements*>(
+                    sObjectMgr->GetAccessRequirement(profile.mapId, Difficulty(profile.difficulty)));
+                if (!access || !access->reqItemLevel)
+                    continue;
+                auto const* instance = FindGeneratedInstanceProfile(profile.mapId, profile.difficulty);
+                ItemScalingContext context;
+                context.era = profile.era;
+                context.tier = instance ? instance->tier : ContentTier::WORLD;
+                ItemTemplate item{};
+                item.ItemLevel = access->reqItemLevel;
+                access->reqItemLevel = sItemBudgetScaler->CalculateItemBudget(&item, layout, context).effectiveItemLevel;
+            }
+        }
     };
 
     class coa_content_scaling_global : public GlobalScript
@@ -983,16 +1030,12 @@ namespace
 
             // Compute effective min and max levels
             auto const& layout = sCoAContentScaling->GetLayout();
-            auto const* instProf = FindGeneratedInstanceProfile(lfgProf->mapId, lfgProf->difficulty);
-            if (!instProf && lfgProf->difficulty != 0)
-                instProf = FindGeneratedInstanceProfile(lfgProf->mapId, 0);
-
-            ContentTier const tier = instProf ? instProf->tier : ContentTier::WORLD;
+            ContentTier const tier = lfgProf->tier;
+            auto const* access = FindGeneratedAccessProfile(lfgProf->mapId, lfgProf->difficulty);
             uint8 const effMin = sProgressionRewardResolver->ResolveEffectiveAccessMin(
-                lfgProf->era, tier, lfgProf->authoredMin, layout);
-            uint8 effMax = (layout.IsStockIdentity())
-                ? lfgProf->authoredMax
-                : layout.MapAuthoredToEffective(lfgProf->era, lfgProf->authoredMax);
+                lfgProf->era, tier, access && !layout.IsStockIdentity() ? access->authoredMin : lfgProf->authoredMin, layout);
+            uint8 effMax = sProgressionRewardResolver->ResolveEffectiveAccessMax(
+                lfgProf->era, lfgProf->authoredMax, layout);
 
             if (effMax > 0 && effMax < effMin)
                 effMax = std::max(effMin, layout.maxLevel);
@@ -1242,6 +1285,58 @@ namespace
     public:
         coa_content_scaling_player() : PlayerScript("coa_content_scaling_player") { }
 
+        bool OnPlayerCanUseChat(Player* player, uint32 type, uint32 language,
+                                std::string& message, Player* receiver) override
+        {
+            if (type == CHAT_MSG_WHISPER && language == LANG_ADDON && player == receiver &&
+                (message == "COASCALE\tMODE:BOTS" || message == "COASCALE\tMODE:SOLO"))
+            {
+                bool const bots = message == "COASCALE\tMODE:BOTS" && sScriptMgr->HasLfgAutoFillProvider();
+                sCoAContentScaling->SetPlayerLfgMode(player->GetGUID(),
+                    bots ? lfg::LfgCompositionMode::BOT_FILL : lfg::LfgCompositionMode::CURRENT_PARTY);
+                return false;
+            }
+            if (type != CHAT_MSG_WHISPER || language != LANG_ADDON || player != receiver ||
+                message != "COASCALE\tREQUEST")
+                return true;
+            uint32 const now = getMSTime();
+            auto const found = _profileRequests.find(player->GetGUID());
+            if (found != _profileRequests.end() && getMSTimeDiff(found->second, now) < 5000)
+                return false;
+            _profileRequests[player->GetGUID()] = now;
+            auto send = [player](std::string const& body)
+            {
+                WorldPacket packet;
+                ChatHandler::BuildChatPacket(packet, CHAT_MSG_WHISPER, LANG_ADDON,
+                    player->GetGUID(), player->GetGUID(), "COASCALE\t" + body,
+                    0, player->GetName(), player->GetName(), 0, false);
+                player->SendDirectMessage(&packet);
+            };
+            auto const& layout = sCoAContentScaling->GetLayout();
+            if (!sCoAContentScaling->IsEnabled() || layout.IsStockIdentity())
+            {
+                send("OFF");
+                return false;
+            }
+            send("BEGIN:" + std::to_string(layout.maxLevel));
+            for (auto const& profile : sGeneratedLfgProfiles)
+            {
+                auto const* dungeon = sLFGMgr->GetLFGDungeon(profile.dungeonId);
+                if (!dungeon)
+                    continue;
+                ContentTier const tier = profile.tier;
+                auto const* access = FindGeneratedAccessProfile(profile.mapId, profile.difficulty);
+                uint8 const min = sProgressionRewardResolver->ResolveEffectiveAccessMin(
+                    profile.era, tier, access ? access->authoredMin : profile.authoredMin, layout);
+                uint8 const max = sProgressionRewardResolver->ResolveEffectiveAccessMax(
+                    profile.era, profile.authoredMax, layout);
+                send("D:" + std::to_string(profile.dungeonId) + ":" + std::to_string(min) + ":" +
+                    std::to_string(max) + ":" + std::to_string(dungeon->type));
+            }
+            send("END");
+            return false;
+        }
+
         bool OnPlayerCanEnterMap(Player* player, MapEntry const* entry, InstanceTemplate const* /*instance*/,
                                  MapDifficulty const* /*mapDiff*/, bool /*loginCheck*/) override
         {
@@ -1309,6 +1404,8 @@ namespace
             }
 
             uint8 const diff = static_cast<uint8>(difficulty);
+            if (sCoAContentScaling->GetLayout().IsStockIdentity())
+                return;
             auto const* accessProf = FindGeneratedAccessProfile(mapId, diff);
             if (!accessProf && diff != 0)
                 accessProf = FindGeneratedAccessProfile(mapId, 0);
@@ -1330,16 +1427,15 @@ namespace
             if (!instProf && diff != 0)
                 instProf = FindGeneratedInstanceProfile(mapId, 0);
 
-            ContentTier const tier = instProf ? instProf->tier : ContentTier::WORLD;
+            ContentTier const tier = instProf ? instProf->tier : ContentTier::DUNGEON_NORMAL;
 
             minLevel = sProgressionRewardResolver->ResolveEffectiveAccessMin(
                 accessProf->era, tier, accessProf->authoredMin, layout);
 
             if (maxLevel > 0)
             {
-                maxLevel = (layout.IsStockIdentity())
-                    ? accessProf->authoredMax
-                    : layout.MapAuthoredToEffective(accessProf->era, accessProf->authoredMax);
+                maxLevel = sProgressionRewardResolver->ResolveEffectiveAccessMax(
+                    accessProf->era, accessProf->authoredMax, layout);
 
                 if (maxLevel < minLevel)
                     maxLevel = std::max(minLevel, layout.maxLevel);
@@ -1363,64 +1459,13 @@ namespace
 
         void OnPlayerLogout(Player* player) override
         {
+            _profileRequests.erase(player->GetGUID());
             if (!sCoAContentScaling->IsEnabled())
                 return;
             sCoAContentScaling->OnPlayerLogout(player);
         }
-    };
-
-    class coa_content_scaling_misc : public MiscScript
-    {
-    public:
-        coa_content_scaling_misc() : MiscScript("coa_content_scaling_misc") { }
-
-        void OnAfterLootTemplateProcess(Loot* loot, LootTemplate const* /*tab*/, LootStore const& /*store*/,
-                                       Player* lootOwner, bool /*personal*/, bool /*noEmptyError*/,
-                                       uint16 /*lootMode*/) override
-        {
-            if (!sCoAContentScaling->IsEnabled() || !loot || !lootOwner)
-                return;
-
-            Map* map = lootOwner->GetMap();
-            if (!map || !map->IsDungeon())
-                return;
-
-            InstanceScaleContext const ctx = sInstanceScalingMgr->GetOrCreateContext(map);
-            if (ctx.effectivePlayers >= float(ctx.intendedPlayers))
-                return; // Full group, standard loot
-
-            float const ratio = ctx.effectivePlayers / float(ctx.intendedPlayers);
-
-            // Separate quest items and regular items:
-            // 1) 100% preservation of quest items
-            // 2) Shuffle regular items to eliminate positional slot bias
-            std::vector<LootItem> questItems;
-            std::vector<LootItem> regularItems;
-
-            for (LootItem const& item : loot->items)
-            {
-                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(item.itemid);
-                if (proto && (proto->Class == ITEM_CLASS_QUEST || proto->Bonding == BIND_QUEST_ITEM || proto->Bonding == BIND_QUEST_ITEM1 || proto->StartQuest > 0))
-                    questItems.push_back(item);
-                else
-                    regularItems.push_back(item);
-            }
-
-            if (!regularItems.empty())
-            {
-                uint32 const keepCount = std::max<uint32>(1, static_cast<uint32>(std::round(float(regularItems.size()) * ratio)));
-                if (keepCount < regularItems.size())
-                {
-                    Acore::Containers::RandomShuffle(regularItems);
-                    regularItems.resize(keepCount);
-                }
-            }
-
-            loot->items.clear();
-            loot->items.insert(loot->items.end(), questItems.begin(), questItems.end());
-            loot->items.insert(loot->items.end(), regularItems.begin(), regularItems.end());
-            loot->unlootedCount = static_cast<uint8>(loot->items.size());
-        }
+    private:
+        std::unordered_map<ObjectGuid, uint32> _profileRequests;
     };
 
     class coa_content_scaling_map : public AllMapScript
@@ -1455,7 +1500,6 @@ void AddCoAContentScalingScripts()
     new coa_content_scaling_creature();
     new coa_content_scaling_unit();
     new coa_content_scaling_player();
-    new coa_content_scaling_misc();
     new coa_content_scaling_map();
     AddCoAContentScalingCommands();
 }

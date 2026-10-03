@@ -192,6 +192,14 @@ public:
         return tierUnlock;
     }
 
+    [[nodiscard]] uint8 ResolveEffectiveAccessMax(ContentEra era, uint8 authoredMax,
+                                                  ProgressionLayout const& layout) const
+    {
+        if (layout.IsStockIdentity())
+            return authoredMax;
+        return layout.IsEraEnabled(era) ? layout.maxLevel : 0;
+    }
+
     /// Resolves calibrated player level for LFG random / daily rewards lookup.
     /// Preserves stock player level 1:1 when unscaled / cap 80 with all eras enabled.
     /// In compressed progression (e.g. Cap 60), maps player at era cap to authored era max (e.g. 80 for WotLK, 70 for TBC, 60 for Classic).

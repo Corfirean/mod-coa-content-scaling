@@ -28,9 +28,6 @@ namespace
     {
         if (authoredIlvl <= band.authMin)
             return band.effMin;
-        if (authoredIlvl >= band.authMax)
-            return band.effMax;
-
         float const t = float(authoredIlvl - band.authMin) / float(std::max<uint32>(1, band.authMax - band.authMin));
         return band.effMin + static_cast<uint32>(std::round(t * float(band.effMax - band.effMin)));
     }
@@ -291,12 +288,12 @@ ScaledItemBudget ItemBudgetScaler::CalculateItemBudget(ItemTemplate const* proto
     if (proto->ItemLevel > 0 && budget.effectiveItemLevel < proto->ItemLevel)
     {
         float const ilvlRatio = float(budget.effectiveItemLevel) / float(proto->ItemLevel);
-        budget.statMultiplier = std::clamp<float>(ilvlRatio, 0.20f, 1.0f);
+        budget.statMultiplier = std::clamp<float>(ilvlRatio, 0.001f, 1.0f);
 
         // Combat rating scaling: ratings provide inflated % at lower level without deflation
         float const levelRatio = (proto->RequiredLevel > 0) ?
             (float(budget.effectiveRequiredLevel) / float(proto->RequiredLevel)) : ilvlRatio;
-        budget.ratingMultiplier = std::clamp<float>(budget.statMultiplier * (levelRatio * levelRatio), 0.15f, 1.0f);
+        budget.ratingMultiplier = std::clamp<float>(budget.statMultiplier * (levelRatio * levelRatio), 0.001f, 1.0f);
 
         budget.armorMultiplier = budget.statMultiplier;
         budget.weaponDpsMultiplier = budget.statMultiplier;
@@ -367,7 +364,7 @@ void ItemBudgetScaler::ScaleAllItems(ProgressionLayout const& layout)
     }
 
     ItemTemplateContainer const* itemTemplates = sObjectMgr->GetItemTemplateStore();
-    if (!itemTemplates)
+    if (!itemTemplates || itemTemplates->empty())
         return;
 
     uint32 totalTemplates = 0;
