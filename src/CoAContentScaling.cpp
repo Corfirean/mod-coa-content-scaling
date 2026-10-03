@@ -135,6 +135,12 @@ void CoAContentScaling::FinalizeAndInitialize()
     // 1. Finalize content pack registrations
     sContentPackRegistry->Finalize();
 
+    if (!_enabled)
+    {
+        UnregisterLocalLevelScalingHooks();
+        return;
+    }
+
     // 2. Compute immutable progression layout
     InitializeLayout();
 
@@ -473,7 +479,7 @@ void CoAContentScaling::RecalculateEncounterCombatStats(Creature* boss, Encounte
 
 bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId, uint8 difficulty) const
 {
-    if (!player || player->IsGameMaster())
+    if (!_enabled || !player || player->IsGameMaster())
         return true;
 
     // Corpse / ghost re-entry safety: dead players retrieving corpse in their instance must NEVER be locked out
@@ -685,6 +691,9 @@ void CoAContentScaling::OnPlayerLogout(Player* player)
 
 void CoAContentScaling::OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::LfgQueuePolicy& policy)
 {
+    if (!_enabled)
+        return;
+
     PlayerLfgSettings settings;
     {
         std::lock_guard<std::mutex> lock(_lfgSettingsLock);
@@ -742,7 +751,7 @@ void CoAContentScaling::OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::Lfg
 
 void CoAContentScaling::OnLfgProposalMadeGroup(lfg::LfgProposal const& proposal, Group* group)
 {
-    if (!group)
+    if (!_enabled || !group)
         return;
 
     lfg::LFGDungeonData const* dungeon = sLFGMgr->GetLFGDungeon(proposal.dungeonId);
@@ -878,7 +887,7 @@ std::vector<PendingInstanceScalePolicy> CoAContentScaling::GetAllPendingPolicies
 
 void CoAContentScaling::OnInstanceMapCreated(InstanceMap* instanceMap, Player* player)
 {
-    if (!instanceMap)
+    if (!_enabled || !instanceMap)
         return;
 
     uint32 const mapId = instanceMap->GetId();
@@ -1341,11 +1350,15 @@ namespace
 
         void OnPlayerLogin(Player* player) override
         {
+            if (!sCoAContentScaling->IsEnabled())
+                return;
             sCoAContentScaling->LoadPlayerLfgSettings(player);
         }
 
         void OnPlayerLogout(Player* player) override
         {
+            if (!sCoAContentScaling->IsEnabled())
+                return;
             sCoAContentScaling->OnPlayerLogout(player);
         }
     };
