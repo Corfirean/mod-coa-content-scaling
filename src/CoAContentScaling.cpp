@@ -56,6 +56,10 @@ void CoAContentScaling::LoadConfig()
 {
     _enabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::Enable, true);
     _groupScalingEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingEnable, true);
+    _lfgAllowPartialGroups = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::LfgAllowPartialGroups, true);
+    _worldLeechEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::WorldLeechEnable, false);
+    float const leechPercent = sConfigMgr->GetOption<float>(CoAContentScalingConfigKeys::WorldLeechPercent, 5.0f);
+    _worldLeechPercent = std::isfinite(leechPercent) ? std::clamp(leechPercent, 0.0f, 100.0f) : 5.0f;
     _lockOnEncounterStart = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingLockOnEncounterStart, true);
     _allowSoloRaids = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingAllowSoloRaids, true);
     _adaptiveMechanicsEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::AdaptiveMechanicsEnable, true);
@@ -97,6 +101,10 @@ void CoAContentScaling::LoadReloadableConfig()
 {
     _debug = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::Debug, false);
     _groupScalingEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingEnable, true);
+    _lfgAllowPartialGroups = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::LfgAllowPartialGroups, true);
+    _worldLeechEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::WorldLeechEnable, false);
+    float const leechPercent = sConfigMgr->GetOption<float>(CoAContentScalingConfigKeys::WorldLeechPercent, 5.0f);
+    _worldLeechPercent = std::isfinite(leechPercent) ? std::clamp(leechPercent, 0.0f, 100.0f) : 5.0f;
     _lockOnEncounterStart = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingLockOnEncounterStart, true);
     _allowSoloRaids = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingAllowSoloRaids, true);
     _adaptiveMechanicsEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::AdaptiveMechanicsEnable, true);
@@ -723,13 +731,17 @@ void CoAContentScaling::OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::Lfg
         }
     }
 
-    // Capability check: If player selected BOT_FILL but server has no provider, fall back to CURRENT_PARTY
-    if (settings.compositionMode != lfg::LfgCompositionMode::CURRENT_PARTY && !sScriptMgr->HasLfgAutoFillProvider())
+    // Scaling permits immediate entry with the current party, independently of bot availability.
+    if (_groupScalingEnabled && _lfgAllowPartialGroups && settings.compositionMode == lfg::LfgCompositionMode::MATCHMAKING)
+        settings.compositionMode = lfg::LfgCompositionMode::CURRENT_PARTY;
+
+    // Only BotFill depends on a provider. Without scaling, retain standard matchmaking.
+    if (settings.compositionMode == lfg::LfgCompositionMode::BOT_FILL && !sScriptMgr->HasLfgAutoFillProvider())
     {
         LOG_WARN("module.coa_content_scaling",
-                 "CoAContentScaling: Player {} has no bot fill provider available. Falling back to CURRENT_PARTY.",
+                 "CoAContentScaling: Player {} has no bot fill provider available. Falling back to the scaling-aware queue policy.",
                  guid.ToString());
-        settings.compositionMode = lfg::LfgCompositionMode::CURRENT_PARTY;
+        settings.compositionMode = _groupScalingEnabled ? lfg::LfgCompositionMode::CURRENT_PARTY : lfg::LfgCompositionMode::MATCHMAKING;
     }
 
     policy.compositionMode = settings.compositionMode;
@@ -1129,6 +1141,24 @@ namespace
     {
     public:
         coa_content_scaling_unit() : UnitScript("coa_content_scaling_unit") { }
+
+        void OnDamage(Unit* attacker, Unit* victim, uint32& damage) override
+        {
+            if (!sCoAContentScaling->IsEnabled() || !sCoAContentScaling->IsWorldLeechEnabled() || !damage ||
+                !attacker || !attacker->IsPlayer() || !attacker->IsAlive() || !victim || attacker == victim ||
+                !victim->IsAlive() || !victim->IsCreature() || victim->IsControlledByPlayer() ||
+                victim->ToCreature()->IsEvadingAttacks() || victim->IsInFlight() ||
+                !attacker->GetMap() || attacker->GetMap() != victim->GetMap() || !attacker->GetMap()->IsWorldMap())
+                return;
+
+            // Damage is already mitigated here. Overkill cannot generate extra healing.
+            uint32 const effectiveDamage = std::min(damage, victim->GetHealth());
+            uint32 const missingHealth = attacker->GetMaxHealth() - attacker->GetHealth();
+            uint32 const healing = static_cast<uint32>(std::min<double>(missingHealth,
+                effectiveDamage * static_cast<double>(sCoAContentScaling->GetWorldLeechPercent()) / 100.0));
+            if (healing)
+                Unit::DealHeal(attacker, attacker, std::min<uint32>(healing, 0x7fffffff));
+        }
 
         void ModifyMeleeDamage(Unit* target, Unit* attacker, uint32& damage) override
         {

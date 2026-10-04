@@ -25,6 +25,9 @@ namespace CoAContentScalingConfigKeys
     inline constexpr char const* SoloAssistMode = "CoAContentScaling.SoloAssist.Mode";
     inline constexpr char const* RewardsScaleLootCount = "CoAContentScaling.Rewards.ScaleLootCount";
     inline constexpr char const* ScaleItems = "CoAContentScaling.ScaleItems";
+    inline constexpr char const* LfgAllowPartialGroups = "CoAContentScaling.LFG.AllowPartialGroups";
+    inline constexpr char const* WorldLeechEnable = "CoAContentScaling.World.Leech.Enable";
+    inline constexpr char const* WorldLeechPercent = "CoAContentScaling.World.Leech.Percent";
     inline constexpr char const* LfgDefaultMode = "CoAContentScaling.LFG.DefaultMode";
     inline constexpr char const* LfgDefaultChallengeSize = "CoAContentScaling.LFG.DefaultChallengeSize";
     inline constexpr char const* Debug = "CoAContentScaling.Debug";

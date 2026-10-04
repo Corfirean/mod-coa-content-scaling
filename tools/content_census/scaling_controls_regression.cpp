@@ -73,9 +73,9 @@ namespace LocalLevelScaling
         KillContentLevelOwner{reinterpret_cast<void*>(1)}, QuestRewardRateOwner{reinterpret_cast<void*>(1)};
 }
 using ObjectGuid = unsigned;
-struct Group { uint8 GetMembersCount() const { return 2; } };
-struct Player { Group* GetGroup() { return nullptr; } };
-namespace ObjectAccessor { Player* FindPlayer(ObjectGuid) { return nullptr; } }
+struct Group { uint8 count = 2; uint8 GetMembersCount() const { return count; } };
+struct Player { Group* group = nullptr; Group* GetGroup() { return group; } } queuePlayer;
+namespace ObjectAccessor { Player* FindPlayer(ObjectGuid) { return &queuePlayer; } }
 namespace lfg
 {
     enum class LfgCompositionMode { MATCHMAKING, BOT_FILL, CURRENT_PARTY };
@@ -87,7 +87,7 @@ namespace lfg
         uint8 minPlayers = 5, targetPlayers = 5;
     };
 }
-struct ScriptMgr { bool HasLfgAutoFillProvider() { return false; } } scripts;
+struct ScriptMgr { bool provider = false; bool HasLfgAutoFillProvider() { return provider; } } scripts;
 ScriptMgr* sScriptMgr = &scripts;
 struct PlayerLfgSettings
 {
@@ -98,6 +98,7 @@ class CoAContentScaling
 {
 public:
     bool _enabled = false;
+    bool _groupScalingEnabled = true, _lfgAllowPartialGroups = true;
     unsigned hooks = 0;
     bool _tbcEnabled = true, _wotlkEnabled = true;
     std::string _progressionMode = "Auto";
@@ -155,11 +156,45 @@ int main()
     enabled._enabled = true;
     enabled.FinalizeAndInitialize();
     enabled.FinalizeAndInitialize();
-    check(world.reads == 1 && instances.loads == 1 && itemMutations == 1 && enabled.hooks == 1,
-          "enabled startup initializes once and scales items");
+    check(world.reads == 1 && instances.loads == 1 && itemMutations == 0 && enabled.hooks == 1,
+          "enabled startup initializes once without eagerly mutating item templates");
     enabled.OnResolveLfgQueuePolicy(1, policy);
     check(policy.compositionMode == lfg::LfgCompositionMode::CURRENT_PARTY && policy.challengeSize == 20 &&
           policy.minPlayers == 1 && !policy.requireStandardRoles, "enabled LFG control remains active");
+    enabled._defaultLfgCompositionMode = lfg::LfgCompositionMode::MATCHMAKING;
+    Group party;
+    for (bool provider : {false, true})
+    {
+        scripts.provider = provider;
+        for (uint8 count = 1; count <= 5; ++count)
+        {
+            party.count = count;
+            queuePlayer.group = count == 1 ? nullptr : &party;
+            enabled.OnResolveLfgQueuePolicy(1, policy);
+            check(policy.bypassMatchmaking && !policy.requireStandardRoles && policy.minPlayers == count &&
+                policy.targetPlayers == count, "partial parties enter with or without a bot provider");
+        }
+    }
+    queuePlayer.group = nullptr;
+    for (unsigned flag = 0; flag < 2; ++flag)
+    {
+        enabled._groupScalingEnabled = flag != 0;
+        enabled._lfgAllowPartialGroups = flag == 0;
+        enabled.OnResolveLfgQueuePolicy(1, policy);
+        check(!policy.bypassMatchmaking && policy.requireStandardRoles && policy.targetPlayers == 5,
+            "disabled scaling or partial-group option preserves matchmaking");
+    }
+    enabled._groupScalingEnabled = enabled._lfgAllowPartialGroups = true;
+    enabled._defaultLfgCompositionMode = lfg::LfgCompositionMode::BOT_FILL;
+    enabled.OnResolveLfgQueuePolicy(1, policy);
+    check(policy.compositionMode == lfg::LfgCompositionMode::BOT_FILL && !policy.bypassMatchmaking,
+        "registered bot provider keeps BotFill");
+    scripts.provider = false;
+    enabled.OnResolveLfgQueuePolicy(1, policy);
+    check(policy.bypassMatchmaking, "BotFill without provider falls back to current party with scaling");
+    enabled._groupScalingEnabled = false;
+    enabled.OnResolveLfgQueuePolicy(1, policy);
+    check(!policy.bypassMatchmaking, "BotFill without provider uses matchmaking without scaling");
     registry->Clear();
     world.cap = 50;
     CoAContentScaling invalid;
@@ -168,7 +203,7 @@ int main()
     LocalLevelScaling::QuestBaseLevelOwner = reinterpret_cast<void*>(1);
     invalid.FinalizeAndInitialize();
     invalid.FinalizeAndInitialize();
-    check(!invalid._enabled && invalid.hooks == 0 && instances.loads == 1 && itemMutations == 1,
+    check(!invalid._enabled && invalid.hooks == 0 && instances.loads == 1 && itemMutations == 0,
           "invalid layout stops startup before boss loading, item mutation and hook registration");
     check(world.reads == 2 && registry->IsFinalized() && !LocalLevelScaling::ContentScalingActive &&
           !LocalLevelScaling::QuestBaseLevelOwner, "invalid startup clears callbacks and cannot retry initialization");

@@ -58,6 +58,8 @@ public:
     void InitializeLayout();
 
     [[nodiscard]] bool IsEnabled() const { return _enabled; }
+    [[nodiscard]] bool IsWorldLeechEnabled() const { return _worldLeechEnabled; }
+    [[nodiscard]] float GetWorldLeechPercent() const { return _worldLeechPercent; }
     [[nodiscard]] bool IsGroupScalingEnabled() const { return _groupScalingEnabled; }
     [[nodiscard]] bool IsAdaptiveMechanicsEnabled() const { return _adaptiveMechanicsEnabled; }
     [[nodiscard]] bool IsDebugEnabled() const { return _debug; }
@@ -121,6 +123,9 @@ private:
     bool _wotlkEnabled{false};
 
     bool _groupScalingEnabled{true};
+    bool _lfgAllowPartialGroups{true};
+    bool _worldLeechEnabled{false};
+    float _worldLeechPercent{5.0f};
     bool _lockOnEncounterStart{true};
     bool _adaptiveMechanicsEnabled{true};
     bool _scaleLootCount{true};
