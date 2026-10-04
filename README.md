@@ -167,3 +167,27 @@ CoAContentScaling.Debug = 0
 ## License
 
 This module is released under the GNU General Public License v2 (GPL-2.0), in line with the AzerothCore Project.
+
+### Partial-party Dungeon Finder and open-world life steal
+
+When `CoAContentScaling.Enable = 1` and `CoAContentScaling.GroupScaling.Enable = 1`,
+`CoAContentScaling.LFG.AllowPartialGroups = 1` lets the group leader enter with the current
+party of 1, 2, 3, 4 or 5 players. Matchmaking resolves to CurrentParty for that queue;
+BotFill still uses the registered bot provider. Set AllowPartialGroups to 0 to keep
+standard Matchmaking. Existing CurrentParty preferences remain available.
+
+Open-world life steal is disabled by default. To heal for 10% of player damage to
+PvE creatures, configure:
+
+```ini
+CoAContentScaling.World.Leech.Enable = 1
+CoAContentScaling.World.Leech.Percent = 10.0
+```
+
+This includes melee, direct spells and periodic damage, excludes player-controlled
+creatures, and applies only on world maps. It uses mitigated damage capped at the
+victim's remaining health. Damage from pets does not heal their owner. Percent is
+clamped to 0..100; non-finite values fall back to 5. Both features require the module
+to be enabled; life steal does not require group scaling or SoloAssist. Settings can
+be updated with `.reload config`. The module uses the existing core LFG hooks;
+install the core integration patches before building it.
