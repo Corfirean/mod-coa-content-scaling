@@ -23,6 +23,7 @@ namespace CoAContentScalingConfigKeys
     inline constexpr char const* GroupScalingAllowSoloRaids = "CoAContentScaling.GroupScaling.AllowSoloRaids";
     inline constexpr char const* AdaptiveMechanicsEnable = "CoAContentScaling.AdaptiveMechanics.Enable";
     inline constexpr char const* SoloAssistMode = "CoAContentScaling.SoloAssist.Mode";
+    inline constexpr char const* DamageMultiplier = "CoAContentScaling.Difficulty.DamageMultiplier";
     inline constexpr char const* RewardsScaleLootCount = "CoAContentScaling.Rewards.ScaleLootCount";
     inline constexpr char const* ScaleItems = "CoAContentScaling.ScaleItems";
     inline constexpr char const* LfgAllowPartialGroups = "CoAContentScaling.LFG.AllowPartialGroups";

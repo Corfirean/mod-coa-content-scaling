@@ -79,6 +79,14 @@ CoAContentScaling.AdaptiveMechanics.Enable = 1
 #
 CoAContentScaling.SoloAssist.Mode = None
 
+# CoAContentScaling.Difficulty.DamageMultiplier
+#     Description: Dungeon/raid enemy damage to players and their pets after group scaling and solo assist.
+#                  Applies to melee, direct spells and periodic damage. Requires GroupScaling.Enable.
+#                  Does not change health, rewards, percentage-health or instant-kill mechanics.
+#     Range:       0.25 to 2.0 (25% to 200%). Lower is easier. Reloadable with .reload config.
+#     Default:     1.0 (unchanged balance)
+CoAContentScaling.Difficulty.DamageMultiplier = 1.0
+
 #
 # CoAContentScaling.Rewards.ScaleLootCount
 #     Description: Scale dropped item count with group size (guaranteeing at least 1 drop).

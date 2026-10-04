@@ -60,6 +60,8 @@ void CoAContentScaling::LoadConfig()
     _worldLeechEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::WorldLeechEnable, false);
     float const leechPercent = sConfigMgr->GetOption<float>(CoAContentScalingConfigKeys::WorldLeechPercent, 5.0f);
     _worldLeechPercent = std::isfinite(leechPercent) ? std::clamp(leechPercent, 0.0f, 100.0f) : 5.0f;
+    float const configuredDamage = sConfigMgr->GetOption<float>(CoAContentScalingConfigKeys::DamageMultiplier, 1.0f);
+    _damageMultiplier = std::isfinite(configuredDamage) ? std::clamp(configuredDamage, 0.25f, 2.0f) : 1.0f;
     _lockOnEncounterStart = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingLockOnEncounterStart, true);
     _allowSoloRaids = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingAllowSoloRaids, true);
     _adaptiveMechanicsEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::AdaptiveMechanicsEnable, true);
@@ -105,6 +107,8 @@ void CoAContentScaling::LoadReloadableConfig()
     _worldLeechEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::WorldLeechEnable, false);
     float const leechPercent = sConfigMgr->GetOption<float>(CoAContentScalingConfigKeys::WorldLeechPercent, 5.0f);
     _worldLeechPercent = std::isfinite(leechPercent) ? std::clamp(leechPercent, 0.0f, 100.0f) : 5.0f;
+    float const configuredDamage = sConfigMgr->GetOption<float>(CoAContentScalingConfigKeys::DamageMultiplier, 1.0f);
+    _damageMultiplier = std::isfinite(configuredDamage) ? std::clamp(configuredDamage, 0.25f, 2.0f) : 1.0f;
     _lockOnEncounterStart = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingLockOnEncounterStart, true);
     _allowSoloRaids = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingAllowSoloRaids, true);
     _adaptiveMechanicsEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::AdaptiveMechanicsEnable, true);
@@ -1172,7 +1176,9 @@ namespace
             bool const isSolo = (ctx.effectivePlayers <= 1.0f);
             float const soloMitigation = sSoloAssistPolicy->GetDamageMitigationMultiplier(isSolo, true);
 
-            damage = static_cast<uint32>(std::ceil(float(damage) * ctx.damageScale * soloMitigation));
+            float const difficulty = target && target->IsControlledByPlayer() && !attacker->IsControlledByPlayer()
+                ? sCoAContentScaling->GetDamageMultiplier() : 1.0f;
+            damage = static_cast<uint32>(std::ceil(float(damage) * ctx.damageScale * soloMitigation * difficulty));
         }
 
         void ModifySpellDamageTaken(Unit* target, Unit* attacker, int32& damage, SpellInfo const* spellInfo) override
@@ -1205,10 +1211,12 @@ namespace
             bool const isSolo = (ctx.effectivePlayers <= 1.0f);
             float const soloMitigation = sSoloAssistPolicy->GetDamageMitigationMultiplier(isSolo, true);
 
-            damage = static_cast<int32>(std::ceil(float(damage) * ctx.damageScale * soloMitigation));
+            float const difficulty = target && target->IsControlledByPlayer() && !attacker->IsControlledByPlayer()
+                ? sCoAContentScaling->GetDamageMultiplier() : 1.0f;
+            damage = static_cast<int32>(std::ceil(float(damage) * ctx.damageScale * soloMitigation * difficulty));
         }
 
-        void ModifyPeriodicDamageAurasTick(Unit* target, Unit* attacker, uint32& damage, SpellInfo const* /*spellInfo*/) override
+        void ModifyPeriodicDamageAurasTick(Unit* target, Unit* attacker, uint32& damage, SpellInfo const* spellInfo) override
         {
             if (!sCoAContentScaling->IsEnabled() || !sCoAContentScaling->IsGroupScalingEnabled() || damage == 0)
                 return;
@@ -1217,7 +1225,17 @@ namespace
                 return;
 
             InstanceScaleContext const ctx = sInstanceScalingMgr->GetOrCreateContext(attacker->GetMap());
-            damage = static_cast<uint32>(std::ceil(float(damage) * ctx.damageScale));
+            float difficulty = target && target->IsControlledByPlayer() && !attacker->IsControlledByPlayer()
+                ? sCoAContentScaling->GetDamageMultiplier() : 1.0f;
+            // Preserve scripted lethal and percentage-health mechanics, as in the direct spell hook.
+            if (damage >= 10000000)
+                difficulty = 1.0f;
+            if (spellInfo)
+                for (uint8 i = 0; i < MAX_SPELL_EFFECTS; ++i)
+                    if (spellInfo->Effects[i].Effect == SPELL_EFFECT_INSTAKILL ||
+                        spellInfo->Effects[i].ApplyAuraName == SPELL_AURA_PERIODIC_DAMAGE_PERCENT)
+                        difficulty = 1.0f;
+            damage = static_cast<uint32>(std::ceil(float(damage) * ctx.damageScale * difficulty));
         }
 
         void ModifyHealReceived(Unit* target, Unit* healer, uint32& heal, SpellInfo const* /*spellInfo*/) override
