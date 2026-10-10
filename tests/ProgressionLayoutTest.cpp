@@ -20,6 +20,7 @@
 #include "ProgressionRewardResolver.h"
 #include "QuestDef.h"
 #include <fstream>
+#include <filesystem>
 #include <sstream>
 #include "gtest/gtest.h"
 
@@ -1679,7 +1680,7 @@ TEST(SourceGraphAuthorityTest, NoHardcodedCustomBoundariesInItemBudgetScalerCpp)
 {
     // Verify that ItemBudgetScaler.cpp does not contain hardcoded custom category boundaries (200000, 350000, 600000).
     // The sole source of truth for custom item ranges and categories is custom_content.json and GeneratedContentCensus.h.
-    std::ifstream file("modules/mod-coa-content-scaling/src/ItemBudgetScaler.cpp");
+    std::ifstream file(std::filesystem::path(__FILE__).parent_path().parent_path() / "src/ItemBudgetScaler.cpp");
     if (!file.is_open())
     {
         // Try fallback path if running from build-local or other working directory
@@ -2580,6 +2581,7 @@ TEST(ProgressionRuntimeSnapshotTest, MatchesCommittedSnapshot)
     EXPECT_EQ(generatedJson.find("\"tier\": \"\""), std::string::npos);
 
     std::vector<std::string> candidatePaths = {
+        (std::filesystem::path(__FILE__).parent_path().parent_path() / "docs/generated/progression-runtime-snapshot.json").string(),
         "modules/mod-coa-content-scaling/docs/generated/progression-runtime-snapshot.json",
         "docs/generated/progression-runtime-snapshot.json"
     };
