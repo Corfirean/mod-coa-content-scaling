@@ -104,6 +104,15 @@ CoAContentScaling.Rewards.ScaleLootCount = 1
 #                  0 - Disabled
 #
 CoAContentScaling.ScaleItems = 1
+ 
+#
+# CoAContentScaling.Items.RemoveClassRestrictions
+#     Description: Remove class restrictions from items so all players/classes can equip
+#                  tier set armor (such as T10 from ICC) and class-locked items in CoA.
+#     Default:     0 - Disabled (keep authored class requirements)
+#                  1 - Enabled (allow all classes to equip items)
+#
+CoAContentScaling.Items.RemoveClassRestrictions = 0
 
 #
 # CoAContentScaling.LFG.AllowPartialGroups

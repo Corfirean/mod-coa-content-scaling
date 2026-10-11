@@ -63,6 +63,7 @@ public:
     [[nodiscard]] bool IsGroupScalingEnabled() const { return _groupScalingEnabled; }
     [[nodiscard]] float GetDamageMultiplier() const { return _damageMultiplier; }
     [[nodiscard]] bool IsAdaptiveMechanicsEnabled() const { return _adaptiveMechanicsEnabled; }
+    [[nodiscard]] bool IsRemoveClassRestrictionsEnabled() const { return _removeClassRestrictions; }
     [[nodiscard]] bool IsDebugEnabled() const { return _debug; }
 
     void SetEnabled(bool enabled) { _enabled = enabled; }
@@ -130,6 +131,7 @@ private:
     float _damageMultiplier{1.0f};
     bool _lockOnEncounterStart{true};
     bool _adaptiveMechanicsEnabled{true};
+    bool _removeClassRestrictions{false};
     bool _scaleLootCount{true};
     bool _allowSoloRaids{true};
     bool _debug{false};
