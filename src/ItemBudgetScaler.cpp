@@ -5,6 +5,7 @@
 
 #include "ItemBudgetScaler.h"
 #include "ContentPackRegistry.h"
+#include "CoAContentScaling.h"
 #include "GeneratedContentCensus.h"
 #include "InstanceProfile.h"
 #include "ItemTemplate.h"
@@ -353,6 +354,11 @@ void ItemBudgetScaler::ScaleItemTemplate(ItemTemplate* proto, ProgressionLayout 
                 std::round(float(proto->Armor) * budget.armorMultiplier));
         }
     }
+
+    if (sCoAContentScaling->IsRemoveClassRestrictionsEnabled() && proto->AllowableClass != 0 && proto->AllowableClass != 0xFFFFFFFF)
+    {
+        proto->AllowableClass = 0xFFFFFFFF;
+    }
 }
 
 void ItemBudgetScaler::ScaleAllItems(ProgressionLayout const& layout)
@@ -373,6 +379,7 @@ void ItemBudgetScaler::ScaleAllItems(ProgressionLayout const& layout)
     uint32 preservedCustom = 0;
     uint32 specialReview = 0;
     uint32 actuallyMutated = 0;
+    bool const removeClassRestrictions = sCoAContentScaling->IsRemoveClassRestrictionsEnabled();
 
     for (auto& [itemId, itemTemplate] : *itemTemplates)
     {
@@ -389,15 +396,25 @@ void ItemBudgetScaler::ScaleAllItems(ProgressionLayout const& layout)
         if (ctx.policy == ItemScalingPolicy::REVIEW_SPECIAL)
             ++specialReview;
 
+        bool mutated = false;
         if (ctx.policy != ItemScalingPolicy::PRESERVE)
         {
             ScaledItemBudget const budget = CalculateItemBudget(proto, layout, ctx);
             if (budget.statMultiplier < 1.0f || budget.effectiveRequiredLevel != proto->RequiredLevel || budget.effectiveItemLevel != proto->ItemLevel)
             {
                 ScaleItemTemplate(proto, layout);
-                ++actuallyMutated;
+                mutated = true;
             }
         }
+
+        if (removeClassRestrictions && proto->AllowableClass != 0 && proto->AllowableClass != 0xFFFFFFFF)
+        {
+            proto->AllowableClass = 0xFFFFFFFF;
+            mutated = true;
+        }
+
+        if (mutated)
+            ++actuallyMutated;
     }
 
     _itemsScaled = true;

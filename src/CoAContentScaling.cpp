@@ -65,6 +65,7 @@ void CoAContentScaling::LoadConfig()
     _lockOnEncounterStart = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingLockOnEncounterStart, true);
     _allowSoloRaids = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingAllowSoloRaids, true);
     _adaptiveMechanicsEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::AdaptiveMechanicsEnable, true);
+    _removeClassRestrictions = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::RemoveItemClassRestrictions, false);
     _scaleLootCount = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::RewardsScaleLootCount, true);
     _debug = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::Debug, false);
 
@@ -112,6 +113,7 @@ void CoAContentScaling::LoadReloadableConfig()
     _lockOnEncounterStart = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingLockOnEncounterStart, true);
     _allowSoloRaids = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingAllowSoloRaids, true);
     _adaptiveMechanicsEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::AdaptiveMechanicsEnable, true);
+    _removeClassRestrictions = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::RemoveItemClassRestrictions, false);
     _scaleLootCount = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::RewardsScaleLootCount, true);
 
     std::string const defaultModeStr = sConfigMgr->GetOption<std::string>(CoAContentScalingConfigKeys::LfgDefaultMode, "Matchmaking");

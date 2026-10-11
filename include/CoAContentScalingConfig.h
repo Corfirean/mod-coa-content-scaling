@@ -26,6 +26,7 @@ namespace CoAContentScalingConfigKeys
     inline constexpr char const* DamageMultiplier = "CoAContentScaling.Difficulty.DamageMultiplier";
     inline constexpr char const* RewardsScaleLootCount = "CoAContentScaling.Rewards.ScaleLootCount";
     inline constexpr char const* ScaleItems = "CoAContentScaling.ScaleItems";
+    inline constexpr char const* RemoveItemClassRestrictions = "CoAContentScaling.Items.RemoveClassRestrictions";
     inline constexpr char const* LfgAllowPartialGroups = "CoAContentScaling.LFG.AllowPartialGroups";
     inline constexpr char const* WorldLeechEnable = "CoAContentScaling.World.Leech.Enable";
     inline constexpr char const* WorldLeechPercent = "CoAContentScaling.World.Leech.Percent";
