@@ -72,8 +72,25 @@ namespace LocalLevelScaling
         CreatureBaseLevelOwner{reinterpret_cast<void*>(1)}, QuestMoneyMaxLevelOwner{reinterpret_cast<void*>(1)},
         KillContentLevelOwner{reinterpret_cast<void*>(1)}, QuestRewardRateOwner{reinterpret_cast<void*>(1)};
 }
-using ObjectGuid = unsigned;
-struct Group { uint8 count = 2; uint8 GetMembersCount() const { return count; } };
+struct ObjectGuid
+{
+    unsigned val = 0;
+    bool isGroup = false;
+    ObjectGuid() = default;
+    ObjectGuid(unsigned v, bool group = false) : val(v), isGroup(group) { }
+    bool IsGroup() const { return isGroup; }
+    unsigned GetCounter() const { return val; }
+    std::string ToString() const { return std::to_string(val); }
+    bool operator==(ObjectGuid const& other) const { return val == other.val && isGroup == other.isGroup; }
+};
+template <>
+struct std::hash<ObjectGuid>
+{
+    std::size_t operator()(ObjectGuid const& g) const noexcept { return std::hash<unsigned>{}(g.val); }
+};
+struct Group { uint8 count = 2; uint8 GetMembersCount() const { return count; } ObjectGuid GetLeaderGUID() const { return ObjectGuid(1); } };
+struct GroupMgr { Group* group = nullptr; Group* GetGroupByGUID(unsigned) { return group; } } groupMgr;
+GroupMgr* sGroupMgr = &groupMgr;
 struct Player { Group* group = nullptr; Group* GetGroup() { return group; } } queuePlayer;
 namespace ObjectAccessor { Player* FindPlayer(ObjectGuid) { return &queuePlayer; } }
 namespace lfg
@@ -195,6 +212,13 @@ int main()
     enabled._groupScalingEnabled = false;
     enabled.OnResolveLfgQueuePolicy(1, policy);
     check(!policy.bypassMatchmaking, "BotFill without provider uses matchmaking without scaling");
+    enabled._groupScalingEnabled = true;
+    groupMgr.group = &party;
+    party.count = 4;
+    enabled.OnResolveLfgQueuePolicy(ObjectGuid(100, true), policy);
+    check(policy.bypassMatchmaking && policy.minPlayers == 4 && policy.targetPlayers == 4,
+          "group GUID resolves party size accurately");
+    groupMgr.group = nullptr;
     registry->Clear();
     world.cap = 50;
     CoAContentScaling invalid;
