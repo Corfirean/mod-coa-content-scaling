@@ -26,12 +26,21 @@ struct LevelRange
     [[nodiscard]] constexpr bool IsValid() const { return minLevel > 0 && maxLevel >= minLevel; }
 };
 
+enum class ProgressionMode : uint8
+{
+    Auto,
+    Parallel,
+    Global,
+    Custom
+};
+
 struct ProgressionLayout
 {
     uint8 maxLevel{60};
 
     bool tbcEnabled{false};
     bool wotlkEnabled{false};
+    ProgressionMode mode{ProgressionMode::Auto};
 
     LevelRange classic{1, 60};
     std::optional<LevelRange> tbc;
@@ -39,7 +48,8 @@ struct ProgressionLayout
 
     // Factory to construct layout based on active packs, level cap and optional custom boundaries
     static ProgressionLayout Create(uint8 maxLevel, bool tbcEnabled, bool wotlkEnabled,
-                                   uint8 customClassicEnd = 0, uint8 customTbcEnd = 0);
+                                   uint8 customClassicEnd = 0, uint8 customTbcEnd = 0,
+                                   ProgressionMode mode = ProgressionMode::Auto);
 
     [[nodiscard]] bool Validate(std::string& outError) const;
 

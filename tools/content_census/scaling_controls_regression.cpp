@@ -230,6 +230,12 @@ int main()
     std::string error;
     check(stock.IsStockIdentity() && !custom.IsStockIdentity() && custom.Validate(error),
           "custom cap80 is valid but does not preserve stock budgets");
+    auto parallel = ProgressionLayout::Create(60, true, true, 0, 0, ProgressionMode::Parallel);
+    check(parallel.Validate(error) && parallel.classic.maxLevel == 60 && parallel.tbc->minLevel == 45 && parallel.wotlk->minLevel == 45,
+          "parallel cap60 scales Classic 1-60 and TBC/WotLK 45-60");
+    auto global = ProgressionLayout::Create(60, true, true, 0, 0, ProgressionMode::Global);
+    check(global.Validate(error) && global.classic.maxLevel == 60 && global.tbc->minLevel == 1 && global.wotlk->minLevel == 1,
+          "global cap60 scales all content 1-60");
     auto* rewards = ProgressionRewardResolver::Instance();
     check(rewards->ResolveItemRequiredLevel(60, ContentEra::Classic, 45, custom) == 45 &&
           rewards->ResolveEffectiveAccessMin(ContentEra::Classic, ContentTier::DUNGEON_NORMAL, 60, custom) == 45,

@@ -7,12 +7,33 @@
 #include <sstream>
 
 ProgressionLayout ProgressionLayout::Create(uint8 maxLevel, bool tbcEnabled, bool wotlkEnabled,
-                                            uint8 customClassicEnd, uint8 customTbcEnd)
+                                            uint8 customClassicEnd, uint8 customTbcEnd,
+                                            ProgressionMode mode)
 {
     ProgressionLayout layout;
     layout.maxLevel = maxLevel;
     layout.tbcEnabled = tbcEnabled;
     layout.wotlkEnabled = wotlkEnabled;
+    layout.mode = mode;
+
+    if (mode == ProgressionMode::Parallel)
+    {
+        // Parallel scaling: Classic is 1..maxLevel (1..60), TBC and WotLK scale parallel 45..maxLevel (45..60)
+        layout.classic = LevelRange(1, maxLevel);
+        uint8 const parallelStart = std::min<uint8>(45, maxLevel);
+        layout.tbc = tbcEnabled ? std::make_optional(LevelRange(parallelStart, maxLevel)) : std::nullopt;
+        layout.wotlk = wotlkEnabled ? std::make_optional(LevelRange(parallelStart, maxLevel)) : std::nullopt;
+        return layout;
+    }
+
+    if (mode == ProgressionMode::Global)
+    {
+        // Global scaling: All content scales across 1..maxLevel (1..60)
+        layout.classic = LevelRange(1, maxLevel);
+        layout.tbc = tbcEnabled ? std::make_optional(LevelRange(1, maxLevel)) : std::nullopt;
+        layout.wotlk = wotlkEnabled ? std::make_optional(LevelRange(1, maxLevel)) : std::nullopt;
+        return layout;
+    }
 
     // Determine reference layout anchors via linear interpolation between 60 and 80 profiles:
     // Cap 60 reference: Classic ends at 45, TBC ends at 55, WotLK ends at 60
@@ -110,6 +131,46 @@ bool ProgressionLayout::Validate(std::string& outError) const
     {
         outError = "Classic range is invalid or does not start at 1";
         return false;
+    }
+
+    if (mode == ProgressionMode::Parallel)
+    {
+        if (classic.maxLevel != maxLevel)
+        {
+            outError = "Classic does not terminate at MaxPlayerLevel in Parallel mode";
+            return false;
+        }
+        if (tbc.has_value() && (!tbc->IsValid() || tbc->maxLevel != maxLevel))
+        {
+            outError = "TBC range is invalid or does not terminate at MaxPlayerLevel in Parallel mode";
+            return false;
+        }
+        if (wotlk.has_value() && (!wotlk->IsValid() || wotlk->maxLevel != maxLevel))
+        {
+            outError = "WotLK range is invalid or does not terminate at MaxPlayerLevel in Parallel mode";
+            return false;
+        }
+        return true;
+    }
+
+    if (mode == ProgressionMode::Global)
+    {
+        if (classic.maxLevel != maxLevel)
+        {
+            outError = "Classic does not terminate at MaxPlayerLevel in Global mode";
+            return false;
+        }
+        if (tbc.has_value() && (!tbc->IsValid() || tbc->minLevel != 1 || tbc->maxLevel != maxLevel))
+        {
+            outError = "TBC does not span 1..MaxPlayerLevel in Global mode";
+            return false;
+        }
+        if (wotlk.has_value() && (!wotlk->IsValid() || wotlk->minLevel != 1 || wotlk->maxLevel != maxLevel))
+        {
+            outError = "WotLK does not span 1..MaxPlayerLevel in Global mode";
+            return false;
+        }
+        return true;
     }
 
     bool const isStockCap80Identity = IsStockIdentity();

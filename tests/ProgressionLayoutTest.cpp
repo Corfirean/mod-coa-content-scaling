@@ -77,6 +77,36 @@ TEST(ProgressionLayoutTest, MaxLevel60_AllEras)
     EXPECT_EQ(layout.wotlk->maxLevel, 60);
 }
 
+TEST(ProgressionLayoutTest, MaxLevel60_Parallel)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true, 0, 0, ProgressionMode::Parallel);
+    std::string err;
+    EXPECT_TRUE(layout.Validate(err)) << err;
+    EXPECT_EQ(layout.classic.minLevel, 1);
+    EXPECT_EQ(layout.classic.maxLevel, 60);
+    ASSERT_TRUE(layout.tbc.has_value());
+    EXPECT_EQ(layout.tbc->minLevel, 45);
+    EXPECT_EQ(layout.tbc->maxLevel, 60);
+    ASSERT_TRUE(layout.wotlk.has_value());
+    EXPECT_EQ(layout.wotlk->minLevel, 45);
+    EXPECT_EQ(layout.wotlk->maxLevel, 60);
+}
+
+TEST(ProgressionLayoutTest, MaxLevel60_Global)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true, 0, 0, ProgressionMode::Global);
+    std::string err;
+    EXPECT_TRUE(layout.Validate(err)) << err;
+    EXPECT_EQ(layout.classic.minLevel, 1);
+    EXPECT_EQ(layout.classic.maxLevel, 60);
+    ASSERT_TRUE(layout.tbc.has_value());
+    EXPECT_EQ(layout.tbc->minLevel, 1);
+    EXPECT_EQ(layout.tbc->maxLevel, 60);
+    ASSERT_TRUE(layout.wotlk.has_value());
+    EXPECT_EQ(layout.wotlk->minLevel, 1);
+    EXPECT_EQ(layout.wotlk->maxLevel, 60);
+}
+
 // 2. MaxLevel 70 Combinations (Interpolation)
 TEST(ProgressionLayoutTest, MaxLevel70_ClassicOnly)
 {
