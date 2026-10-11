@@ -132,12 +132,12 @@ CoAContentScaling.World.Leech.Percent = 5.0
 
 # CoAContentScaling.LFG.DefaultMode
 #     Description: Default composition mode for Dungeon Finder queues.
-#     Values:      Matchmaking  - Standard queue, waits for real players to fill all roles
-#                  BotFill      - Auto-fills empty slots with intelligent playerbots
+#     Values:      BotFill      - Auto-fills empty slots with intelligent playerbots (recommended when bots available)
+#                  Matchmaking  - Standard queue, waits for real players to fill all roles
 #                  CurrentParty - Bypasses matchmaking, queues immediately with current group or solo
-#     Default:     Matchmaking
+#     Default:     BotFill
 #
-CoAContentScaling.LFG.DefaultMode = Matchmaking
+CoAContentScaling.LFG.DefaultMode = BotFill
 
 #
 # CoAContentScaling.LFG.DefaultChallengeSize

@@ -14,10 +14,12 @@
 #include "Creature.h"
 #include "CreatureData.h"
 #include "DBCEnums.h"
+#include "DBCStores.h"
 #include "DatabaseEnv.h"
 #include "Field.h"
 #include "GameTime.h"
 #include "Group.h"
+#include "GroupMgr.h"
 #include "GeneratedContentCensus.h"
 #include "InstanceProfile.h"
 #include "InstanceScaleContext.h"
@@ -75,14 +77,8 @@ void CoAContentScaling::LoadConfig()
     _customClassicEnd = static_cast<uint8>(sConfigMgr->GetOption<uint32>(CoAContentScalingConfigKeys::ProgressionClassicEnd, 0));
     _customTbcEnd = static_cast<uint8>(sConfigMgr->GetOption<uint32>(CoAContentScalingConfigKeys::ProgressionTbcEnd, 0));
 
-    std::string const defaultModeStr = sConfigMgr->GetOption<std::string>(CoAContentScalingConfigKeys::LfgDefaultMode, "Matchmaking");
+    std::string const defaultModeStr = sConfigMgr->GetOption<std::string>(CoAContentScalingConfigKeys::LfgDefaultMode, "BotFill");
     _defaultLfgCompositionMode = CoAContentScalingConfig::ParseLfgCompositionMode(defaultModeStr);
-
-    if (_defaultLfgCompositionMode == lfg::LfgCompositionMode::BOT_FILL && !sScriptMgr->HasLfgAutoFillProvider())
-    {
-        LOG_WARN("module.coa_content_scaling", "CoAContentScaling: LFG default mode configured as BotFill, but no bot fill provider is registered! Falling back to CURRENT_PARTY.");
-        _defaultLfgCompositionMode = lfg::LfgCompositionMode::CURRENT_PARTY;
-    }
 
     uint32 const rawChallenge = sConfigMgr->GetOption<uint32>(CoAContentScalingConfigKeys::LfgDefaultChallengeSize, 0);
     if (rawChallenge > 40)
@@ -116,13 +112,8 @@ void CoAContentScaling::LoadReloadableConfig()
     _removeClassRestrictions = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::RemoveItemClassRestrictions, false);
     _scaleLootCount = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::RewardsScaleLootCount, true);
 
-    std::string const defaultModeStr = sConfigMgr->GetOption<std::string>(CoAContentScalingConfigKeys::LfgDefaultMode, "Matchmaking");
+    std::string const defaultModeStr = sConfigMgr->GetOption<std::string>(CoAContentScalingConfigKeys::LfgDefaultMode, "BotFill");
     _defaultLfgCompositionMode = CoAContentScalingConfig::ParseLfgCompositionMode(defaultModeStr);
-    if (_defaultLfgCompositionMode == lfg::LfgCompositionMode::BOT_FILL && !sScriptMgr->HasLfgAutoFillProvider())
-    {
-        LOG_WARN("module.coa_content_scaling", "CoAContentScaling: LFG default mode configured as BotFill, but no bot fill provider is registered! Falling back to CURRENT_PARTY.");
-        _defaultLfgCompositionMode = lfg::LfgCompositionMode::CURRENT_PARTY;
-    }
 
     uint32 const rawChallenge = sConfigMgr->GetOption<uint32>(CoAContentScalingConfigKeys::LfgDefaultChallengeSize, 0);
     if (rawChallenge > 40)
@@ -522,6 +513,15 @@ bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId, ui
     if (!_enabled || !player || player->IsGameMaster())
         return true;
 
+    // Battlegrounds and Arenas manage their own team matching, brackets and instance rules.
+    MapEntry const* mapEntry = sMapStore.LookupEntry(mapId);
+    if (mapEntry && (mapEntry->IsBattleground() || mapEntry->IsBattleArena()))
+        return true;
+
+    // Scripted private instances (e.g. Manastorm) use dedicated dynamic scaling and must not be level/era gated.
+    if (player->GetScriptedPrivateInstanceId() != 0 && player->GetScriptedPrivateMapId() == mapId)
+        return true;
+
     // Corpse / ghost re-entry safety: dead players retrieving corpse in their instance must NEVER be locked out
     if (!player->IsAlive() && player->HasCorpse())
     {
@@ -734,10 +734,30 @@ void CoAContentScaling::OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::Lfg
     if (!_enabled)
         return;
 
+    Group* grp = nullptr;
+    Player* player = nullptr;
+    ObjectGuid settingsGuid = guid;
+
+    if (guid.IsGroup())
+    {
+        grp = sGroupMgr->GetGroupByGUID(guid.GetCounter());
+        if (grp)
+        {
+            settingsGuid = grp->GetLeaderGUID();
+            player = ObjectAccessor::FindPlayer(settingsGuid);
+        }
+    }
+    else
+    {
+        player = ObjectAccessor::FindPlayer(guid);
+        if (player)
+            grp = player->GetGroup();
+    }
+
     PlayerLfgSettings settings;
     {
         std::lock_guard<std::mutex> lock(_lfgSettingsLock);
-        auto it = _playerLfgSettings.find(guid);
+        auto it = _playerLfgSettings.find(settingsGuid);
         if (it != _playerLfgSettings.end())
             settings = it->second;
         else
@@ -783,8 +803,6 @@ void CoAContentScaling::OnResolveLfgQueuePolicy(ObjectGuid const& guid, lfg::Lfg
         {
             policy.bypassMatchmaking = true;
             policy.requireStandardRoles = false;
-            Player* player = ObjectAccessor::FindPlayer(guid);
-            Group* grp = player ? player->GetGroup() : nullptr;
             uint8 const currentPartySize = grp ? grp->GetMembersCount() : 1;
             policy.minPlayers = currentPartySize;
             policy.targetPlayers = currentPartySize;
