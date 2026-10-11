@@ -29,6 +29,12 @@ namespace CoAContentScalingConfig
         std::string lower = s;
         std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return std::tolower(c); });
 
+        if (lower == "parallel")
+            return "Parallel";
+
+        if (lower == "global" || lower == "all" || lower == "1-60")
+            return "Global";
+
         if (lower == "custom")
             return "Custom";
 

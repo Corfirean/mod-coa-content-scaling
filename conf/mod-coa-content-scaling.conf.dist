@@ -14,9 +14,11 @@ CoAContentScaling.Enable = 1
 
 #
 # CoAContentScaling.Progression.Mode
-#     Description: Progression layout boundary mode.
-#     Values:      Auto   - Calculates boundaries based on active content packs and MaxPlayerLevel
-#                  Custom - Uses Progression.ClassicEnd and Progression.TbcEnd
+#     Description: Progression layout boundary mode. Only one mode can be active.
+#     Values:      Auto     - Sequential compression based on active content packs and MaxPlayerLevel (e.g. Classic 1-45, TBC 45-55, WotLK 55-60 on Cap 60)
+#                  Parallel - Parallel scaling: Classic 1-60, TBC and WotLK scale parallel 45-60
+#                  Global   - Global 1-60 scaling: All eras (Classic, TBC, WotLK) scale 1-60 across the whole world
+#                  Custom   - Uses Progression.ClassicEnd and Progression.TbcEnd
 #     Default:     Auto
 #
 CoAContentScaling.Progression.Mode = Auto

@@ -277,10 +277,20 @@ void CoAContentScaling::InitializeLayout()
     bool const tbcActive = _tbcEnabled && sContentPackRegistry->HasPack(ContentEra::TBC);
     bool const wotlkActive = _wotlkEnabled && sContentPackRegistry->HasPack(ContentEra::WotLK);
 
-    if (_progressionMode == "Custom")
+    if (_progressionMode == "Parallel")
     {
         _layout = ProgressionLayout::Create(
-            maxPlayerLevel, tbcActive, wotlkActive, _customClassicEnd, _customTbcEnd);
+            maxPlayerLevel, tbcActive, wotlkActive, 0, 0, ProgressionMode::Parallel);
+    }
+    else if (_progressionMode == "Global")
+    {
+        _layout = ProgressionLayout::Create(
+            maxPlayerLevel, tbcActive, wotlkActive, 0, 0, ProgressionMode::Global);
+    }
+    else if (_progressionMode == "Custom")
+    {
+        _layout = ProgressionLayout::Create(
+            maxPlayerLevel, tbcActive, wotlkActive, _customClassicEnd, _customTbcEnd, ProgressionMode::Custom);
     }
     else
     {
