@@ -507,7 +507,7 @@ bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId, ui
         return true;
 
     // Scripted private instances (e.g. Manastorm) use dedicated dynamic scaling and must not be level/era gated.
-    if (player->GetScriptedPrivateMapId() == mapId || player->GetScriptedPrivateInstanceId() != 0)
+    if (player->GetScriptedPrivateInstanceId() != 0 && player->GetScriptedPrivateMapId() == mapId)
         return true;
 
     // Corpse / ghost re-entry safety: dead players retrieving corpse in their instance must NEVER be locked out
