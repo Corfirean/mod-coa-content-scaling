@@ -5,10 +5,13 @@
 
 #include "CombatBudgetProfile.h"
 #include "ContentPackRegistry.h"
+#include "CoACreatureScaling.h"
+#include "CoACreatureScalingPolicy.h"
 #include "Creature.h"
 #include "CreatureData.h"
 #include "Map.h"
 #include "ObjectMgr.h"
+#include "World.h"
 #include <algorithm>
 #include <cmath>
 
@@ -73,6 +76,7 @@ CreatureScaleContext CombatBudgetProfile::BuildContext(CreatureTemplate const* c
 
     context.authoredLevel = cinfo->maxlevel;
     context.effectiveLevel = effectiveLevel;
+    context.healthModifier = CreatureScaling::HealthMultiplier(creature);
 
     Map const* map = creature ? creature->GetMap() : nullptr;
     uint32 const mapId = map ? map->GetId() : 0;
@@ -145,7 +149,18 @@ CalculatedCombatBudget CombatBudgetProfile::CalculateBudget(CreatureTemplate con
     else if (cinfo->rank == CREATURE_ELITE_WORLDBOSS)
         finalHealth *= 4.0f;
 
-    budget.health = std::max<uint32>(1, static_cast<uint32>(std::ceil(finalHealth)));
+    ServerConfigs healthRate = RATE_CREATURE_ELITE_ELITE_HP;
+    switch (cinfo->rank)
+    {
+        case CREATURE_ELITE_NORMAL: healthRate = RATE_CREATURE_NORMAL_HP; break;
+        case CREATURE_ELITE_ELITE: healthRate = RATE_CREATURE_ELITE_ELITE_HP; break;
+        case CREATURE_ELITE_RAREELITE: healthRate = RATE_CREATURE_ELITE_RAREELITE_HP; break;
+        case CREATURE_ELITE_WORLDBOSS: healthRate = RATE_CREATURE_ELITE_WORLDBOSS_HP; break;
+        case CREATURE_ELITE_RARE: healthRate = RATE_CREATURE_ELITE_RARE_HP; break;
+        default: break;
+    }
+    budget.health = CreatureScaling::Scaled(std::max<uint32>(1, static_cast<uint32>(std::ceil(finalHealth))),
+        context.healthModifier * sWorld->getRate(healthRate));
 
     // Mana: base * authored multiplier
     if (baseMana > 0)
