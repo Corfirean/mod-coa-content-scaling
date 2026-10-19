@@ -7,6 +7,7 @@
 #include "AdaptiveEncounterAPI.h"
 #include "CoAContentScaling.h"
 #include "ContentPackRegistry.h"
+#include "Creature.h"
 #include "DatabaseEnv.h"
 #include "Field.h"
 #include "InstanceProfile.h"
@@ -47,7 +48,7 @@ uint32 InstanceScalingMgr::CountActualPlayers(Map* map) const
     uint32 count = 0;
     map->DoForAllPlayers([&count](Player* player)
     {
-        if (!player || player->IsGameMaster())
+        if (!player || !player->IsInWorld() || player->IsGameMaster())
             return;
 
         // Humans + playerbots count as physical participants
@@ -62,51 +63,16 @@ float InstanceScalingMgr::CountEffectivePlayers(Map* map) const
     return float(CountActualPlayers(map));
 }
 
-InstanceScaleContext InstanceScalingMgr::GetOrCreateContext(Map* map)
+void InstanceScalingMgr::PopulateUnlockedContext(Map* map, uint32 actualPlayers, uint64 key, InstanceScaleContext& ctx)
 {
-    if (!map)
-        return InstanceScaleContext{};
-
-    uint32 const actualPlayers = CountActualPlayers(map);
     uint32 const mapId = map->GetId();
     uint32 const instanceId = map->GetInstanceId();
-    uint64 const key = (static_cast<uint64>(mapId) << 32) | instanceId;
 
-    std::lock_guard<std::mutex> lock(_lock);
-    auto it = _contexts.find(key);
-    if (it != _contexts.end())
-    {
-        // If combat is already locked, return frozen snapshot
-        if (it->second.encounterLocked)
-            return it->second;
-
-        // If not in combat, update current participant count for display
-        uint32 virtualChallenge = 0;
-        auto cit = _challengeSizes.find(key);
-        if (cit != _challengeSizes.end())
-            virtualChallenge = cit->second;
-
-        auto compIt = _compositionModes.find(key);
-        if (compIt != _compositionModes.end())
-            it->second.compositionMode = compIt->second;
-
-        it->second.actualParticipants = actualPlayers;
-        it->second.challengeSize = virtualChallenge;
-        it->second.combatEffectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : float(actualPlayers);
-        it->second.mechanicParticipants = (virtualChallenge > 0) ? std::min<uint32>(actualPlayers, virtualChallenge) : actualPlayers;
-        it->second.effectivePlayers = it->second.combatEffectivePlayers;
-
-        it->second.CalculateMultipliers(it->second.combatEffectivePlayers / float(it->second.intendedPlayers));
-        return it->second;
-    }
-
-    // New context
-    InstanceScaleContext ctx;
     ctx.mapId = mapId;
     ctx.instanceId = instanceId;
     ctx.era = sContentPackRegistry->ResolveEraForMap(mapId);
     ctx.difficulty = map->GetDifficulty();
-    ctx.intendedPlayers = sInstanceProfileRegistry->GetIntendedPlayers(mapId, ctx.difficulty);
+    ctx.intendedPlayers = std::max(1u, sInstanceProfileRegistry->GetIntendedPlayers(mapId, ctx.difficulty));
 
     if (map->IsRaid())
     {
@@ -136,9 +102,46 @@ InstanceScaleContext InstanceScalingMgr::GetOrCreateContext(Map* map)
     ctx.mechanicParticipants = (virtualChallenge > 0) ? std::min<uint32>(actualPlayers, virtualChallenge) : actualPlayers;
     ctx.effectivePlayers = ctx.combatEffectivePlayers;
 
-    ctx.CalculateMultipliers(ctx.combatEffectivePlayers / float(ctx.intendedPlayers));
+    if (sCoAContentScaling->IsGroupScalingEnabled())
+    {
+        ctx.CalculateMultipliers(ctx.combatEffectivePlayers / float(ctx.intendedPlayers));
+    }
+    else
+    {
+        ctx.healthScale = 1.0f;
+        ctx.damageScale = 1.0f;
+        ctx.healingScale = 1.0f;
+        ctx.absorbScale = 1.0f;
+    }
+}
 
-    _contexts[key] = ctx;
+InstanceScaleContext InstanceScalingMgr::GetOrCreateContext(Map* map)
+{
+    if (!map)
+        return InstanceScaleContext{};
+
+    uint32 const actualPlayers = CountActualPlayers(map);
+    uint32 const mapId = map->GetId();
+    uint32 const instanceId = map->GetInstanceId();
+    uint64 const key = (static_cast<uint64>(mapId) << 32) | instanceId;
+
+    std::lock_guard<std::mutex> lock(_lock);
+    auto it = _contexts.find(key);
+    if (it != _contexts.end() && it->second.encounterLocked)
+    {
+        InstanceScaleContext lockedCtx = it->second;
+        if (!sCoAContentScaling->IsGroupScalingEnabled())
+        {
+            lockedCtx.healthScale = 1.0f;
+            lockedCtx.damageScale = 1.0f;
+            lockedCtx.healingScale = 1.0f;
+            lockedCtx.absorbScale = 1.0f;
+        }
+        return lockedCtx;
+    }
+
+    InstanceScaleContext& ctx = _contexts[key];
+    PopulateUnlockedContext(map, actualPlayers, key, ctx);
     return ctx;
 }
 
@@ -154,6 +157,9 @@ InstanceScaleContext InstanceScalingMgr::GetContext(uint32 mapId, uint32 instanc
 
 EncounterScaleSnapshot InstanceScalingMgr::LockEncounterContext(Map* map, EncounterLifecycleSource source, EncounterKey key, EncounterHealthTransferPolicy hpPolicy)
 {
+    if (!map)
+        return EncounterScaleSnapshot{};
+
     uint32 const actualPlayers = CountActualPlayers(map);
     uint32 const mapId = map->GetId();
     uint32 const instanceId = map->GetInstanceId();
@@ -161,29 +167,11 @@ EncounterScaleSnapshot InstanceScalingMgr::LockEncounterContext(Map* map, Encoun
 
     std::lock_guard<std::mutex> lock(_lock);
     InstanceScaleContext& ctx = _contexts[mkey];
+    PopulateUnlockedContext(map, actualPlayers, mkey, ctx);
 
-    uint32 virtualChallenge = 0;
-    auto cit = _challengeSizes.find(mkey);
-    if (cit != _challengeSizes.end())
-        virtualChallenge = cit->second;
-
-    auto compIt = _compositionModes.find(mkey);
-    if (compIt != _compositionModes.end())
-        ctx.compositionMode = compIt->second;
-
-    ctx.actualParticipants = actualPlayers;
-    ctx.challengeSize = virtualChallenge;
-    ctx.combatEffectivePlayers = (virtualChallenge > 0) ? float(virtualChallenge) : float(actualPlayers);
-    ctx.mechanicParticipants = (virtualChallenge > 0) ? std::min<uint32>(actualPlayers, virtualChallenge) : actualPlayers;
-    ctx.effectivePlayers = ctx.combatEffectivePlayers;
-
-    if (ctx.intendedPlayers == 0)
-        ctx.intendedPlayers = sInstanceProfileRegistry->GetIntendedPlayers(mapId, map->GetDifficulty());
-
-    ctx.CalculateMultipliers(ctx.combatEffectivePlayers / float(ctx.intendedPlayers));
-
+    bool const shouldLock = sCoAContentScaling->IsLockOnEncounterStartEnabled();
     ctx.lockState = EncounterLockState::ACTIVE;
-    ctx.encounterLocked = true;
+    ctx.encounterLocked = shouldLock;
     ctx.lockEncounterId = key.id;
     ctx.activeEncounterSource = source;
     ctx.activeEncounterKey = key;
@@ -217,7 +205,7 @@ EncounterScaleSnapshot InstanceScalingMgr::LockEncounterContext(Map* map, Encoun
 
 void InstanceScalingMgr::ApplySnapshotToBoss(Creature* boss, EncounterScaleSnapshot const& snapshot, EncounterHealthTransferPolicy hpPolicy)
 {
-    if (!boss || !boss->GetMap())
+    if (!boss || !boss->GetMap() || !sCoAContentScaling->IsGroupScalingEnabled())
         return;
 
     uint32 const mapId = boss->GetMap()->GetId();
@@ -248,49 +236,45 @@ void InstanceScalingMgr::BeginEncounter(Map* map, EncounterLifecycleSource sourc
     if (!map || !map->IsDungeon())
         return;
 
+    if (!sCoAContentScaling->IsGroupScalingEnabled() && !sCoAContentScaling->IsAdaptiveMechanicsEnabled())
+        return;
+
     uint32 const mapId = map->GetId();
     uint32 const instanceId = map->GetInstanceId();
     uint64 const mkey = (static_cast<uint64>(mapId) << 32) | instanceId;
 
     EncounterScaleSnapshot snapshot;
+    bool alreadyActive = false;
     bool needApplyBoss = false;
 
     {
         std::lock_guard<std::mutex> lock(_lock);
         auto it = _contexts.find(mkey);
-        if (it != _contexts.end() && it->second.encounterLocked)
+        if (it != _contexts.end() && it->second.lockState == EncounterLockState::ACTIVE)
         {
+            alreadyActive = true;
             InstanceScaleContext& ctx = it->second;
 
-            // If an authoritative source is already active
-            if (ctx.activeEncounterSource <= source)
+            // Upgrade from lower priority (e.g. creature fallback) to higher priority (instance script)
+            if (ctx.activeEncounterSource > source)
             {
-                if (boss)
-                {
-                    ctx.bossGuids.insert(boss->GetGUID());
-                    snapshot = ctx.activeSnapshot;
-                    needApplyBoss = true;
-                }
-                // Do NOT early return here: drop out of mutex and call ApplySnapshotToBoss if boss was provided!
-            }
-            else
-            {
-                // Upgrade from lower priority (e.g. creature fallback) to higher priority (instance script)
                 ctx.activeEncounterSource = source;
                 ctx.activeEncounterKey = key;
-                if (boss)
-                {
-                    ctx.bossGuids.insert(boss->GetGUID());
-                    snapshot = ctx.activeSnapshot;
-                    needApplyBoss = true;
-                }
+            }
+
+            if (boss)
+            {
+                ctx.bossGuids.insert(boss->GetGUID());
+                snapshot = ctx.activeSnapshot;
+                needApplyBoss = true;
             }
         }
     }
 
-    if (needApplyBoss && boss)
+    if (alreadyActive)
     {
-        ApplySnapshotToBoss(boss, snapshot, hpPolicy);
+        if (needApplyBoss && boss)
+            ApplySnapshotToBoss(boss, snapshot, hpPolicy);
         return;
     }
 
@@ -317,79 +301,88 @@ void InstanceScalingMgr::EndEncounter(Map* map, EncounterLifecycleSource source,
     uint32 const instanceId = map->GetInstanceId();
     uint64 const mkey = (static_cast<uint64>(mapId) << 32) | instanceId;
 
-    std::lock_guard<std::mutex> lock(_lock);
-    auto it = _contexts.find(mkey);
-    if (it == _contexts.end() || !it->second.encounterLocked)
-        return;
+    bool unlockedForReset = false;
 
-    InstanceScaleContext& ctx = it->second;
-
-    // Check ownership
-    if (ctx.activeEncounterSource == EncounterLifecycleSource::INSTANCE_SCRIPT)
     {
-        // Only InstanceScript callbacks (DONE, FAIL, reset) can unlock an InstanceScript encounter!
-        if (source != EncounterLifecycleSource::INSTANCE_SCRIPT)
-        {
-            LOG_DEBUG("server.loading", "UniversalContentScaling: Ignored non-InstanceScript encounter end request on map {} while under InstanceScript lock.", mapId);
-            return;
-        }
-
-        if (key != ctx.activeEncounterKey)
-        {
-            LOG_DEBUG("server.loading", "UniversalContentScaling: Encounter key mismatch on end (active {}:{}, incoming {}:{}).",
-                      uint32(ctx.activeEncounterKey.type), ctx.activeEncounterKey.id, uint32(key.type), key.id);
-            return;
-        }
-
-        ctx.lockState = endState;
-        ctx.encounterLocked = false;
-        ctx.lockEncounterId = 0;
-        ctx.bossGuids.clear();
-        ctx.bossAppliedGenerations.clear();
-        ctx.activeSnapshot.valid = false;
-        LOG_INFO("server.loading", "UniversalContentScaling: Encounter {}:{} unlocked via InstanceScript on map {} (instance {})",
-                 uint32(key.type), key.id, mapId, instanceId);
-        return;
-    }
-
-    if (ctx.activeEncounterSource == EncounterLifecycleSource::CREATURE_FALLBACK)
-    {
-        if (source != EncounterLifecycleSource::CREATURE_FALLBACK)
+        std::lock_guard<std::mutex> lock(_lock);
+        auto it = _contexts.find(mkey);
+        if (it == _contexts.end() || it->second.lockState != EncounterLockState::ACTIVE)
             return;
 
-        if (!endingGuid.IsEmpty())
-        {
-            ctx.bossGuids.erase(endingGuid);
+        InstanceScaleContext& ctx = it->second;
 
-            // Council check: are other council bosses still alive and in combat?
-            bool anyAliveInCombat = false;
-            for (ObjectGuid const& bguid : ctx.bossGuids)
+        // Check ownership
+        if (ctx.activeEncounterSource == EncounterLifecycleSource::INSTANCE_SCRIPT)
+        {
+            // Only InstanceScript callbacks (DONE, FAIL, reset) can unlock an InstanceScript encounter!
+            if (source != EncounterLifecycleSource::INSTANCE_SCRIPT)
             {
-                if (Creature* c = map->GetCreature(bguid))
+                LOG_DEBUG("server.loading", "UniversalContentScaling: Ignored non-InstanceScript encounter end request on map {} while under InstanceScript lock.", mapId);
+                return;
+            }
+
+            if (key != ctx.activeEncounterKey)
+            {
+                LOG_DEBUG("server.loading", "UniversalContentScaling: Encounter key mismatch on end (active {}:{}, incoming {}:{}).",
+                          uint32(ctx.activeEncounterKey.type), ctx.activeEncounterKey.id, uint32(key.type), key.id);
+                return;
+            }
+
+            ctx.lockState = endState;
+            ctx.encounterLocked = false;
+            ctx.lockEncounterId = 0;
+            ctx.bossGuids.clear();
+            ctx.bossAppliedGenerations.clear();
+            ctx.activeSnapshot.valid = false;
+            unlockedForReset = (endState == EncounterLockState::RESETTING);
+            LOG_INFO("server.loading", "UniversalContentScaling: Encounter {}:{} unlocked via InstanceScript on map {} (instance {})",
+                     uint32(key.type), key.id, mapId, instanceId);
+        }
+        else if (ctx.activeEncounterSource == EncounterLifecycleSource::CREATURE_FALLBACK)
+        {
+            if (source != EncounterLifecycleSource::CREATURE_FALLBACK)
+                return;
+
+            if (!endingGuid.IsEmpty())
+            {
+                ctx.bossGuids.erase(endingGuid);
+
+                // Council check: are other council bosses still alive and in combat?
+                bool anyAliveInCombat = false;
+                for (ObjectGuid const& bguid : ctx.bossGuids)
                 {
-                    if (c->IsAlive() && c->IsInCombat())
+                    if (Creature* c = map->GetCreature(bguid))
                     {
-                        anyAliveInCombat = true;
-                        break;
+                        if (c->IsAlive() && c->IsInCombat())
+                        {
+                            anyAliveInCombat = true;
+                            break;
+                        }
                     }
+                }
+
+                if (anyAliveInCombat)
+                {
+                    LOG_DEBUG("server.loading", "UniversalContentScaling: Council member finished combat, but others remain active on map {}.", mapId);
+                    return;
                 }
             }
 
-            if (anyAliveInCombat)
-            {
-                LOG_DEBUG("server.loading", "UniversalContentScaling: Council member finished combat, but others remain active on map {}.", mapId);
-                return;
-            }
+            ctx.lockState = endState;
+            ctx.encounterLocked = false;
+            ctx.lockEncounterId = 0;
+            ctx.bossGuids.clear();
+            ctx.bossAppliedGenerations.clear();
+            ctx.activeSnapshot.valid = false;
+            unlockedForReset = (endState == EncounterLockState::RESETTING);
+            LOG_INFO("server.loading", "UniversalContentScaling: Creature fallback encounter {}:{} unlocked on map {} (instance {})",
+                     uint32(key.type), key.id, mapId, instanceId);
         }
+    }
 
-        ctx.lockState = endState;
-        ctx.encounterLocked = false;
-        ctx.lockEncounterId = 0;
-        ctx.bossGuids.clear();
-        ctx.bossAppliedGenerations.clear();
-        ctx.activeSnapshot.valid = false;
-        LOG_INFO("server.loading", "UniversalContentScaling: Creature fallback encounter {}:{} unlocked on map {} (instance {})",
-                 uint32(key.type), key.id, mapId, instanceId);
+    if (unlockedForReset)
+    {
+        sCoAContentScaling->RefreshDungeonCreatures(map);
     }
 }
 
@@ -413,6 +406,27 @@ void InstanceScalingMgr::SetChallengeSize(uint32 mapId, uint32 instanceId, uint3
         _challengeSizes.erase(key);
     else
         _challengeSizes[key] = virtualSize;
+
+    auto it = _contexts.find(key);
+    if (it != _contexts.end() && !it->second.encounterLocked)
+    {
+        InstanceScaleContext& ctx = it->second;
+        ctx.challengeSize = virtualSize;
+        ctx.combatEffectivePlayers = (virtualSize > 0) ? float(virtualSize) : float(ctx.actualParticipants);
+        ctx.mechanicParticipants = (virtualSize > 0) ? std::min<uint32>(ctx.actualParticipants, virtualSize) : ctx.actualParticipants;
+        ctx.effectivePlayers = ctx.combatEffectivePlayers;
+        if (sCoAContentScaling->IsGroupScalingEnabled())
+        {
+            ctx.CalculateMultipliers(ctx.combatEffectivePlayers / float(std::max(1u, ctx.intendedPlayers)));
+        }
+        else
+        {
+            ctx.healthScale = 1.0f;
+            ctx.damageScale = 1.0f;
+            ctx.healingScale = 1.0f;
+            ctx.absorbScale = 1.0f;
+        }
+    }
 }
 
 uint32 InstanceScalingMgr::GetChallengeSize(uint32 mapId, uint32 instanceId) const
@@ -571,6 +585,75 @@ void InstanceScalingMgr::LoadCalibratedBossFlex()
     LOG_INFO("server.loading", "UniversalContentScaling: Loaded {} calibrated boss flex profiles from coa_boss_flex", count);
 }
 
+void InstanceScalingMgr::SetCalibratedBossFlexProfile(uint32 entry, uint8 difficulty, uint32 perPlayerHp)
+{
+    if (difficulty >= MAX_RAID_DIFFICULTY)
+        return;
+
+    std::lock_guard<std::mutex> lock(_lock);
+    _bossFlexCache[entry][difficulty] = perPlayerHp;
+}
+
+void InstanceScalingMgr::RefreshUnlockedContexts()
+{
+    bool const groupScalingEnabled = sCoAContentScaling->IsGroupScalingEnabled();
+    std::lock_guard<std::mutex> lock(_lock);
+    for (auto& [key, ctx] : _contexts)
+    {
+        if (ctx.encounterLocked)
+            continue;
+
+        if (!groupScalingEnabled)
+        {
+            ctx.effectivePlayers = float(std::max<uint32>(1, ctx.intendedPlayers));
+            ctx.healthScale = 1.0f;
+            ctx.damageScale = 1.0f;
+            ctx.healingScale = 1.0f;
+            ctx.absorbScale = 1.0f;
+        }
+        else
+        {
+            float const targetPlayers = float(std::max<uint32>(1, ctx.intendedPlayers));
+            ctx.effectivePlayers = ctx.combatEffectivePlayers;
+            ctx.CalculateMultipliers(ctx.combatEffectivePlayers / targetPlayers);
+        }
+    }
+}
+
+void InstanceScalingMgr::ResetEncounterLockIfMapEmpty(Map* map)
+{
+    if (!map || !map->IsDungeon())
+        return;
+
+    uint32 inWorldPlayers = 0;
+    map->DoForAllPlayers([&inWorldPlayers](Player* player)
+    {
+        if (player && player->IsInWorld() && !player->IsGameMaster())
+            ++inWorldPlayers;
+    });
+
+    if (inWorldPlayers > 0)
+        return;
+
+    uint32 const mapId = map->GetId();
+    uint32 const instanceId = map->GetInstanceId();
+    uint64 const key = (static_cast<uint64>(mapId) << 32) | instanceId;
+
+    std::lock_guard<std::mutex> lock(_lock);
+    auto it = _contexts.find(key);
+    if (it != _contexts.end() && (it->second.lockState == EncounterLockState::ACTIVE || it->second.encounterLocked))
+    {
+        InstanceScaleContext& ctx = it->second;
+        ctx.lockState = EncounterLockState::RESETTING;
+        ctx.encounterLocked = false;
+        ctx.lockEncounterId = 0;
+        ctx.bossGuids.clear();
+        ctx.bossAppliedGenerations.clear();
+        ctx.activeSnapshot.valid = false;
+        LOG_INFO("server.loading", "UniversalContentScaling: Force-unlocked encounter on map {} (instance {}) because no players remain in world.", mapId, instanceId);
+    }
+}
+
 void InstanceScalingMgr::RemoveMapContext(uint32 mapId, uint32 instanceId)
 {
     uint64 const key = (static_cast<uint64>(mapId) << 32) | instanceId;
@@ -588,3 +671,4 @@ void InstanceScalingMgr::Clear()
     _compositionModes.clear();
     _bossFlexCache.clear();
 }
+

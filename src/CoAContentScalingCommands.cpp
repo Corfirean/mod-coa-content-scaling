@@ -173,8 +173,25 @@ private:
         if (!cinfo)
             return true;
 
-        CreatureScaleContext const ctx = sCombatBudgetProfile->BuildContext(cinfo, target, target->GetLevel());
-        CalculatedCombatBudget const budget = sCombatBudgetProfile->CalculateBudget(cinfo, ctx);
+        CreatureScaleContext ctx = sCombatBudgetProfile->BuildContext(cinfo, target, target->GetLevel());
+        uint32 calibratedHp = 0;
+        Map* map = target->GetMap();
+        if (sCoAContentScaling->IsGroupScalingEnabled() && map && map->IsDungeon())
+        {
+            InstanceScaleContext const instCtx = sInstanceScalingMgr->GetOrCreateContext(map);
+            ctx.groupHealthScale = instCtx.healthScale;
+            ctx.groupDamageScale = instCtx.damageScale;
+
+            if (map->IsRaid() && sInstanceScalingMgr->HasCalibratedBossHp(cinfo->Entry, map->GetSpawnMode()))
+            {
+                calibratedHp = sInstanceScalingMgr->GetCalibratedBossHp(
+                    cinfo->Entry, map->GetSpawnMode(), instCtx.effectivePlayers);
+            }
+        }
+
+        CalculatedCombatBudget budget = sCombatBudgetProfile->CalculateBudget(cinfo, ctx);
+        if (calibratedHp > 0)
+            budget.health = calibratedHp;
         EraResolutionResult const eraRes = sContentPackRegistry->ResolveEraDetailsForCreature(
             cinfo->Entry, target->GetMapId(), target->GetAreaId(), cinfo->expansion, cinfo->maxlevel);
 
@@ -182,8 +199,8 @@ private:
         handler->PSendSysMessage("Era: {} | Resolved by: {} (Confidence: {:.2f})",
             ContentEraToString(eraRes.era).data(), EraResolutionSourceToString(eraRes.source).data(), eraRes.confidence);
         handler->PSendSysMessage("Authored Level: {} | Effective Level: {}", uint32(ctx.authoredLevel), uint32(ctx.effectiveLevel));
-        handler->PSendSysMessage("Tier: {} | HealthMod: {:.2f} | DamageMod: {:.2f}",
-            ContentTierToString(ctx.tier).data(), cinfo->ModHealth, cinfo->DamageModifier);
+        handler->PSendSysMessage("Tier: {} | HealthMod: {:.2f} | DamageMod: {:.2f} | GroupHPScale: {:.2f} | GroupDmgScale: {:.2f}",
+            ContentTierToString(ctx.tier).data(), cinfo->ModHealth, cinfo->DamageModifier, ctx.groupHealthScale, ctx.groupDamageScale);
         handler->PSendSysMessage("Scaled Health: {} | Mana: {} | Armor: {:.0f} | AP: {}",
             budget.health, budget.mana, budget.armor, budget.attackPower);
         handler->PSendSysMessage("Damage Range: {:.1f} - {:.1f} | Current HP: {} / {}",

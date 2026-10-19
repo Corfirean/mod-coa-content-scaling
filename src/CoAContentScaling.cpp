@@ -130,6 +130,8 @@ void CoAContentScaling::LoadReloadableConfig()
     std::string const soloMode = sConfigMgr->GetOption<std::string>(CoAContentScalingConfigKeys::SoloAssistMode, "0");
     sSoloAssistPolicy->SetMode(CoAContentScalingConfig::ParseSoloAssistMode(soloMode));
 
+    sInstanceScalingMgr->RefreshUnlockedContexts();
+
     LOG_INFO("module.coa_content_scaling", "CoAContentScaling: Reloaded runtime settings (GroupScaling, AdaptiveMechanics, LFG defaults, SoloAssist, Debug)");
 }
 
@@ -366,47 +368,84 @@ void RescaleLootDamageRequirement(Creature* creature, uint32 previousMaxHealth)
     creature->LowerPlayerDamageReq(previousRequirement - requirement, false);
 }
 
-void CoAContentScaling::ApplyCreatureScaling(CreatureTemplate const* cinfo, Creature* creature)
+void CoAContentScaling::ApplyCombatBudget(CreatureTemplate const* cinfo, Creature* creature,
+                                          float groupHealthScale, float groupDamageScale,
+                                          float effectivePlayers, EncounterHealthTransferPolicy hpPolicy)
 {
     if (!_enabled || !cinfo || !creature)
         return;
 
+    if (creature->IsPet() || creature->IsTotem() || creature->IsCritter() ||
+        creature->IsTrigger() || creature->IsControlledByPlayer())
+        return;
+
     Map* map = creature->GetMap();
     CreatureScaleContext ctx = sCombatBudgetProfile->BuildContext(cinfo, creature, creature->GetLevel());
+    ctx.groupHealthScale = groupHealthScale;
+    ctx.groupDamageScale = groupDamageScale;
 
     uint32 calibratedHp = 0;
-    if (_groupScalingEnabled && map && map->IsDungeon())
+    if (_groupScalingEnabled && map && map->IsRaid() &&
+        sInstanceScalingMgr->HasCalibratedBossHp(cinfo->Entry, map->GetSpawnMode()))
     {
-        InstanceScaleContext instCtx = sInstanceScalingMgr->GetOrCreateContext(map);
-        ctx.groupHealthScale = instCtx.healthScale;
-        ctx.groupDamageScale = instCtx.damageScale;
-
-        // Check calibrated coa_boss_flex profile
-        if (map->IsRaid() && sInstanceScalingMgr->HasCalibratedBossHp(cinfo->Entry, map->GetSpawnMode()))
-        {
-            calibratedHp = sInstanceScalingMgr->GetCalibratedBossHp(
-                cinfo->Entry, map->GetSpawnMode(), instCtx.effectivePlayers);
-        }
+        calibratedHp = sInstanceScalingMgr->GetCalibratedBossHp(
+            cinfo->Entry, map->GetSpawnMode(), effectivePlayers);
     }
 
     CalculatedCombatBudget budget = sCombatBudgetProfile->CalculateBudget(cinfo, ctx);
     if (calibratedHp > 0)
         budget.health = calibratedHp;
 
-    uint32 const previousMaxHealth = creature->GetMaxHealth();
-    float const pct = previousMaxHealth ? creature->GetHealthPct() : 100.0f;
+    uint32 const oldMaxHp = creature->GetMaxHealth();
+    uint32 const oldCurHp = creature->GetHealth();
+
     creature->SetCreateHealth(budget.health);
     creature->SetStatFlatModifier(UNIT_MOD_HEALTH, BASE_VALUE, float(budget.health));
     creature->UpdateMaxHealth();
-    creature->SetHealth(std::max<uint32>(1, static_cast<uint32>(std::round(float(creature->GetMaxHealth()) * pct / 100.0f))));
-    RescaleLootDamageRequirement(creature, previousMaxHealth);
+
+    uint32 const newMaxHp = creature->GetMaxHealth();
+    uint32 newCurHp = newMaxHp;
+    if (hpPolicy == EncounterHealthTransferPolicy::FULL_ON_PULL)
+    {
+        if (oldMaxHp == newMaxHp && creature->IsInCombat() && !creature->IsInEvadeMode() && oldCurHp > 0 && oldCurHp < oldMaxHp)
+            newCurHp = oldCurHp;
+        else
+            newCurHp = newMaxHp;
+    }
+    else if (hpPolicy == EncounterHealthTransferPolicy::PRESERVE_PERCENT)
+    {
+        if (oldMaxHp == 0 || oldCurHp >= oldMaxHp)
+            newCurHp = newMaxHp;
+        else
+            newCurHp = std::max<uint32>(1, static_cast<uint32>(std::round(double(oldCurHp) * double(newMaxHp) / double(oldMaxHp))));
+    }
+    else if (hpPolicy == EncounterHealthTransferPolicy::PRESERVE_ABSOLUTE)
+    {
+        newCurHp = std::min<uint32>(oldCurHp, newMaxHp);
+        if (newCurHp == 0 && oldCurHp > 0)
+            newCurHp = 1;
+    }
+
+    creature->SetHealth(newCurHp);
+    if (creature->IsInEvadeMode() || (!creature->IsInCombat() && (oldMaxHp == 0 || oldCurHp >= oldMaxHp)))
+        creature->ResetPlayerDamageReq();
+    else
+        RescaleLootDamageRequirement(creature, oldMaxHp);
 
     if (budget.mana > 0)
     {
+        uint32 const oldMaxMana = creature->GetMaxPower(POWER_MANA);
+        uint32 const oldCurMana = creature->GetPower(POWER_MANA);
+
         creature->SetCreateMana(budget.mana);
-        creature->SetMaxPower(POWER_MANA, budget.mana);
-        creature->SetPower(POWER_MANA, budget.mana);
         creature->SetStatFlatModifier(UNIT_MOD_MANA, BASE_VALUE, float(budget.mana));
+        creature->UpdateMaxPower(POWER_MANA);
+
+        uint32 const newMaxMana = creature->GetMaxPower(POWER_MANA);
+        if (creature->IsInEvadeMode() || !creature->IsInCombat() || oldMaxMana == 0 || oldCurMana >= oldMaxMana)
+            creature->SetPower(POWER_MANA, newMaxMana);
+        else
+            creature->SetPower(POWER_MANA, static_cast<uint32>(std::round(double(oldCurMana) * double(newMaxMana) / double(oldMaxMana))));
     }
 
     creature->SetStatFlatModifier(UNIT_MOD_ARMOR, BASE_VALUE, budget.armor);
@@ -427,6 +466,32 @@ void CoAContentScaling::ApplyCreatureScaling(CreatureTemplate const* cinfo, Crea
     creature->UpdateDamagePhysical(RANGED_ATTACK);
 }
 
+void CoAContentScaling::ApplyCreatureScaling(CreatureTemplate const* cinfo, Creature* creature)
+{
+    if (!_enabled || !cinfo || !creature)
+        return;
+
+    float groupHealthScale = 1.0f;
+    float groupDamageScale = 1.0f;
+    float effectivePlayers = 1.0f;
+
+    Map* map = creature->GetMap();
+    if (_groupScalingEnabled && map && map->IsDungeon())
+    {
+        InstanceScaleContext const instCtx = sInstanceScalingMgr->GetOrCreateContext(map);
+        groupHealthScale = instCtx.healthScale;
+        groupDamageScale = instCtx.damageScale;
+        effectivePlayers = instCtx.effectivePlayers;
+    }
+
+    EncounterHealthTransferPolicy const hpPolicy =
+        creature->IsInEvadeMode()
+            ? EncounterHealthTransferPolicy::FULL_ON_PULL
+            : EncounterHealthTransferPolicy::PRESERVE_PERCENT;
+
+    ApplyCombatBudget(cinfo, creature, groupHealthScale, groupDamageScale, effectivePlayers, hpPolicy);
+}
+
 void CoAContentScaling::RecalculateEncounterCombatStats(Creature* boss, EncounterScaleSnapshot const& snapshot,
                                                         EncounterHealthTransferPolicy hpPolicy)
 {
@@ -441,71 +506,40 @@ void CoAContentScaling::RecalculateEncounterCombatStats(Creature* boss, Encounte
     if (!map || !map->IsDungeon())
         return;
 
-    CreatureScaleContext ctx = sCombatBudgetProfile->BuildContext(cinfo, boss, boss->GetLevel());
-    ctx.groupHealthScale = snapshot.healthScale;
-    ctx.groupDamageScale = snapshot.damageScale;
+    float const groupHealthScale = _groupScalingEnabled ? snapshot.healthScale : 1.0f;
+    float const groupDamageScale = _groupScalingEnabled ? snapshot.damageScale : 1.0f;
+    float const effectivePlayers = _groupScalingEnabled ? snapshot.effectivePlayers : 1.0f;
 
-    uint32 calibratedHp = 0;
-    if (map->IsRaid() && sInstanceScalingMgr->HasCalibratedBossHp(cinfo->Entry, map->GetSpawnMode()))
+    ApplyCombatBudget(cinfo, boss, groupHealthScale, groupDamageScale, effectivePlayers, hpPolicy);
+}
+
+void CoAContentScaling::RefreshDungeonCreatures(Map* map)
+{
+    if (!_enabled || !map || !map->IsDungeon())
+        return;
+
+    InstanceScaleContext const instCtx = sInstanceScalingMgr->GetOrCreateContext(map);
+    if (instCtx.encounterLocked)
+        return;
+
+    float const groupHealthScale = _groupScalingEnabled ? instCtx.healthScale : 1.0f;
+    float const groupDamageScale = _groupScalingEnabled ? instCtx.damageScale : 1.0f;
+    float const effectivePlayers = _groupScalingEnabled ? instCtx.effectivePlayers : 1.0f;
+
+    auto& creatures = map->GetObjectsStore().GetElements()._elements._element;
+    for (auto const& [guid, creature] : creatures)
     {
-        calibratedHp = sInstanceScalingMgr->GetCalibratedBossHp(
-            cinfo->Entry, map->GetSpawnMode(), snapshot.effectivePlayers);
+        if (!creature || !creature->IsInWorld() || !creature->IsAlive() || creature->IsInCombat())
+            continue;
+
+        EncounterHealthTransferPolicy const hpPolicy =
+            creature->IsInEvadeMode()
+                ? EncounterHealthTransferPolicy::FULL_ON_PULL
+                : EncounterHealthTransferPolicy::PRESERVE_PERCENT;
+
+        ApplyCombatBudget(creature->GetCreatureTemplate(), creature,
+                          groupHealthScale, groupDamageScale, effectivePlayers, hpPolicy);
     }
-
-    CalculatedCombatBudget budget = sCombatBudgetProfile->CalculateBudget(cinfo, ctx);
-    if (calibratedHp > 0)
-        budget.health = calibratedHp;
-
-    uint32 const oldMaxHp = boss->GetMaxHealth();
-    uint32 const oldCurHp = boss->GetHealth();
-    float const pct = oldMaxHp ? (float(oldCurHp) * 100.0f / float(oldMaxHp)) : 100.0f;
-
-    boss->SetCreateHealth(budget.health);
-    boss->SetStatFlatModifier(UNIT_MOD_HEALTH, BASE_VALUE, float(budget.health));
-    boss->UpdateMaxHealth();
-
-    uint32 newCurHp = budget.health;
-    if (hpPolicy == EncounterHealthTransferPolicy::FULL_ON_PULL)
-    {
-        newCurHp = budget.health;
-    }
-    else if (hpPolicy == EncounterHealthTransferPolicy::PRESERVE_PERCENT)
-    {
-        newCurHp = std::max<uint32>(1, static_cast<uint32>(std::round(float(boss->GetMaxHealth()) * pct / 100.0f)));
-    }
-    else if (hpPolicy == EncounterHealthTransferPolicy::PRESERVE_ABSOLUTE)
-    {
-        newCurHp = std::min<uint32>(oldCurHp, boss->GetMaxHealth());
-        if (newCurHp == 0 && oldCurHp > 0)
-            newCurHp = 1;
-    }
-    boss->SetHealth(newCurHp);
-    RescaleLootDamageRequirement(boss, oldMaxHp);
-
-    if (budget.mana > 0)
-    {
-        boss->SetCreateMana(budget.mana);
-        boss->SetMaxPower(POWER_MANA, budget.mana);
-        boss->SetPower(POWER_MANA, budget.mana);
-        boss->SetStatFlatModifier(UNIT_MOD_MANA, BASE_VALUE, float(budget.mana));
-    }
-
-    boss->SetStatFlatModifier(UNIT_MOD_ARMOR, BASE_VALUE, budget.armor);
-    boss->UpdateArmor();
-
-    boss->SetStatFlatModifier(UNIT_MOD_ATTACK_POWER, BASE_VALUE, float(budget.attackPower));
-    boss->UpdateAttackPowerAndDamage();
-
-    boss->SetBaseWeaponDamage(BASE_ATTACK, MINDAMAGE, budget.minDamage);
-    boss->SetBaseWeaponDamage(BASE_ATTACK, MAXDAMAGE, budget.maxDamage);
-    boss->SetBaseWeaponDamage(OFF_ATTACK, MINDAMAGE, budget.minDamage);
-    boss->SetBaseWeaponDamage(OFF_ATTACK, MAXDAMAGE, budget.maxDamage);
-    boss->SetBaseWeaponDamage(RANGED_ATTACK, MINDAMAGE, budget.minDamage);
-    boss->SetBaseWeaponDamage(RANGED_ATTACK, MAXDAMAGE, budget.maxDamage);
-
-    boss->UpdateDamagePhysical(BASE_ATTACK);
-    boss->UpdateDamagePhysical(OFF_ATTACK);
-    boss->UpdateDamagePhysical(RANGED_ATTACK);
 }
 
 bool CoAContentScaling::CanPlayerEnterMap(Player const* player, uint32 mapId, uint8 difficulty) const
@@ -593,7 +627,19 @@ void CoAContentScaling::SetPlayerLfgMode(ObjectGuid guid, lfg::LfgCompositionMod
         _playerLfgSettings[guid].compositionMode = mode;
     }
     if (Player* player = ObjectAccessor::FindPlayer(guid))
+    {
         SavePlayerLfgSettings(player);
+
+        if (Map* map = player->FindMap(); map && map->IsDungeon())
+        {
+            Group const* group = player->GetGroup();
+            if (!group || group->GetLeaderGUID() == guid)
+            {
+                sInstanceScalingMgr->SetCompositionMode(map->GetId(), map->GetInstanceId(), mode);
+                RefreshDungeonCreatures(map);
+            }
+        }
+    }
 }
 
 lfg::LfgCompositionMode CoAContentScaling::GetPlayerLfgMode(ObjectGuid guid) const
@@ -613,7 +659,19 @@ bool CoAContentScaling::SetPlayerLfgChallenge(ObjectGuid guid, uint32 challengeS
         _playerLfgSettings[guid].challengeSize = challengeSize;
     }
     if (Player* player = ObjectAccessor::FindPlayer(guid))
+    {
         SavePlayerLfgSettings(player);
+
+        if (Map* map = player->FindMap(); map && map->IsDungeon())
+        {
+            Group const* group = player->GetGroup();
+            if (!group || group->GetLeaderGUID() == guid)
+            {
+                sInstanceScalingMgr->SetChallengeSize(map->GetId(), map->GetInstanceId(), challengeSize);
+                RefreshDungeonCreatures(map);
+            }
+        }
+    }
 
     return true;
 }
@@ -978,6 +1036,18 @@ void CoAContentScaling::OnInstanceMapCreated(InstanceMap* instanceMap, Player* p
                      policyOpt->challengeSize, mapId, instanceId);
         }
     }
+    else if (player)
+    {
+        ObjectGuid settingsGuid = playerGuid;
+        if (Group* group = player->GetGroup())
+            settingsGuid = group->GetLeaderGUID();
+
+        sInstanceScalingMgr->SetCompositionMode(mapId, instanceId, GetPlayerLfgMode(settingsGuid));
+
+        uint32 const challengeSize = GetPlayerLfgChallenge(settingsGuid);
+        if (challengeSize > 0)
+            sInstanceScalingMgr->SetChallengeSize(mapId, instanceId, challengeSize);
+    }
 }
 
 // =============================================================================
@@ -1124,6 +1194,9 @@ namespace
 
             if (newState == IN_PROGRESS)
             {
+                if (!sCoAContentScaling->IsGroupScalingEnabled() && !sCoAContentScaling->IsAdaptiveMechanicsEnabled())
+                    return;
+
                 sInstanceScalingMgr->BeginEncounter(
                     instance,
                     EncounterLifecycleSource::INSTANCE_SCRIPT,
@@ -1301,6 +1374,9 @@ namespace
             if (!sCoAContentScaling->IsEnabled() || !unit)
                 return;
 
+            if (!sCoAContentScaling->IsGroupScalingEnabled() && !sCoAContentScaling->IsAdaptiveMechanicsEnabled())
+                return;
+
             Creature* creature = unit->ToCreature();
             if (!creature || !creature->GetMap() || !creature->GetMap()->IsDungeon())
                 return;
@@ -1333,7 +1409,8 @@ namespace
                     creature->GetMap(),
                     EncounterLifecycleSource::CREATURE_FALLBACK,
                     EncounterKey{EncounterKeyType::CREATURE_ENTRY, creature->GetEntry()},
-                    EncounterLockState::RESETTING);
+                    EncounterLockState::RESETTING,
+                    creature->GetGUID());
             }
         }
 
@@ -1353,7 +1430,8 @@ namespace
                     creature->GetMap(),
                     EncounterLifecycleSource::CREATURE_FALLBACK,
                     EncounterKey{EncounterKeyType::CREATURE_ENTRY, creature->GetEntry()},
-                    EncounterLockState::COMPLETED);
+                    EncounterLockState::COMPLETED,
+                    creature->GetGUID());
             }
         }
     };
@@ -1550,6 +1628,25 @@ namespace
     {
     public:
         coa_content_scaling_map() : AllMapScript("coa_content_scaling_map") { }
+
+        void OnPlayerEnterAll(Map* map, Player* /*player*/) override
+        {
+            if (!sCoAContentScaling->IsEnabled() || !map || !map->IsDungeon())
+                return;
+
+            if (sCoAContentScaling->IsGroupScalingEnabled())
+                sCoAContentScaling->RefreshDungeonCreatures(map);
+        }
+
+        void OnPlayerLeaveAll(Map* map, Player* /*player*/) override
+        {
+            if (!sCoAContentScaling->IsEnabled() || !map || !map->IsDungeon())
+                return;
+
+            sInstanceScalingMgr->ResetEncounterLockIfMapEmpty(map);
+            if (sCoAContentScaling->IsGroupScalingEnabled())
+                sCoAContentScaling->RefreshDungeonCreatures(map);
+        }
 
         void OnDestroyMap(Map* map) override
         {

@@ -61,12 +61,15 @@ public:
     [[nodiscard]] bool IsWorldLeechEnabled() const { return _worldLeechEnabled; }
     [[nodiscard]] float GetWorldLeechPercent() const { return _worldLeechPercent; }
     [[nodiscard]] bool IsGroupScalingEnabled() const { return _groupScalingEnabled; }
+    [[nodiscard]] bool IsLockOnEncounterStartEnabled() const { return _lockOnEncounterStart; }
     [[nodiscard]] float GetDamageMultiplier() const { return _damageMultiplier; }
     [[nodiscard]] bool IsAdaptiveMechanicsEnabled() const { return _adaptiveMechanicsEnabled; }
     [[nodiscard]] bool IsRemoveClassRestrictionsEnabled() const { return _removeClassRestrictions; }
     [[nodiscard]] bool IsDebugEnabled() const { return _debug; }
 
     void SetEnabled(bool enabled) { _enabled = enabled; }
+    void SetGroupScalingEnabled(bool enabled) { _groupScalingEnabled = enabled; }
+    void SetLockOnEncounterStart(bool enabled) { _lockOnEncounterStart = enabled; }
     void SetAdaptiveMechanicsEnabled(bool enabled) { _adaptiveMechanicsEnabled = enabled; }
 
     [[nodiscard]] ProgressionLayout const& GetLayout() const { return _layout; }
@@ -84,6 +87,7 @@ public:
     void ApplyCreatureScaling(CreatureTemplate const* cinfo, Creature* creature);
     void RecalculateEncounterCombatStats(Creature* boss, EncounterScaleSnapshot const& snapshot,
                                          EncounterHealthTransferPolicy hpPolicy = EncounterHealthTransferPolicy::FULL_ON_PULL);
+    void RefreshDungeonCreatures(Map* map);
 
     // Expansion enablement
     void SetTbcEnabled(bool enabled) { _tbcEnabled = enabled; }
@@ -119,6 +123,8 @@ public:
 
 private:
     CoAContentScaling() = default;
+    void ApplyCombatBudget(CreatureTemplate const* cinfo, Creature* creature, float groupHealthScale,
+                           float groupDamageScale, float effectivePlayers, EncounterHealthTransferPolicy hpPolicy);
 
     bool _enabled{true};
     bool _tbcEnabled{false};
