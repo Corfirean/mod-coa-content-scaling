@@ -13,6 +13,7 @@
 #include "Define.h"
 #include "LFG.h"
 #include "ObjectGuid.h"
+#include <array>
 #include <cmath>
 #include <mutex>
 #include <string>
@@ -174,13 +175,17 @@ public:
     // Boss flex health integration (priority: explicit encounter override > coa_boss_flex > generic instance scaling)
     uint32 GetCalibratedBossHp(uint32 entry, uint8 difficulty, float effectivePlayers) const;
     bool HasCalibratedBossHp(uint32 entry, uint8 difficulty) const;
+    void SetCalibratedBossFlexProfile(uint32 entry, uint8 difficulty, uint32 perPlayerHp);
     void LoadCalibratedBossFlex();
 
+    void RefreshUnlockedContexts();
+    void ResetEncounterLockIfMapEmpty(Map* map);
     void Clear();
     void RemoveMapContext(uint32 mapId, uint32 instanceId);
 
 private:
     InstanceScalingMgr() = default;
+    void PopulateUnlockedContext(Map* map, uint32 actualPlayers, uint64 key, InstanceScaleContext& ctx);
 
     mutable std::mutex _lock;
     // key: (mapId << 32) | instanceId

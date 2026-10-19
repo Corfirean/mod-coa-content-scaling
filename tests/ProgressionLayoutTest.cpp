@@ -2775,3 +2775,30 @@ TEST(CompleteContentCoverageTest, RandomClassicAndBurningCrusadeHeroicAndMythicH
         EXPECT_EQ(profile->tier, ContentTier::DUNGEON_HEROIC);
     }
 }
+
+TEST(InstanceScalingMgrTest, CalibratedBossFlexAndGroupScalingControls)
+{
+    sInstanceScalingMgr->Clear();
+    sInstanceScalingMgr->SetCalibratedBossFlexProfile(16028, 0, 128000);
+    EXPECT_TRUE(sInstanceScalingMgr->HasCalibratedBossHp(16028, 0));
+    EXPECT_FALSE(sInstanceScalingMgr->HasCalibratedBossHp(16028, 1));
+    EXPECT_EQ(sInstanceScalingMgr->GetCalibratedBossHp(16028, 0, 1.0f), 128000u);
+    EXPECT_EQ(sInstanceScalingMgr->GetCalibratedBossHp(16028, 0, 5.0f), 640000u);
+    EXPECT_EQ(sInstanceScalingMgr->GetCalibratedBossHp(16028, 0, 10.0f), 1280000u);
+
+    sInstanceScalingMgr->SetCompositionMode(36, 9001, lfg::LfgCompositionMode::BOT_FILL);
+    EXPECT_EQ(sInstanceScalingMgr->GetCompositionMode(36, 9001), lfg::LfgCompositionMode::BOT_FILL);
+
+    sCoAContentScaling->SetGroupScalingEnabled(false);
+    EXPECT_FALSE(sCoAContentScaling->IsGroupScalingEnabled());
+    sCoAContentScaling->SetGroupScalingEnabled(true);
+    EXPECT_TRUE(sCoAContentScaling->IsGroupScalingEnabled());
+
+    sCoAContentScaling->SetLockOnEncounterStart(false);
+    EXPECT_FALSE(sCoAContentScaling->IsLockOnEncounterStartEnabled());
+    sCoAContentScaling->SetLockOnEncounterStart(true);
+    EXPECT_TRUE(sCoAContentScaling->IsLockOnEncounterStartEnabled());
+
+    sInstanceScalingMgr->Clear();
+}
+
