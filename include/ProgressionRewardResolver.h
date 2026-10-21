@@ -33,7 +33,7 @@ public:
             return 0;
 
         // If identity cap 80 with all expansions active, preserve authored XP 1:1
-        if (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+        if (layout.IsStockIdentity())
             return authoredXP;
 
         if (authoredLevel <= 0 || effectiveLevel <= 0)
@@ -83,7 +83,7 @@ public:
             return 0;
 
         // Identity layout check
-        if (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+        if (layout.IsStockIdentity())
             return authoredRequiredLevel;
 
         uint32 mappedLevel = layout.MapAuthoredToEffective(era, static_cast<uint8>(authoredRequiredLevel));
@@ -171,7 +171,7 @@ public:
                                                   ProgressionLayout const& layout) const
     {
         // Stock cap 80 identity preserves authored access requirements 1:1
-        if (layout.maxLevel == 80 && layout.tbcEnabled && layout.wotlkEnabled)
+        if (layout.IsStockIdentity())
             return authoredMin;
 
         // If era is not enabled, access is locked out
@@ -190,6 +190,65 @@ public:
         // ResolveTierUnlockLevel is authoritative progression gate to preserve tier window
         uint8 const tierUnlock = ResolveTierUnlockLevel(tier, era, layout);
         return tierUnlock;
+    }
+
+    [[nodiscard]] uint8 ResolveEffectiveAccessMax(ContentEra era, uint8 authoredMax,
+                                                  ProgressionLayout const& layout) const
+    {
+        if (layout.IsStockIdentity())
+            return authoredMax;
+        return layout.IsEraEnabled(era) ? layout.maxLevel : 0;
+    }
+
+    /// Resolves calibrated player level for LFG random / daily rewards lookup.
+    /// Preserves stock player level 1:1 when unscaled / cap 80 with all eras enabled.
+    /// In compressed progression (e.g. Cap 60), maps player at era cap to authored era max (e.g. 80 for WotLK, 70 for TBC, 60 for Classic).
+    [[nodiscard]] uint8 ResolveLfgRewardLevel(ContentEra era, uint8 playerLevel,
+                                              ProgressionLayout const& layout) const
+    {
+        if (layout.IsStockIdentity())
+            return playerLevel;
+
+        LevelRange const eraRange = layout.GetEraRange(era);
+        if (playerLevel >= eraRange.maxLevel)
+        {
+            switch (era)
+            {
+                case ContentEra::WotLK:
+                    return 80;
+                case ContentEra::TBC:
+                    return 70;
+                case ContentEra::Classic:
+                default:
+                    return 60;
+            }
+        }
+
+        uint8 authMin = 1;
+        uint8 authMax = 60;
+        switch (era)
+        {
+            case ContentEra::WotLK:
+                authMin = 68;
+                authMax = 80;
+                break;
+            case ContentEra::TBC:
+                authMin = 58;
+                authMax = 70;
+                break;
+            case ContentEra::Classic:
+            default:
+                authMin = 1;
+                authMax = 60;
+                break;
+        }
+
+        if (eraRange.maxLevel <= eraRange.minLevel)
+            return authMax;
+
+        float const progress = float(playerLevel - eraRange.minLevel) / float(eraRange.maxLevel - eraRange.minLevel);
+        uint8 const mapped = authMin + static_cast<uint8>(std::round(progress * float(authMax - authMin)));
+        return std::clamp<uint8>(mapped, authMin, authMax);
     }
 
 private:

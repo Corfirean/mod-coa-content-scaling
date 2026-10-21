@@ -5,15 +5,15 @@
 - **Total DBC Maps**: 374
 - **Total DBC Areas**: 2849
 - **Total LFG Dungeons**: 430 (Active: 423, Deactivated: 7)
-- **Creature Templates (DB)**: 32043
-- **World Spawns (DB)**: 151500
-- **Creature Placements Indexed**: 18751 (100% active spawned creatures)
-- **Quests (DB)**: 10106
-- **Items (DB)**: 562555
+- **Creature Templates (DB)**: 32084
+- **World Spawns (DB)**: 151625
+- **Creature Placements Indexed**: 18766 (100% active spawned creatures)
+- **Quests (DB)**: 10151
+- **Items (DB)**: 562556
 
 ## 2. PvE vs PvP Classification
 
-- **PvE Instances Registered**: 221
+- **PvE Instances Registered**: 498
 - **PvP Maps Excluded**: 65
 
 | Map ID | Name | Excluded Kind | Status |

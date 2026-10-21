@@ -40,9 +40,9 @@ Classic is the base world. Expansion content packs are strictly independent:
 The module never hardcodes max level to 60 or 80. It reads `CONFIG_MAX_PLAYER_LEVEL` from the world configuration.
 - **Level 60 layout**: Classic `1-45`, TBC `45-55`, WotLK `55-60`.
 - **Level 70 layout**: Classic `1-53`, TBC `53-63`, WotLK `63-70`.
-- **Level 80 layout**: Classic `1-60`, TBC `60-70`, WotLK `70-80`.
+- **Level 80 layout (Authentic Stock Identity)**: Classic `1-60`, TBC `58-70`, WotLK `68-80`.
 - **Interpolated layouts**: Any cap between 60 and 80 interpolates monotonically using reference anchors.
-- **Fail-safe validation**: Unsafe caps (>80) fail-fast with clean logging and safe Classic fallback.
+- **Fail-safe validation**: Unsafe caps (<60 or >80) fail-fast with clean logging and safe Classic fallback.
 
 ### 2. Combat Budget Normalization (Creature Stats)
 In AzerothCore, `CreatureBaseStats` indexes health and damage by `expansion`. Simply lowering a creature's level in memory still uses the WotLK expansion multiplier table.
@@ -167,3 +167,27 @@ CoAContentScaling.Debug = 0
 ## License
 
 This module is released under the GNU General Public License v2 (GPL-2.0), in line with the AzerothCore Project.
+
+### Partial-party Dungeon Finder and open-world life steal
+
+When `CoAContentScaling.Enable = 1` and `CoAContentScaling.GroupScaling.Enable = 1`,
+`CoAContentScaling.LFG.AllowPartialGroups = 1` lets the group leader enter with the current
+party of 1, 2, 3, 4 or 5 players. Matchmaking resolves to CurrentParty for that queue;
+BotFill still uses the registered bot provider. Set AllowPartialGroups to 0 to keep
+standard Matchmaking. Existing CurrentParty preferences remain available.
+
+Open-world life steal is disabled by default. To heal for 10% of player damage to
+PvE creatures, configure:
+
+```ini
+CoAContentScaling.World.Leech.Enable = 1
+CoAContentScaling.World.Leech.Percent = 10.0
+```
+
+This includes melee, direct spells and periodic damage, excludes player-controlled
+creatures, and applies only on world maps. It uses mitigated damage capped at the
+victim's remaining health. Damage from pets does not heal their owner. Percent is
+clamped to 0..100; non-finite values fall back to 5. Both features require the module
+to be enabled; life steal does not require group scaling or SoloAssist. Settings can
+be updated with `.reload config`. The module uses the existing core LFG hooks;
+install the core integration patches before building it.

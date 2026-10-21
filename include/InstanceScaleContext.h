@@ -177,6 +177,7 @@ public:
     void LoadCalibratedBossFlex();
 
     void Clear();
+    void RemoveMapContext(uint32 mapId, uint32 instanceId);
 
 private:
     InstanceScalingMgr() = default;

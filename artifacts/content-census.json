@@ -1,24 +1,24 @@
 {
-  "schema_version": 311,
+  "schema_version": 312,
   "metadata": {
-    "schema_version": 311,
+    "schema_version": 312,
     "generator_version": "3.3.0",
     "inputs": {
       "Map.dbc": "04a4d696b53a65e3579f6329af9c1948dd865cf05cb6dd5df8def68897b8d328",
       "AreaTable.dbc": "696a8fa876b55503217827d92ddb48c57078ab9cfde8af3c46023a1f7b15c8ec",
       "LFGDungeons.dbc": "112f00021290673d6cf55cfb97998b292486e95e4418bb6bfaac4216bf11ef65",
-      "map_overrides.json": "78231b710f371b7f9552de90819bac1b886c5f54c68151512c267e9ab5428c1d",
-      "instance_tiers.json": "12566b5ea8742f1366d1622aeac384f0ebb93dc18a18ab4149657c12bace5e01",
-      "reused_maps.json": "0d2ea360d9f7c90f8238612cd04c7672baebefde7c91110af69c49e82fca838d",
-      "custom_content.json": "d88328ce873b8f324be13bb32ff91f31290307d68a86581659a89171830f39c1"
+      "map_overrides.json": "0e90320be0f293492a27e961c075494e862b2485d9fea7c7518c0be6d2ca7958",
+      "instance_tiers.json": "677d6a5372484ede1dd4ef3d4e2a90c12a07a9a00a5267c3a333829827263594",
+      "reused_maps.json": "0627bdb18315b66392a0da42d968467bc77db3754a44db549757170f9cb709b1",
+      "custom_content.json": "3c58964c05446a2248c77681ebc825b123405ad6355db02c1dfd5b00dfd1532b"
     },
     "totals": {
       "maps": 374,
-      "pve_instances": 221,
+      "pve_instances": 498,
       "excluded_pvp": 65,
-      "creature_placements": 18751,
-      "quests": 10106,
-      "items": 3865,
+      "creature_placements": 18766,
+      "quests": 10151,
+      "items": 338764,
       "access": 121,
       "lfg": 423
     }
@@ -2233,6 +2233,2776 @@
       "intended_players": 5,
       "is_raid": false,
       "name": "TorWatha"
+    },
+    {
+      "map_id": 33,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Shadowfang Keep (difficulty 2)"
+    },
+    {
+      "map_id": 34,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Stormwind Stockade (difficulty 1)"
+    },
+    {
+      "map_id": 34,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Stormwind Stockade (difficulty 2)"
+    },
+    {
+      "map_id": 36,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Deadmines (difficulty 2)"
+    },
+    {
+      "map_id": 43,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Wailing Caverns (difficulty 2)"
+    },
+    {
+      "map_id": 47,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Razorfen Kraul (difficulty 1)"
+    },
+    {
+      "map_id": 47,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Razorfen Kraul (difficulty 2)"
+    },
+    {
+      "map_id": 48,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Blackfathom Deeps (difficulty 1)"
+    },
+    {
+      "map_id": 48,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Blackfathom Deeps (difficulty 2)"
+    },
+    {
+      "map_id": 70,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Uldaman (difficulty 1)"
+    },
+    {
+      "map_id": 70,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Uldaman (difficulty 2)"
+    },
+    {
+      "map_id": 90,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Gnomeregan (difficulty 1)"
+    },
+    {
+      "map_id": 90,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Gnomeregan (difficulty 2)"
+    },
+    {
+      "map_id": 109,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Sunken Temple (difficulty 1)"
+    },
+    {
+      "map_id": 109,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Sunken Temple (difficulty 2)"
+    },
+    {
+      "map_id": 129,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Razorfen Downs (difficulty 1)"
+    },
+    {
+      "map_id": 129,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Razorfen Downs (difficulty 2)"
+    },
+    {
+      "map_id": 189,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Scarlet Monastery (difficulty 1)"
+    },
+    {
+      "map_id": 189,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Scarlet Monastery (difficulty 2)"
+    },
+    {
+      "map_id": 209,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Zul'Farrak (difficulty 1)"
+    },
+    {
+      "map_id": 209,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Zul'Farrak (difficulty 2)"
+    },
+    {
+      "map_id": 229,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Blackrock Spire (difficulty 1)"
+    },
+    {
+      "map_id": 229,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Blackrock Spire (difficulty 2)"
+    },
+    {
+      "map_id": 230,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Blackrock Depths (difficulty 1)"
+    },
+    {
+      "map_id": 230,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Blackrock Depths (difficulty 2)"
+    },
+    {
+      "map_id": 249,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Onyxia's Lair (difficulty 2)"
+    },
+    {
+      "map_id": 249,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Onyxia's Lair (difficulty 3)"
+    },
+    {
+      "map_id": 269,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Opening of the Dark Portal (difficulty 2)"
+    },
+    {
+      "map_id": 289,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Scholomance (difficulty 1)"
+    },
+    {
+      "map_id": 289,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Scholomance (difficulty 2)"
+    },
+    {
+      "map_id": 309,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_ENTRY",
+      "intended_players": 20,
+      "is_raid": true,
+      "name": "Zul'Gurub (difficulty 1)"
+    },
+    {
+      "map_id": 309,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_ENTRY",
+      "intended_players": 20,
+      "is_raid": true,
+      "name": "Zul'Gurub (difficulty 2)"
+    },
+    {
+      "map_id": 309,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_ENTRY",
+      "intended_players": 20,
+      "is_raid": true,
+      "name": "Zul'Gurub (difficulty 3)"
+    },
+    {
+      "map_id": 329,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Stratholme (difficulty 1)"
+    },
+    {
+      "map_id": 329,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Stratholme (difficulty 2)"
+    },
+    {
+      "map_id": 349,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Maraudon (difficulty 1)"
+    },
+    {
+      "map_id": 349,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Maraudon (difficulty 2)"
+    },
+    {
+      "map_id": 389,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Ragefire Chasm (difficulty 1)"
+    },
+    {
+      "map_id": 389,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Ragefire Chasm (difficulty 2)"
+    },
+    {
+      "map_id": 409,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 40,
+      "is_raid": true,
+      "name": "Molten Core (difficulty 1)"
+    },
+    {
+      "map_id": 409,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 40,
+      "is_raid": true,
+      "name": "Molten Core (difficulty 2)"
+    },
+    {
+      "map_id": 409,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 40,
+      "is_raid": true,
+      "name": "Molten Core (difficulty 3)"
+    },
+    {
+      "map_id": 429,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Dire Maul (difficulty 1)"
+    },
+    {
+      "map_id": 429,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Dire Maul (difficulty 2)"
+    },
+    {
+      "map_id": 469,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_END",
+      "intended_players": 40,
+      "is_raid": true,
+      "name": "Blackwing Lair (difficulty 1)"
+    },
+    {
+      "map_id": 469,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_END",
+      "intended_players": 40,
+      "is_raid": true,
+      "name": "Blackwing Lair (difficulty 2)"
+    },
+    {
+      "map_id": 469,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_END",
+      "intended_players": 40,
+      "is_raid": true,
+      "name": "Blackwing Lair (difficulty 3)"
+    },
+    {
+      "map_id": 509,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_ENTRY",
+      "intended_players": 20,
+      "is_raid": true,
+      "name": "Ruins of Ahn'Qiraj (difficulty 1)"
+    },
+    {
+      "map_id": 509,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_ENTRY",
+      "intended_players": 20,
+      "is_raid": true,
+      "name": "Ruins of Ahn'Qiraj (difficulty 2)"
+    },
+    {
+      "map_id": 509,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_ENTRY",
+      "intended_players": 20,
+      "is_raid": true,
+      "name": "Ruins of Ahn'Qiraj (difficulty 3)"
+    },
+    {
+      "map_id": 531,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_PINNACLE",
+      "intended_players": 40,
+      "is_raid": true,
+      "name": "Ahn'Qiraj Temple (difficulty 1)"
+    },
+    {
+      "map_id": 531,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_PINNACLE",
+      "intended_players": 40,
+      "is_raid": true,
+      "name": "Ahn'Qiraj Temple (difficulty 2)"
+    },
+    {
+      "map_id": 531,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_PINNACLE",
+      "intended_players": 40,
+      "is_raid": true,
+      "name": "Ahn'Qiraj Temple (difficulty 3)"
+    },
+    {
+      "map_id": 532,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Karazhan (difficulty 1)"
+    },
+    {
+      "map_id": 532,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Karazhan (difficulty 2)"
+    },
+    {
+      "map_id": 532,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Karazhan (difficulty 3)"
+    },
+    {
+      "map_id": 533,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Naxxramas (difficulty 2)"
+    },
+    {
+      "map_id": 533,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Naxxramas (difficulty 3)"
+    },
+    {
+      "map_id": 534,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_END",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "The Battle for Mount Hyjal (difficulty 1)"
+    },
+    {
+      "map_id": 534,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_END",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "The Battle for Mount Hyjal (difficulty 2)"
+    },
+    {
+      "map_id": 534,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_END",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "The Battle for Mount Hyjal (difficulty 3)"
+    },
+    {
+      "map_id": 535,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Naxxramas (difficulty 2)"
+    },
+    {
+      "map_id": 535,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Naxxramas (difficulty 3)"
+    },
+    {
+      "map_id": 540,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Hellfire Citadel: The Shattered Halls (difficulty 2)"
+    },
+    {
+      "map_id": 542,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Hellfire Citadel: The Blood Furnace (difficulty 2)"
+    },
+    {
+      "map_id": 543,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Hellfire Citadel: Ramparts (difficulty 2)"
+    },
+    {
+      "map_id": 544,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_ENTRY",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Magtheridon's Lair (difficulty 1)"
+    },
+    {
+      "map_id": 544,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_ENTRY",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Magtheridon's Lair (difficulty 2)"
+    },
+    {
+      "map_id": 544,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_ENTRY",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Magtheridon's Lair (difficulty 3)"
+    },
+    {
+      "map_id": 545,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Coilfang: The Steamvault (difficulty 2)"
+    },
+    {
+      "map_id": 546,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Coilfang: The Underbog (difficulty 2)"
+    },
+    {
+      "map_id": 547,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Coilfang: The Slave Pens (difficulty 2)"
+    },
+    {
+      "map_id": 548,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Coilfang: Serpentshrine Cavern (difficulty 1)"
+    },
+    {
+      "map_id": 548,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Coilfang: Serpentshrine Cavern (difficulty 2)"
+    },
+    {
+      "map_id": 548,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Coilfang: Serpentshrine Cavern (difficulty 3)"
+    },
+    {
+      "map_id": 550,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Tempest Keep (difficulty 1)"
+    },
+    {
+      "map_id": 550,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Tempest Keep (difficulty 2)"
+    },
+    {
+      "map_id": 550,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Tempest Keep (difficulty 3)"
+    },
+    {
+      "map_id": 552,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Tempest Keep: The Arcatraz (difficulty 2)"
+    },
+    {
+      "map_id": 553,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Tempest Keep: The Botanica (difficulty 2)"
+    },
+    {
+      "map_id": 554,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Tempest Keep: The Mechanar (difficulty 2)"
+    },
+    {
+      "map_id": 555,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Auchindoun: Shadow Labyrinth (difficulty 2)"
+    },
+    {
+      "map_id": 556,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Auchindoun: Sethekk Halls (difficulty 2)"
+    },
+    {
+      "map_id": 557,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Auchindoun: Mana-Tombs (difficulty 2)"
+    },
+    {
+      "map_id": 558,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Auchindoun: Auchenai Crypts (difficulty 2)"
+    },
+    {
+      "map_id": 560,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "The Escape From Durnholde (difficulty 2)"
+    },
+    {
+      "map_id": 564,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_END",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Black Temple (difficulty 1)"
+    },
+    {
+      "map_id": 564,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_END",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Black Temple (difficulty 2)"
+    },
+    {
+      "map_id": 564,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_END",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Black Temple (difficulty 3)"
+    },
+    {
+      "map_id": 565,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_ENTRY",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Gruul's Lair (difficulty 1)"
+    },
+    {
+      "map_id": 565,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_ENTRY",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Gruul's Lair (difficulty 2)"
+    },
+    {
+      "map_id": 565,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_ENTRY",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Gruul's Lair (difficulty 3)"
+    },
+    {
+      "map_id": 568,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_END",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Zul'Aman (difficulty 1)"
+    },
+    {
+      "map_id": 568,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_END",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Zul'Aman (difficulty 2)"
+    },
+    {
+      "map_id": 568,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_END",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Zul'Aman (difficulty 3)"
+    },
+    {
+      "map_id": 574,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Utgarde Keep (difficulty 2)"
+    },
+    {
+      "map_id": 575,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Utgarde Pinnacle (difficulty 2)"
+    },
+    {
+      "map_id": 576,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "The Nexus (difficulty 2)"
+    },
+    {
+      "map_id": 578,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "The Oculus (difficulty 2)"
+    },
+    {
+      "map_id": 580,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_PINNACLE",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "The Sunwell (difficulty 1)"
+    },
+    {
+      "map_id": 580,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_PINNACLE",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "The Sunwell (difficulty 2)"
+    },
+    {
+      "map_id": 580,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "TBC",
+      "tier": "RAID_PINNACLE",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "The Sunwell (difficulty 3)"
+    },
+    {
+      "map_id": 585,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Magister's Terrace (difficulty 2)"
+    },
+    {
+      "map_id": 595,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "The Culling of Stratholme (difficulty 2)"
+    },
+    {
+      "map_id": 599,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Halls of Stone (difficulty 2)"
+    },
+    {
+      "map_id": 600,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Drak'Tharon Keep (difficulty 2)"
+    },
+    {
+      "map_id": 601,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Azjol-Nerub (difficulty 2)"
+    },
+    {
+      "map_id": 602,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Halls of Lightning (difficulty 2)"
+    },
+    {
+      "map_id": 603,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_MID",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Ulduar (difficulty 2)"
+    },
+    {
+      "map_id": 603,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_MID",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Ulduar (difficulty 3)"
+    },
+    {
+      "map_id": 604,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Gundrak (difficulty 2)"
+    },
+    {
+      "map_id": 608,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Violet Hold (difficulty 2)"
+    },
+    {
+      "map_id": 615,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "The Obsidian Sanctum (difficulty 2)"
+    },
+    {
+      "map_id": 615,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "The Obsidian Sanctum (difficulty 3)"
+    },
+    {
+      "map_id": 616,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "The Eye of Eternity (difficulty 2)"
+    },
+    {
+      "map_id": 616,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "The Eye of Eternity (difficulty 3)"
+    },
+    {
+      "map_id": 619,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Ahn'kahet: The Old Kingdom (difficulty 2)"
+    },
+    {
+      "map_id": 624,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Vault of Archavon (difficulty 2)"
+    },
+    {
+      "map_id": 624,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_ENTRY",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Vault of Archavon (difficulty 3)"
+    },
+    {
+      "map_id": 631,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_PINNACLE",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Icecrown Citadel (difficulty 2)"
+    },
+    {
+      "map_id": 631,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_PINNACLE",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Icecrown Citadel (difficulty 3)"
+    },
+    {
+      "map_id": 632,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "The Forge of Souls (difficulty 2)"
+    },
+    {
+      "map_id": 645,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Blackrock Caverns (difficulty 1)"
+    },
+    {
+      "map_id": 645,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Blackrock Caverns (difficulty 2)"
+    },
+    {
+      "map_id": 649,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_END",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Trial of the Crusader (difficulty 2)"
+    },
+    {
+      "map_id": 649,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_END",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "Trial of the Crusader (difficulty 3)"
+    },
+    {
+      "map_id": 650,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Trial of the Champion (difficulty 2)"
+    },
+    {
+      "map_id": 658,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Pit of Saron (difficulty 2)"
+    },
+    {
+      "map_id": 666,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Test Dev Dungeon (difficulty 1)"
+    },
+    {
+      "map_id": 666,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Test Dev Dungeon (difficulty 2)"
+    },
+    {
+      "map_id": 668,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "WotLK",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Halls of Reflection (difficulty 2)"
+    },
+    {
+      "map_id": 724,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_PINNACLE",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "The Ruby Sanctum (difficulty 2)"
+    },
+    {
+      "map_id": 724,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "WotLK",
+      "tier": "RAID_PINNACLE",
+      "intended_players": 10,
+      "is_raid": true,
+      "name": "The Ruby Sanctum (difficulty 3)"
+    },
+    {
+      "map_id": 820,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Frozen Tears Sanctum (difficulty 1)"
+    },
+    {
+      "map_id": 820,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Frozen Tears Sanctum (difficulty 2)"
+    },
+    {
+      "map_id": 821,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Tinkertech Showdown (difficulty 1)"
+    },
+    {
+      "map_id": 821,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Tinkertech Showdown (difficulty 2)"
+    },
+    {
+      "map_id": 880,
+      "difficulty": 1,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Setis (PvE) (difficulty 1)"
+    },
+    {
+      "map_id": 880,
+      "difficulty": 2,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Setis (PvE) (difficulty 2)"
+    },
+    {
+      "map_id": 880,
+      "difficulty": 3,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Setis (PvE) (difficulty 3)"
+    },
+    {
+      "map_id": 881,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Azuregos (PvE) (difficulty 1)"
+    },
+    {
+      "map_id": 881,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Azuregos (PvE) (difficulty 2)"
+    },
+    {
+      "map_id": 881,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Azuregos (PvE) (difficulty 3)"
+    },
+    {
+      "map_id": 882,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Lord Kazzak (PvE) (difficulty 1)"
+    },
+    {
+      "map_id": 882,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Lord Kazzak (PvE) (difficulty 2)"
+    },
+    {
+      "map_id": 882,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Lord Kazzak (PvE) (difficulty 3)"
+    },
+    {
+      "map_id": 883,
+      "difficulty": 1,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Soggoth (PvE) (difficulty 1)"
+    },
+    {
+      "map_id": 883,
+      "difficulty": 2,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Soggoth (PvE) (difficulty 2)"
+    },
+    {
+      "map_id": 883,
+      "difficulty": 3,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Soggoth (PvE) (difficulty 3)"
+    },
+    {
+      "map_id": 885,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Emeriss (PvE) (difficulty 1)"
+    },
+    {
+      "map_id": 885,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Emeriss (PvE) (difficulty 2)"
+    },
+    {
+      "map_id": 885,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Emeriss (PvE) (difficulty 3)"
+    },
+    {
+      "map_id": 886,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Taerar (PvE) (difficulty 1)"
+    },
+    {
+      "map_id": 886,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Taerar (PvE) (difficulty 2)"
+    },
+    {
+      "map_id": 886,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Taerar (PvE) (difficulty 3)"
+    },
+    {
+      "map_id": 887,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Ysondre (PvE) (difficulty 1)"
+    },
+    {
+      "map_id": 887,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Ysondre (PvE) (difficulty 2)"
+    },
+    {
+      "map_id": 887,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Ysondre (PvE) (difficulty 3)"
+    },
+    {
+      "map_id": 888,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Lethon (PvE) (difficulty 1)"
+    },
+    {
+      "map_id": 888,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Lethon (PvE) (difficulty 2)"
+    },
+    {
+      "map_id": 888,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Lethon (PvE) (difficulty 3)"
+    },
+    {
+      "map_id": 889,
+      "difficulty": 1,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Snowgrave (PvE) (difficulty 1)"
+    },
+    {
+      "map_id": 889,
+      "difficulty": 2,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Snowgrave (PvE) (difficulty 2)"
+    },
+    {
+      "map_id": 889,
+      "difficulty": 3,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Snowgrave (PvE) (difficulty 3)"
+    },
+    {
+      "map_id": 890,
+      "difficulty": 1,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Atal'zull (PvE) (difficulty 1)"
+    },
+    {
+      "map_id": 890,
+      "difficulty": 2,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Atal'zull (PvE) (difficulty 2)"
+    },
+    {
+      "map_id": 890,
+      "difficulty": 3,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Atal'zull (PvE) (difficulty 3)"
+    },
+    {
+      "map_id": 891,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Kaldros Depthbreaker (PvE) (difficulty 1)"
+    },
+    {
+      "map_id": 891,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Kaldros Depthbreaker (PvE) (difficulty 2)"
+    },
+    {
+      "map_id": 891,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Kaldros Depthbreaker (PvE) (difficulty 3)"
+    },
+    {
+      "map_id": 908,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Frozen Reach (difficulty 1)"
+    },
+    {
+      "map_id": 908,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Frozen Reach (difficulty 2)"
+    },
+    {
+      "map_id": 922,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "DungeonDevMap (difficulty 1)"
+    },
+    {
+      "map_id": 922,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "DungeonDevMap (difficulty 2)"
+    },
+    {
+      "map_id": 936,
+      "difficulty": 1,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Vaults of the Inquisition (difficulty 1)"
+    },
+    {
+      "map_id": 936,
+      "difficulty": 2,
+      "kind": "CUSTOM_PVE",
+      "era": "Custom",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Vaults of the Inquisition (difficulty 2)"
+    },
+    {
+      "map_id": 937,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Road to De Other Side (difficulty 1)"
+    },
+    {
+      "map_id": 937,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Road to De Other Side (difficulty 2)"
+    },
+    {
+      "map_id": 938,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Azga Necromancer Dungeon (difficulty 1)"
+    },
+    {
+      "map_id": 938,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Azga Necromancer Dungeon (difficulty 2)"
+    },
+    {
+      "map_id": 939,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Vulture Cult Sanctuary Dungeon (difficulty 1)"
+    },
+    {
+      "map_id": 939,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Vulture Cult Sanctuary Dungeon (difficulty 2)"
+    },
+    {
+      "map_id": 940,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Shadow Bone Depths (difficulty 1)"
+    },
+    {
+      "map_id": 940,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Shadow Bone Depths (difficulty 2)"
+    },
+    {
+      "map_id": 941,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Temple Of Embers (difficulty 1)"
+    },
+    {
+      "map_id": 941,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Temple Of Embers (difficulty 2)"
+    },
+    {
+      "map_id": 951,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Helya Revenge (difficulty 1)"
+    },
+    {
+      "map_id": 951,
+      "difficulty": 2,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Helya Revenge (difficulty 2)"
+    },
+    {
+      "map_id": 951,
+      "difficulty": 3,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "Helya Revenge (difficulty 3)"
+    },
+    {
+      "map_id": 960,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Mini Games (difficulty 1)"
+    },
+    {
+      "map_id": 960,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Mini Games (difficulty 2)"
+    },
+    {
+      "map_id": 961,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Ocean Battle (difficulty 1)"
+    },
+    {
+      "map_id": 961,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Ocean Battle (difficulty 2)"
+    },
+    {
+      "map_id": 968,
+      "difficulty": 1,
+      "kind": "RAID",
+      "era": "Classic",
+      "tier": "RAID_MID",
+      "intended_players": 25,
+      "is_raid": true,
+      "name": "The Abbys (difficulty 1)"
+    },
+    {
+      "map_id": 970,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Shaded Echo Tavern (difficulty 1)"
+    },
+    {
+      "map_id": 970,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Shaded Echo Tavern (difficulty 2)"
+    },
+    {
+      "map_id": 971,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Stormwind Sewer Room (difficulty 1)"
+    },
+    {
+      "map_id": 971,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Stormwind Sewer Room (difficulty 2)"
+    },
+    {
+      "map_id": 972,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Orgrimmar Depths (difficulty 1)"
+    },
+    {
+      "map_id": 972,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Orgrimmar Depths (difficulty 2)"
+    },
+    {
+      "map_id": 1760,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Redridge Mountains (difficulty 1)"
+    },
+    {
+      "map_id": 1760,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Redridge Mountains (difficulty 2)"
+    },
+    {
+      "map_id": 1761,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Alterac Mountains (difficulty 1)"
+    },
+    {
+      "map_id": 1761,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Alterac Mountains (difficulty 2)"
+    },
+    {
+      "map_id": 1762,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Blasted Lands (difficulty 1)"
+    },
+    {
+      "map_id": 1762,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Blasted Lands (difficulty 2)"
+    },
+    {
+      "map_id": 1763,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Eastern Plaguelands (difficulty 1)"
+    },
+    {
+      "map_id": 1763,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Eastern Plaguelands (difficulty 2)"
+    },
+    {
+      "map_id": 1764,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Feralas (difficulty 1)"
+    },
+    {
+      "map_id": 1764,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Feralas (difficulty 2)"
+    },
+    {
+      "map_id": 1765,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Hillsbrad Foothills (difficulty 1)"
+    },
+    {
+      "map_id": 1765,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Hillsbrad Foothills (difficulty 2)"
+    },
+    {
+      "map_id": 1766,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Silverpine Forest (difficulty 1)"
+    },
+    {
+      "map_id": 1766,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Silverpine Forest (difficulty 2)"
+    },
+    {
+      "map_id": 1767,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Tanaris (difficulty 1)"
+    },
+    {
+      "map_id": 1767,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Tanaris (difficulty 2)"
+    },
+    {
+      "map_id": 1768,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Western Plaguelands (difficulty 1)"
+    },
+    {
+      "map_id": 1768,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Western Plaguelands (difficulty 2)"
+    },
+    {
+      "map_id": 1769,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Westfall (difficulty 1)"
+    },
+    {
+      "map_id": 1769,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Westfall (difficulty 2)"
+    },
+    {
+      "map_id": 1770,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Winterspring (difficulty 1)"
+    },
+    {
+      "map_id": 1770,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Winterspring (difficulty 2)"
+    },
+    {
+      "map_id": 1771,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "The Grim Marsh (difficulty 1)"
+    },
+    {
+      "map_id": 1771,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "The Grim Marsh (difficulty 2)"
+    },
+    {
+      "map_id": 1774,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Eonar's Cradle (difficulty 1)"
+    },
+    {
+      "map_id": 1774,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Eonar's Cradle (difficulty 2)"
+    },
+    {
+      "map_id": 1775,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Iskarr Village (difficulty 1)"
+    },
+    {
+      "map_id": 1775,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Iskarr Village (difficulty 2)"
+    },
+    {
+      "map_id": 1776,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Vardrheim (difficulty 1)"
+    },
+    {
+      "map_id": 1776,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Vardrheim (difficulty 2)"
+    },
+    {
+      "map_id": 1778,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Darkwhisper Gorge (difficulty 1)"
+    },
+    {
+      "map_id": 1778,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Darkwhisper Gorge (difficulty 2)"
+    },
+    {
+      "map_id": 1779,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Shadow Hold (difficulty 1)"
+    },
+    {
+      "map_id": 1779,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Shadow Hold (difficulty 2)"
+    },
+    {
+      "map_id": 1780,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Jintha'Alor (difficulty 1)"
+    },
+    {
+      "map_id": 1780,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Jintha'Alor (difficulty 2)"
+    },
+    {
+      "map_id": 1781,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Forgotten Mine (difficulty 1)"
+    },
+    {
+      "map_id": 1781,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Forgotten Mine (difficulty 2)"
+    },
+    {
+      "map_id": 1782,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Blasted Lands - Test (difficulty 1)"
+    },
+    {
+      "map_id": 1782,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Blasted Lands - Test (difficulty 2)"
+    },
+    {
+      "map_id": 1783,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Elwynn Forest (difficulty 1)"
+    },
+    {
+      "map_id": 1783,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Elwynn Forest (difficulty 2)"
+    },
+    {
+      "map_id": 1784,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Black Rook Hold Arena (difficulty 1)"
+    },
+    {
+      "map_id": 1784,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Black Rook Hold Arena (difficulty 2)"
+    },
+    {
+      "map_id": 1785,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Ashamane's Fall (difficulty 1)"
+    },
+    {
+      "map_id": 1785,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Ashamane's Fall (difficulty 2)"
+    },
+    {
+      "map_id": 1786,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Obelisk of the Stars (difficulty 1)"
+    },
+    {
+      "map_id": 1786,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Obelisk of the Stars (difficulty 2)"
+    },
+    {
+      "map_id": 1787,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Baradin Hold (difficulty 1)"
+    },
+    {
+      "map_id": 1787,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Baradin Hold (difficulty 2)"
+    },
+    {
+      "map_id": 1788,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "The Tiger's Peak (difficulty 1)"
+    },
+    {
+      "map_id": 1788,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "The Tiger's Peak (difficulty 2)"
+    },
+    {
+      "map_id": 1789,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Brawl'gar Arena (difficulty 1)"
+    },
+    {
+      "map_id": 1789,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Brawl'gar Arena (difficulty 2)"
+    },
+    {
+      "map_id": 1790,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Spark of Creator (difficulty 1)"
+    },
+    {
+      "map_id": 1790,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Spark of Creator (difficulty 2)"
+    },
+    {
+      "map_id": 1792,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Temple of Kotmogu (difficulty 1)"
+    },
+    {
+      "map_id": 1792,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Temple of Kotmogu (difficulty 2)"
+    },
+    {
+      "map_id": 1793,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Tol'viron Arena (difficulty 1)"
+    },
+    {
+      "map_id": 1793,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Tol'viron Arena (difficulty 2)"
+    },
+    {
+      "map_id": 1794,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Twisting Nether (difficulty 2)"
+    },
+    {
+      "map_id": 1795,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Bloodmyst Isle (difficulty 2)"
+    },
+    {
+      "map_id": 1797,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Azuremyst Isle (difficulty 1)"
+    },
+    {
+      "map_id": 1797,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Azuremyst Isle (difficulty 2)"
+    },
+    {
+      "map_id": 1798,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Eversong Woods (difficulty 2)"
+    },
+    {
+      "map_id": 1799,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Ghostlands (difficulty 2)"
+    },
+    {
+      "map_id": 1800,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Hellfire Peninsula (difficulty 2)"
+    },
+    {
+      "map_id": 1801,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Nagrand (difficulty 2)"
+    },
+    {
+      "map_id": 1802,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Netherstorm (difficulty 2)"
+    },
+    {
+      "map_id": 1803,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Isle of Quel'Danas (difficulty 2)"
+    },
+    {
+      "map_id": 1804,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Shadowmoon Valley (difficulty 2)"
+    },
+    {
+      "map_id": 1805,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Terokkar Forest (difficulty 2)"
+    },
+    {
+      "map_id": 1806,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "TBC",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Zangarmarsh (difficulty 2)"
+    },
+    {
+      "map_id": 1807,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Karazhan Crypts (difficulty 1)"
+    },
+    {
+      "map_id": 1807,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "Karazhan Crypts (difficulty 2)"
+    },
+    {
+      "map_id": 1912,
+      "difficulty": 1,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "TorWatha (difficulty 1)"
+    },
+    {
+      "map_id": 1912,
+      "difficulty": 2,
+      "kind": "DUNGEON",
+      "era": "Classic",
+      "tier": "DUNGEON_HEROIC",
+      "intended_players": 5,
+      "is_raid": false,
+      "name": "TorWatha (difficulty 2)"
     }
   ],
   "access": [
@@ -3092,7 +5862,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 6,
@@ -3101,7 +5872,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 8,
@@ -3110,7 +5882,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 10,
@@ -3119,7 +5892,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 12,
@@ -3128,7 +5902,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 16,
@@ -3137,7 +5912,8 @@
       "era": "Classic",
       "min_level": 25,
       "max_level": 59,
-      "target_level": 25
+      "target_level": 25,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 18,
@@ -3146,7 +5922,8 @@
       "era": "Classic",
       "min_level": 18,
       "max_level": 59,
-      "target_level": 18
+      "target_level": 18,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 20,
@@ -3155,7 +5932,8 @@
       "era": "Classic",
       "min_level": 30,
       "max_level": 59,
-      "target_level": 30
+      "target_level": 30,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 24,
@@ -3164,7 +5942,8 @@
       "era": "Classic",
       "min_level": 35,
       "max_level": 59,
-      "target_level": 35
+      "target_level": 35,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 26,
@@ -3173,7 +5952,8 @@
       "era": "Classic",
       "min_level": 35,
       "max_level": 59,
-      "target_level": 35
+      "target_level": 35,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 28,
@@ -3182,7 +5962,8 @@
       "era": "Classic",
       "min_level": 45,
       "max_level": 59,
-      "target_level": 53
+      "target_level": 53,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 30,
@@ -3191,7 +5972,8 @@
       "era": "Classic",
       "min_level": 45,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 32,
@@ -3200,7 +5982,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 34,
@@ -3209,7 +5992,8 @@
       "era": "Classic",
       "min_level": 45,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 36,
@@ -3218,7 +6002,8 @@
       "era": "Classic",
       "min_level": 45,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 38,
@@ -3227,7 +6012,8 @@
       "era": "Classic",
       "min_level": 45,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 40,
@@ -3236,7 +6022,8 @@
       "era": "Classic",
       "min_level": 45,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 42,
@@ -3245,7 +6032,8 @@
       "era": "Classic",
       "min_level": 56,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 44,
@@ -3254,7 +6042,8 @@
       "era": "Classic",
       "min_level": 45,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 45,
@@ -3263,7 +6052,8 @@
       "era": "Classic",
       "min_level": 35,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 46,
@@ -3272,7 +6062,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 48,
@@ -3281,7 +6072,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 49,
@@ -3290,7 +6082,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 50,
@@ -3299,7 +6092,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 51,
@@ -3308,7 +6102,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 52,
@@ -3317,7 +6112,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 53,
@@ -3326,7 +6122,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 54,
@@ -3335,7 +6132,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 55,
@@ -3344,7 +6142,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 56,
@@ -3353,7 +6152,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 58,
@@ -3362,7 +6162,8 @@
       "era": "Classic",
       "min_level": 1,
       "max_level": 14,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 60,
@@ -3371,7 +6172,8 @@
       "era": "Classic",
       "min_level": 8,
       "max_level": 24,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 62,
@@ -3380,7 +6182,8 @@
       "era": "Classic",
       "min_level": 18,
       "max_level": 34,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 64,
@@ -3389,7 +6192,8 @@
       "era": "Classic",
       "min_level": 1,
       "max_level": 14,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 66,
@@ -3398,7 +6202,8 @@
       "era": "Classic",
       "min_level": 8,
       "max_level": 24,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 68,
@@ -3407,7 +6212,8 @@
       "era": "Classic",
       "min_level": 18,
       "max_level": 34,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 70,
@@ -3416,7 +6222,8 @@
       "era": "Classic",
       "min_level": 28,
       "max_level": 50,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 72,
@@ -3425,7 +6232,8 @@
       "era": "Classic",
       "min_level": 43,
       "max_level": 59,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 74,
@@ -3434,7 +6242,8 @@
       "era": "Classic",
       "min_level": 33,
       "max_level": 50,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 76,
@@ -3443,7 +6252,8 @@
       "era": "Classic",
       "min_level": 13,
       "max_level": 30,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 78,
@@ -3452,7 +6262,8 @@
       "era": "Classic",
       "min_level": 48,
       "max_level": 59,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 80,
@@ -3461,7 +6272,8 @@
       "era": "Classic",
       "min_level": 43,
       "max_level": 59,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 82,
@@ -3470,7 +6282,8 @@
       "era": "Classic",
       "min_level": 33,
       "max_level": 50,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 84,
@@ -3479,7 +6292,8 @@
       "era": "Classic",
       "min_level": 28,
       "max_level": 44,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 86,
@@ -3488,7 +6302,8 @@
       "era": "Classic",
       "min_level": 18,
       "max_level": 34,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 88,
@@ -3497,7 +6312,8 @@
       "era": "Classic",
       "min_level": 38,
       "max_level": 54,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 90,
@@ -3506,7 +6322,8 @@
       "era": "Classic",
       "min_level": 48,
       "max_level": 59,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 92,
@@ -3515,7 +6332,8 @@
       "era": "Classic",
       "min_level": 53,
       "max_level": 60,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 94,
@@ -3524,7 +6342,8 @@
       "era": "Classic",
       "min_level": 1,
       "max_level": 14,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 96,
@@ -3533,7 +6352,8 @@
       "era": "Classic",
       "min_level": 8,
       "max_level": 24,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 98,
@@ -3542,7 +6362,8 @@
       "era": "Classic",
       "min_level": 28,
       "max_level": 44,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 100,
@@ -3551,7 +6372,8 @@
       "era": "Classic",
       "min_level": 1,
       "max_level": 14,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 102,
@@ -3560,7 +6382,8 @@
       "era": "Classic",
       "min_level": 1,
       "max_level": 14,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 104,
@@ -3569,7 +6392,8 @@
       "era": "Classic",
       "min_level": 8,
       "max_level": 30,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 106,
@@ -3578,7 +6402,8 @@
       "era": "Classic",
       "min_level": 13,
       "max_level": 32,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 108,
@@ -3587,7 +6412,8 @@
       "era": "Classic",
       "min_level": 23,
       "max_level": 40,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 110,
@@ -3596,7 +6422,8 @@
       "era": "Classic",
       "min_level": 28,
       "max_level": 44,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 112,
@@ -3605,7 +6432,8 @@
       "era": "Classic",
       "min_level": 38,
       "max_level": 54,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 114,
@@ -3614,7 +6442,8 @@
       "era": "Classic",
       "min_level": 33,
       "max_level": 50,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 116,
@@ -3623,7 +6452,8 @@
       "era": "Classic",
       "min_level": 38,
       "max_level": 54,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 118,
@@ -3632,7 +6462,8 @@
       "era": "Classic",
       "min_level": 45,
       "max_level": 59,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 120,
@@ -3641,7 +6472,8 @@
       "era": "Classic",
       "min_level": 53,
       "max_level": 60,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 122,
@@ -3650,7 +6482,8 @@
       "era": "Classic",
       "min_level": 1,
       "max_level": 14,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 124,
@@ -3659,7 +6492,8 @@
       "era": "Classic",
       "min_level": 8,
       "max_level": 24,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 126,
@@ -3668,7 +6502,8 @@
       "era": "Classic",
       "min_level": 18,
       "max_level": 34,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 128,
@@ -3677,7 +6512,8 @@
       "era": "Classic",
       "min_level": 46,
       "max_level": 59,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 130,
@@ -3686,7 +6522,8 @@
       "era": "Classic",
       "min_level": 43,
       "max_level": 59,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 132,
@@ -3695,7 +6532,8 @@
       "era": "Classic",
       "min_level": 53,
       "max_level": 60,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 136,
@@ -3704,7 +6542,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 137,
@@ -3713,7 +6552,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 138,
@@ -3722,7 +6562,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 140,
@@ -3731,7 +6572,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 146,
@@ -3740,7 +6582,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 147,
@@ -3749,7 +6592,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 148,
@@ -3758,7 +6602,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 149,
@@ -3767,7 +6612,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 150,
@@ -3776,7 +6622,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 151,
@@ -3785,7 +6632,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 152,
@@ -3794,7 +6642,8 @@
       "era": "TBC",
       "min_level": 57,
       "max_level": 66,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 153,
@@ -3803,7 +6652,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 67,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 154,
@@ -3812,7 +6662,8 @@
       "era": "TBC",
       "min_level": 60,
       "max_level": 68,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 155,
@@ -3821,7 +6672,8 @@
       "era": "TBC",
       "min_level": 62,
       "max_level": 70,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 156,
@@ -3830,7 +6682,8 @@
       "era": "TBC",
       "min_level": 65,
       "max_level": 70,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 157,
@@ -3839,7 +6692,8 @@
       "era": "TBC",
       "min_level": 63,
       "max_level": 71,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 158,
@@ -3848,7 +6702,8 @@
       "era": "TBC",
       "min_level": 65,
       "max_level": 70,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 160,
@@ -3857,7 +6712,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 161,
@@ -3866,7 +6722,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_PINNACLE"
     },
     {
       "dungeon_id": 163,
@@ -3875,7 +6732,8 @@
       "era": "Classic",
       "min_level": 20,
       "max_level": 59,
-      "target_level": 20
+      "target_level": 20,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 164,
@@ -3884,7 +6742,8 @@
       "era": "Classic",
       "min_level": 20,
       "max_level": 59,
-      "target_level": 20
+      "target_level": 20,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 165,
@@ -3893,7 +6752,8 @@
       "era": "Classic",
       "min_level": 20,
       "max_level": 59,
-      "target_level": 20
+      "target_level": 20,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 166,
@@ -3902,7 +6762,8 @@
       "era": "TBC",
       "min_level": 1,
       "max_level": 14,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 167,
@@ -3911,7 +6772,8 @@
       "era": "TBC",
       "min_level": 1,
       "max_level": 14,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 168,
@@ -3920,7 +6782,8 @@
       "era": "TBC",
       "min_level": 8,
       "max_level": 24,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 169,
@@ -3929,7 +6792,8 @@
       "era": "TBC",
       "min_level": 8,
       "max_level": 24,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 170,
@@ -3938,7 +6802,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 171,
@@ -3947,7 +6812,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 172,
@@ -3956,7 +6822,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 173,
@@ -3965,7 +6832,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 174,
@@ -3974,7 +6842,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 65
+      "target_level": 65,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 175,
@@ -3983,7 +6852,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 176,
@@ -3992,7 +6862,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 177,
@@ -4001,7 +6872,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 178,
@@ -4010,7 +6882,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 179,
@@ -4019,7 +6892,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 180,
@@ -4028,7 +6902,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 181,
@@ -4037,7 +6912,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 182,
@@ -4046,7 +6922,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 183,
@@ -4055,7 +6932,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 184,
@@ -4064,7 +6942,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 185,
@@ -4073,7 +6952,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 186,
@@ -4082,7 +6962,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 187,
@@ -4091,7 +6972,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 188,
@@ -4100,7 +6982,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 189,
@@ -4109,7 +6992,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 190,
@@ -4118,7 +7002,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 191,
@@ -4127,7 +7012,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 192,
@@ -4136,7 +7022,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 193,
@@ -4145,7 +7032,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 194,
@@ -4154,7 +7042,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 195,
@@ -4163,7 +7052,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 196,
@@ -4172,7 +7062,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 197,
@@ -4181,7 +7072,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 199,
@@ -4190,7 +7082,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_PINNACLE"
     },
     {
       "dungeon_id": 200,
@@ -4199,7 +7092,8 @@
       "era": "TBC",
       "min_level": 69,
       "max_level": 72,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 202,
@@ -4208,7 +7102,8 @@
       "era": "WotLK",
       "min_level": 71,
       "max_level": 80,
-      "target_level": 72
+      "target_level": 72,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 203,
@@ -4217,7 +7112,8 @@
       "era": "WotLK",
       "min_level": 77,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 204,
@@ -4226,7 +7122,8 @@
       "era": "WotLK",
       "min_level": 71,
       "max_level": 80,
-      "target_level": 74
+      "target_level": 74,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 205,
@@ -4235,7 +7132,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 206,
@@ -4244,7 +7142,8 @@
       "era": "WotLK",
       "min_level": 77,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 207,
@@ -4253,7 +7152,8 @@
       "era": "WotLK",
       "min_level": 77,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 208,
@@ -4262,7 +7162,8 @@
       "era": "WotLK",
       "min_level": 75,
       "max_level": 80,
-      "target_level": 78
+      "target_level": 78,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 209,
@@ -4271,7 +7172,8 @@
       "era": "WotLK",
       "min_level": 77,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 210,
@@ -4280,7 +7182,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 211,
@@ -4289,7 +7192,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 212,
@@ -4298,7 +7202,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 213,
@@ -4307,7 +7212,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 214,
@@ -4316,7 +7222,8 @@
       "era": "WotLK",
       "min_level": 72,
       "max_level": 80,
-      "target_level": 75
+      "target_level": 75,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 215,
@@ -4325,7 +7232,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 216,
@@ -4334,7 +7242,8 @@
       "era": "WotLK",
       "min_level": 74,
       "max_level": 80,
-      "target_level": 78
+      "target_level": 78,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 217,
@@ -4343,7 +7252,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 218,
@@ -4352,7 +7262,8 @@
       "era": "WotLK",
       "min_level": 71,
       "max_level": 80,
-      "target_level": 75
+      "target_level": 75,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 219,
@@ -4361,7 +7272,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 220,
@@ -4370,7 +7282,8 @@
       "era": "WotLK",
       "min_level": 73,
       "max_level": 80,
-      "target_level": 76
+      "target_level": 76,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 221,
@@ -4379,7 +7292,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 225,
@@ -4388,7 +7302,8 @@
       "era": "WotLK",
       "min_level": 71,
       "max_level": 80,
-      "target_level": 73
+      "target_level": 73,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 226,
@@ -4397,7 +7312,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 227,
@@ -4406,7 +7322,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 228,
@@ -4415,7 +7332,8 @@
       "era": "WotLK",
       "min_level": 68,
       "max_level": 72,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 229,
@@ -4424,7 +7342,8 @@
       "era": "WotLK",
       "min_level": 68,
       "max_level": 72,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 230,
@@ -4433,7 +7352,8 @@
       "era": "WotLK",
       "min_level": 70,
       "max_level": 74,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 231,
@@ -4442,7 +7362,8 @@
       "era": "WotLK",
       "min_level": 71,
       "max_level": 75,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 232,
@@ -4451,7 +7372,8 @@
       "era": "WotLK",
       "min_level": 77,
       "max_level": 80,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 233,
@@ -4460,7 +7382,8 @@
       "era": "WotLK",
       "min_level": 73,
       "max_level": 77,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 234,
@@ -4469,7 +7392,8 @@
       "era": "WotLK",
       "min_level": 75,
       "max_level": 79,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 235,
@@ -4478,7 +7402,8 @@
       "era": "WotLK",
       "min_level": 77,
       "max_level": 80,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 236,
@@ -4487,7 +7412,8 @@
       "era": "WotLK",
       "min_level": 77,
       "max_level": 80,
-      "target_level": 0
+      "target_level": 0,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 237,
@@ -4496,7 +7422,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 238,
@@ -4505,7 +7432,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 240,
@@ -4514,7 +7442,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 241,
@@ -4523,7 +7452,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 242,
@@ -4532,7 +7462,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 244,
@@ -4541,7 +7472,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 245,
@@ -4550,7 +7482,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 247,
@@ -4559,7 +7492,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 248,
@@ -4568,7 +7502,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 249,
@@ -4577,7 +7512,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 250,
@@ -4586,7 +7522,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 251,
@@ -4595,7 +7532,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 252,
@@ -4604,7 +7542,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 253,
@@ -4613,7 +7552,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 254,
@@ -4622,7 +7562,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 255,
@@ -4631,7 +7572,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 256,
@@ -4640,7 +7582,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 257,
@@ -4649,7 +7592,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 258,
@@ -4658,7 +7602,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 259,
@@ -4667,7 +7612,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 260,
@@ -4676,7 +7622,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 261,
@@ -4685,7 +7632,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 262,
@@ -4694,7 +7642,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 263,
@@ -4703,7 +7652,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 264,
@@ -4712,7 +7662,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 265,
@@ -4721,7 +7672,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 266,
@@ -4730,7 +7682,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 267,
@@ -4739,7 +7692,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 268,
@@ -4748,7 +7702,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 269,
@@ -4757,7 +7712,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 270,
@@ -4766,7 +7722,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 271,
@@ -4775,7 +7732,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 272,
@@ -4784,7 +7742,8 @@
       "era": "Classic",
       "min_level": 35,
       "max_level": 59,
-      "target_level": 35
+      "target_level": 35,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 273,
@@ -4793,7 +7752,8 @@
       "era": "Classic",
       "min_level": 35,
       "max_level": 59,
-      "target_level": 35
+      "target_level": 35,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 274,
@@ -4802,7 +7762,8 @@
       "era": "Classic",
       "min_level": 45,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 276,
@@ -4811,7 +7772,8 @@
       "era": "Classic",
       "min_level": 51,
       "max_level": 60,
-      "target_level": 55
+      "target_level": 55,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 280,
@@ -4820,7 +7782,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_PINNACLE"
     },
     {
       "dungeon_id": 285,
@@ -4829,7 +7792,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 82,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 286,
@@ -4838,7 +7802,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 287,
@@ -4847,7 +7812,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 288,
@@ -4856,7 +7822,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 82,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 294,
@@ -4865,7 +7832,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_PINNACLE"
     },
     {
       "dungeon_id": 308,
@@ -4874,7 +7842,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 309,
@@ -4883,7 +7852,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 400,
@@ -4892,7 +7862,8 @@
       "era": "Classic",
       "min_level": 23,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 401,
@@ -4901,7 +7872,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 59
+      "target_level": 59,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 402,
@@ -4910,7 +7882,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 59
+      "target_level": 59,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 417,
@@ -4919,7 +7892,8 @@
       "era": "TBC",
       "min_level": 58,
       "max_level": 70,
-      "target_level": 58
+      "target_level": 58,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 418,
@@ -4928,7 +7902,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 419,
@@ -4937,7 +7912,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 420,
@@ -4946,7 +7922,8 @@
       "era": "Classic",
       "min_level": 56,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 421,
@@ -4955,7 +7932,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 422,
@@ -4964,7 +7942,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 423,
@@ -4973,7 +7952,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 424,
@@ -4982,7 +7962,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_PINNACLE"
     },
     {
       "dungeon_id": 425,
@@ -4991,7 +7972,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 426,
@@ -5000,7 +7982,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 427,
@@ -5009,7 +7992,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 428,
@@ -5018,7 +8002,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 429,
@@ -5027,7 +8012,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 430,
@@ -5036,7 +8022,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 431,
@@ -5045,7 +8032,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 432,
@@ -5054,7 +8042,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_PINNACLE"
     },
     {
       "dungeon_id": 433,
@@ -5063,7 +8052,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 434,
@@ -5072,7 +8062,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 435,
@@ -5081,7 +8072,8 @@
       "era": "Classic",
       "min_level": 56,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 436,
@@ -5090,7 +8082,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 437,
@@ -5099,7 +8092,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 438,
@@ -5108,7 +8102,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 439,
@@ -5117,7 +8112,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_PINNACLE"
     },
     {
       "dungeon_id": 440,
@@ -5126,7 +8122,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 441,
@@ -5135,7 +8132,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 442,
@@ -5144,7 +8142,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 443,
@@ -5153,7 +8152,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 444,
@@ -5162,7 +8162,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 445,
@@ -5171,7 +8172,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 446,
@@ -5180,7 +8182,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 447,
@@ -5189,7 +8192,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_PINNACLE"
     },
     {
       "dungeon_id": 448,
@@ -5198,7 +8202,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 449,
@@ -5207,7 +8212,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 450,
@@ -5216,7 +8222,8 @@
       "era": "Classic",
       "min_level": 56,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 451,
@@ -5225,7 +8232,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 452,
@@ -5234,7 +8242,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 453,
@@ -5243,7 +8252,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 454,
@@ -5252,7 +8262,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "RAID_PINNACLE"
     },
     {
       "dungeon_id": 455,
@@ -5261,7 +8272,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 456,
@@ -5270,7 +8282,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 457,
@@ -5279,7 +8292,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 458,
@@ -5288,7 +8302,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 459,
@@ -5297,7 +8312,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 460,
@@ -5306,7 +8322,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 461,
@@ -5315,7 +8332,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_END"
     },
     {
       "dungeon_id": 462,
@@ -5324,7 +8342,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "RAID_PINNACLE"
     },
     {
       "dungeon_id": 463,
@@ -5333,7 +8352,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 464,
@@ -5342,7 +8362,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_ENTRY"
     },
     {
       "dungeon_id": 465,
@@ -5351,7 +8372,8 @@
       "era": "WotLK",
       "min_level": 70,
       "max_level": 79,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 466,
@@ -5360,7 +8382,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 467,
@@ -5369,7 +8392,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 597,
@@ -5378,7 +8402,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 598,
@@ -5387,7 +8412,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 599,
@@ -5396,7 +8422,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 600,
@@ -5405,7 +8432,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 601,
@@ -5414,7 +8442,8 @@
       "era": "Classic",
       "min_level": 51,
       "max_level": 60,
-      "target_level": 55
+      "target_level": 55,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 602,
@@ -5423,7 +8452,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 603,
@@ -5432,7 +8462,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 880,
@@ -5441,7 +8472,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 881,
@@ -5450,7 +8482,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 882,
@@ -5459,7 +8492,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 884,
@@ -5468,7 +8502,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 885,
@@ -5477,7 +8512,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 886,
@@ -5486,7 +8522,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 887,
@@ -5495,7 +8532,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 888,
@@ -5504,7 +8542,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 889,
@@ -5513,7 +8552,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 890,
@@ -5522,7 +8562,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 901,
@@ -5531,7 +8572,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 902,
@@ -5540,7 +8582,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 903,
@@ -5549,7 +8592,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 905,
@@ -5558,7 +8602,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 906,
@@ -5567,7 +8612,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 907,
@@ -5576,7 +8622,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 908,
@@ -5585,7 +8632,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 910,
@@ -5594,7 +8642,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 911,
@@ -5603,7 +8652,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 912,
@@ -5612,7 +8662,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 913,
@@ -5621,7 +8672,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 914,
@@ -5630,7 +8682,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 973,
@@ -5639,7 +8692,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 974,
@@ -5648,7 +8702,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 975,
@@ -5657,7 +8712,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 976,
@@ -5666,7 +8722,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 986,
@@ -5675,7 +8732,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 987,
@@ -5684,7 +8742,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 988,
@@ -5693,7 +8752,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 989,
@@ -5702,7 +8762,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 990,
@@ -5711,7 +8772,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 991,
@@ -5720,7 +8782,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 992,
@@ -5729,7 +8792,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 993,
@@ -5738,7 +8802,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 994,
@@ -5747,7 +8812,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 995,
@@ -5756,7 +8822,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 996,
@@ -5765,7 +8832,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 997,
@@ -5774,7 +8842,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "WORLD"
     },
     {
       "dungeon_id": 1003,
@@ -5783,7 +8852,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 1004,
@@ -5792,7 +8862,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 1005,
@@ -5801,7 +8872,8 @@
       "era": "Classic",
       "min_level": 30,
       "max_level": 59,
-      "target_level": 30
+      "target_level": 30,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 1006,
@@ -5810,7 +8882,8 @@
       "era": "Classic",
       "min_level": 30,
       "max_level": 59,
-      "target_level": 30
+      "target_level": 30,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 1007,
@@ -5819,7 +8892,8 @@
       "era": "Classic",
       "min_level": 30,
       "max_level": 59,
-      "target_level": 30
+      "target_level": 30,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 1008,
@@ -5828,7 +8902,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1030,
@@ -5837,7 +8912,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1031,
@@ -5846,7 +8922,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 1032,
@@ -5855,7 +8932,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1033,
@@ -5864,7 +8942,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 1034,
@@ -5873,7 +8952,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1035,
@@ -5882,7 +8962,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 1036,
@@ -5891,7 +8972,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1037,
@@ -5900,7 +8982,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 1038,
@@ -5909,7 +8992,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1039,
@@ -5918,7 +9002,8 @@
       "era": "Classic",
       "min_level": 15,
       "max_level": 59,
-      "target_level": 15
+      "target_level": 15,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 1040,
@@ -5927,7 +9012,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1044,
@@ -5936,7 +9022,8 @@
       "era": "Classic",
       "min_level": 45,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1045,
@@ -5945,7 +9032,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1046,
@@ -5954,7 +9042,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1258,
@@ -5963,7 +9052,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1274,
@@ -5972,7 +9062,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1276,
@@ -5981,7 +9072,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1285,
@@ -5990,7 +9082,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 82,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1287,
@@ -5999,7 +9092,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1288,
@@ -6008,7 +9102,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 82,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1400,
@@ -6017,7 +9112,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1401,
@@ -6026,7 +9122,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1402,
@@ -6035,7 +9132,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1691,
@@ -6044,7 +9142,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1694,
@@ -6053,7 +9152,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1696,
@@ -6062,7 +9162,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1700,
@@ -6071,7 +9172,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1702,
@@ -6080,7 +9182,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1704,
@@ -6089,7 +9192,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1706,
@@ -6098,7 +9202,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1708,
@@ -6107,7 +9212,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1710,
@@ -6116,7 +9222,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1712,
@@ -6125,7 +9232,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1714,
@@ -6134,7 +9242,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1716,
@@ -6143,7 +9252,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1718,
@@ -6152,7 +9262,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1853,
@@ -6161,7 +9272,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1854,
@@ -6170,7 +9282,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1855,
@@ -6179,7 +9292,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1962,
@@ -6188,7 +9302,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 1963,
@@ -6197,7 +9312,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2008,
@@ -6206,7 +9322,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2009,
@@ -6215,7 +9332,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 2010,
@@ -6224,7 +9342,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2011,
@@ -6233,7 +9352,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2030,
@@ -6242,7 +9362,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2032,
@@ -6251,7 +9372,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2034,
@@ -6260,7 +9382,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2036,
@@ -6269,7 +9392,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2038,
@@ -6278,7 +9402,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2040,
@@ -6287,7 +9412,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2044,
@@ -6296,7 +9422,8 @@
       "era": "Classic",
       "min_level": 45,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2045,
@@ -6305,7 +9432,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2046,
@@ -6314,7 +9442,8 @@
       "era": "TBC",
       "min_level": 70,
       "max_level": 70,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2258,
@@ -6323,7 +9452,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2274,
@@ -6332,7 +9462,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2276,
@@ -6341,7 +9472,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2285,
@@ -6350,7 +9482,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 82,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2287,
@@ -6359,7 +9492,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2288,
@@ -6368,7 +9502,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 82,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2400,
@@ -6377,7 +9512,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2401,
@@ -6386,7 +9522,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2402,
@@ -6395,7 +9532,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2694,
@@ -6404,7 +9542,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2696,
@@ -6413,7 +9552,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2700,
@@ -6422,7 +9562,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2702,
@@ -6431,7 +9572,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2704,
@@ -6440,7 +9582,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2706,
@@ -6449,7 +9592,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2708,
@@ -6458,7 +9602,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2710,
@@ -6467,7 +9612,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2712,
@@ -6476,7 +9622,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2714,
@@ -6485,7 +9632,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2716,
@@ -6494,7 +9642,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2718,
@@ -6503,7 +9652,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2853,
@@ -6512,7 +9662,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2854,
@@ -6521,7 +9672,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2855,
@@ -6530,7 +9682,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2962,
@@ -6539,7 +9692,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 2963,
@@ -6548,7 +9702,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3044,
@@ -6557,7 +9712,8 @@
       "era": "Classic",
       "min_level": 45,
       "max_level": 80,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3285,
@@ -6566,7 +9722,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 82,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3287,
@@ -6575,7 +9732,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 80,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3288,
@@ -6584,7 +9742,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 82,
-      "target_level": 70
+      "target_level": 70,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3289,
@@ -6593,7 +9752,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3290,
@@ -6602,7 +9762,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3291,
@@ -6611,7 +9772,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3292,
@@ -6620,7 +9782,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3293,
@@ -6629,7 +9792,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3294,
@@ -6638,7 +9802,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3295,
@@ -6647,7 +9812,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3296,
@@ -6656,7 +9822,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3297,
@@ -6665,7 +9832,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3298,
@@ -6674,7 +9842,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3299,
@@ -6683,7 +9852,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3300,
@@ -6692,7 +9862,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3301,
@@ -6701,7 +9872,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3302,
@@ -6710,7 +9882,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3303,
@@ -6719,7 +9892,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3304,
@@ -6728,7 +9902,8 @@
       "era": "WotLK",
       "min_level": 80,
       "max_level": 80,
-      "target_level": 80
+      "target_level": 80,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3305,
@@ -6737,7 +9912,8 @@
       "era": "Classic",
       "min_level": 25,
       "max_level": 59,
-      "target_level": 28
+      "target_level": 28,
+      "tier": "DUNGEON_NORMAL"
     },
     {
       "dungeon_id": 3314,
@@ -6746,7 +9922,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 3315,
@@ -6755,7 +9932,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 3316,
@@ -6764,7 +9942,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 3317,
@@ -6773,7 +9952,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 3318,
@@ -6782,7 +9962,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3319,
@@ -6791,7 +9972,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3320,
@@ -6800,7 +9982,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 3321,
@@ -6809,7 +9992,8 @@
       "era": "Classic",
       "min_level": 60,
       "max_level": 60,
-      "target_level": 60
+      "target_level": 60,
+      "tier": "DUNGEON_HEROIC"
     },
     {
       "dungeon_id": 10000,
@@ -6818,7 +10002,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 10006,
@@ -6827,7 +10012,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 10010,
@@ -6836,7 +10022,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 11006,
@@ -6845,7 +10032,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 11010,
@@ -6854,7 +10042,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 12006,
@@ -6863,7 +10052,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 12010,
@@ -6872,7 +10062,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 13006,
@@ -6881,7 +10072,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     },
     {
       "dungeon_id": 13010,
@@ -6890,7 +10082,8 @@
       "era": "Classic",
       "min_level": 81,
       "max_level": 81,
-      "target_level": 81
+      "target_level": 81,
+      "tier": "RAID_MID"
     }
   ]
 }

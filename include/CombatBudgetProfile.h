@@ -12,6 +12,7 @@
 #include "Define.h"
 
 class Creature;
+void RescaleLootDamageRequirement(Creature* creature, uint32 previousMaxHealth);
 struct CreatureTemplate;
 
 struct CalculatedCombatBudget

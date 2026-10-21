@@ -90,6 +90,14 @@ ProgressionLayout ProgressionLayout::Create(uint8 maxLevel, bool tbcEnabled, boo
     return layout;
 }
 
+bool ProgressionLayout::IsStockIdentity() const
+{
+    return maxLevel == 80 && tbcEnabled && wotlkEnabled &&
+        classic.minLevel == 1 && classic.maxLevel == 60 &&
+        tbc.has_value() && tbc->minLevel == 58 && tbc->maxLevel == 70 &&
+        wotlk.has_value() && wotlk->minLevel == 68 && wotlk->maxLevel == 80;
+}
+
 bool ProgressionLayout::Validate(std::string& outError) const
 {
     if (maxLevel < 60 || maxLevel > 80)
@@ -104,10 +112,7 @@ bool ProgressionLayout::Validate(std::string& outError) const
         return false;
     }
 
-    bool const isStockCap80Identity = (maxLevel == 80 && tbcEnabled && wotlkEnabled &&
-                                       classic.maxLevel == 60 &&
-                                       tbc.has_value() && tbc->minLevel == 58 && tbc->maxLevel == 70 &&
-                                       wotlk.has_value() && wotlk->minLevel == 68 && wotlk->maxLevel == 80);
+    bool const isStockCap80Identity = IsStockIdentity();
 
     if (tbc.has_value())
     {

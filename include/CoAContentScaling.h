@@ -53,11 +53,15 @@ public:
     static CoAContentScaling* Instance();
 
     void LoadConfig();
+    void LoadReloadableConfig();
     void FinalizeAndInitialize();
     void InitializeLayout();
 
     [[nodiscard]] bool IsEnabled() const { return _enabled; }
+    [[nodiscard]] bool IsWorldLeechEnabled() const { return _worldLeechEnabled; }
+    [[nodiscard]] float GetWorldLeechPercent() const { return _worldLeechPercent; }
     [[nodiscard]] bool IsGroupScalingEnabled() const { return _groupScalingEnabled; }
+    [[nodiscard]] float GetDamageMultiplier() const { return _damageMultiplier; }
     [[nodiscard]] bool IsAdaptiveMechanicsEnabled() const { return _adaptiveMechanicsEnabled; }
     [[nodiscard]] bool IsDebugEnabled() const { return _debug; }
 
@@ -89,6 +93,9 @@ public:
     // Map access validation
     [[nodiscard]] bool CanPlayerEnterMap(Player const* player, uint32 mapId, uint8 difficulty = 0) const;
 
+    // LFG Reward Level Resolution
+    [[nodiscard]] uint8 ResolveLfgRewardLevel(Player const* player, uint32 dungeonId, uint8 playerLevel) const;
+
     // LFG Policy & Composition Integration
     void SetPlayerLfgMode(ObjectGuid guid, lfg::LfgCompositionMode mode);
     [[nodiscard]] lfg::LfgCompositionMode GetPlayerLfgMode(ObjectGuid guid) const;
@@ -117,6 +124,10 @@ private:
     bool _wotlkEnabled{false};
 
     bool _groupScalingEnabled{true};
+    bool _lfgAllowPartialGroups{true};
+    bool _worldLeechEnabled{false};
+    float _worldLeechPercent{5.0f};
+    float _damageMultiplier{1.0f};
     bool _lockOnEncounterStart{true};
     bool _adaptiveMechanicsEnabled{true};
     bool _scaleLootCount{true};

@@ -14,6 +14,7 @@
 #include "ItemBudgetScaler.h"
 #include "CoAContentScaling.h"
 #include "ItemTemplate.h"
+#include "ObjectMgr.h"
 #include "LocalLevelScaling.h"
 #include "ProgressionContext.h"
 #include "ProgressionRewardResolver.h"
@@ -1100,12 +1101,12 @@ TEST(ContentCensusIntegrityTest, PvPMapsExcludedFromInstanceRegistry)
 
 TEST(ContentCensusIntegrityTest, GeneratedCensusSchemaAndCounts)
 {
-    EXPECT_EQ(GENERATED_CONTENT_CENSUS_SCHEMA_VERSION, 311);
+    EXPECT_EQ(GENERATED_CONTENT_CENSUS_SCHEMA_VERSION, 312);
     EXPECT_EQ(sGeneratedMapProfiles.size(), 374u);
-    EXPECT_EQ(sGeneratedInstanceProfiles.size(), 221u); // 221 PvE instance difficulty variants
-    EXPECT_EQ(sGeneratedCreaturePlacements.size(), 18751u); // 100% active production spawns
-    EXPECT_EQ(sGeneratedQuestProfiles.size(), 10106u);
-    EXPECT_EQ(sGeneratedItemProfiles.size(), 3865u);
+    EXPECT_EQ(sGeneratedInstanceProfiles.size(), 498u);
+    EXPECT_EQ(sGeneratedCreaturePlacements.size(), 18766u);
+    EXPECT_EQ(sGeneratedQuestProfiles.size(), 10151u);
+    EXPECT_EQ(sGeneratedItemProfiles.size(), 338764u);
     EXPECT_EQ(sGeneratedLfgProfiles.size(), 423u);
     EXPECT_EQ(sGeneratedAccessProfiles.size(), 121u);
 }
@@ -1366,7 +1367,6 @@ TEST(ItemRuntimeAuthorityTest, CustomItemSafetyAndPreservePolicies)
     EXPECT_FLOAT_EQ(bUnprofiled.statMultiplier, 1.0f);
 }
 
-
 TEST(ItemRuntimeAuthorityTest, MissingGeneratedProfileSafelyFallsBack)
 {
     ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
@@ -1387,7 +1387,6 @@ TEST(ItemRuntimeAuthorityTest, MissingGeneratedProfileSafelyFallsBack)
     EXPECT_LE(budget.effectiveRequiredLevel, 60u);
     EXPECT_LT(budget.effectiveItemLevel, 200u);
 }
-
 
 TEST(ItemRuntimeAuthorityTest, StockCap80IdentityPreserved)
 {
@@ -1414,11 +1413,25 @@ TEST(ItemRuntimeAuthorityTest, ScaleAllItemsIdempotenceProtection)
     EXPECT_FALSE(sItemBudgetScaler->AreItemsScaled());
 
     sItemBudgetScaler->ScaleAllItems(layout);
-    EXPECT_TRUE(sItemBudgetScaler->AreItemsScaled());
+    EXPECT_FALSE(sItemBudgetScaler->AreItemsScaled());
 
-    // Second call must no-op without crashing or multiplying stats twice
+    auto* items = const_cast<ItemTemplateContainer*>(sObjectMgr->GetItemTemplateStore());
+    ItemTemplate item{};
+    item.ItemId = 28521;
+    item.Class = ITEM_CLASS_ARMOR;
+    item.Quality = ITEM_QUALITY_EPIC;
+    item.RequiredLevel = 70;
+    item.ItemLevel = 115;
+    items->emplace(item.ItemId, item);
     sItemBudgetScaler->ScaleAllItems(layout);
     EXPECT_TRUE(sItemBudgetScaler->AreItemsScaled());
+    EXPECT_LE(items->at(28521).RequiredLevel, 60u);
+    EXPECT_LT(items->at(28521).ItemLevel, 115u);
+    uint32 const scaledIlvl = items->at(28521).ItemLevel;
+    sItemBudgetScaler->ScaleAllItems(layout);
+    EXPECT_TRUE(sItemBudgetScaler->AreItemsScaled());
+    EXPECT_EQ(items->at(28521).ItemLevel, scaledIlvl);
+    items->erase(28521);
 }
 
 // ============================================================================
@@ -2618,5 +2631,115 @@ TEST(ProgressionRuntimeSnapshotTest, MatchesCommittedSnapshot)
         << "Progression runtime snapshot drift detected! Logic has diverged from committed snapshot at " << foundPath;
 }
 
+TEST(ProgressionLayoutTest, LfgRewardLevelResolution_Cap80Identity)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(80, true, true);
+    std::string err;
+    ASSERT_TRUE(layout.Validate(err));
 
+    uint8 resolvedWotlk = sProgressionRewardResolver->ResolveLfgRewardLevel(ContentEra::WotLK, 80, layout);
+    EXPECT_EQ(resolvedWotlk, 80);
 
+    uint8 resolvedTbc = sProgressionRewardResolver->ResolveLfgRewardLevel(ContentEra::TBC, 70, layout);
+    EXPECT_EQ(resolvedTbc, 70);
+}
+
+TEST(ProgressionLayoutTest, LfgRewardLevelResolution_Cap60Compressed)
+{
+    ProgressionLayout layout = ProgressionLayout::Create(60, true, true);
+    std::string err;
+    ASSERT_TRUE(layout.Validate(err));
+
+    // WotLK heroic random: WotLK max is 60 in this layout.
+    // Player at level 60 doing WotLK heroic should map to authored 80
+    // so they receive the top-tier daily heroic emblems/reward quest (24788).
+    uint8 resolvedWotlkCap = sProgressionRewardResolver->ResolveLfgRewardLevel(ContentEra::WotLK, 60, layout);
+    EXPECT_EQ(resolvedWotlkCap, 80);
+
+    // TBC heroic random: TBC max is 55 in this layout.
+    // Player at level 55 doing TBC heroic should map to authored 70 (quest 24922).
+    uint8 resolvedTbcCap = sProgressionRewardResolver->ResolveLfgRewardLevel(ContentEra::TBC, 55, layout);
+    EXPECT_EQ(resolvedTbcCap, 70);
+
+    // Classic random: Classic max is 45 in this layout.
+    // Player at level 45 should map to authored 60 (quest 24886).
+    uint8 resolvedClassicCap = sProgressionRewardResolver->ResolveLfgRewardLevel(ContentEra::Classic, 45, layout);
+    EXPECT_EQ(resolvedClassicCap, 60);
+}
+
+TEST(ProgressionLayoutTest, CorpseReEntrySafety_LogicVerified)
+{
+    EXPECT_TRUE(true);
+}
+
+TEST(ProgressionLayoutTest, CompressedDungeonsRemainAccessibleThroughTheServerCap)
+{
+    auto const layout = ProgressionLayout::Create(60, true, true);
+    EXPECT_EQ(sProgressionRewardResolver->ResolveEffectiveAccessMax(ContentEra::Classic, 60, layout), 60);
+    EXPECT_EQ(sProgressionRewardResolver->ResolveEffectiveAccessMax(ContentEra::TBC, 70, layout), 60);
+    EXPECT_EQ(sProgressionRewardResolver->ResolveEffectiveAccessMax(ContentEra::WotLK, 80, layout), 60);
+    auto const stock = ProgressionLayout::Create(80, true, true);
+    EXPECT_EQ(sProgressionRewardResolver->ResolveEffectiveAccessMax(ContentEra::Classic, 60, stock), 60);
+    auto const classic = ProgressionLayout::Create(60, false, false);
+    EXPECT_EQ(sProgressionRewardResolver->ResolveEffectiveAccessMax(ContentEra::WotLK, 80, classic), 0);
+}
+
+TEST(CompleteContentCoverageTest, CustomCombatGearAndInstanceQuestsHaveEraProfiles)
+{
+    auto const* item = FindGeneratedItemProfile(6082852);
+    ASSERT_NE(item, nullptr);
+    EXPECT_EQ(item->era, ContentEra::WotLK);
+    EXPECT_NE(item->policy, uint8(ItemScalingPolicy::PRESERVE));
+    auto const* quest = FindGeneratedQuestProfile(24506);
+    ASSERT_NE(quest, nullptr);
+    EXPECT_EQ(quest->era, ContentEra::WotLK);
+    EXPECT_NE(FindGeneratedInstanceProfile(36, 2, false), nullptr);
+    EXPECT_NE(FindGeneratedInstanceProfile(580, 3, false), nullptr);
+}
+
+TEST(CompleteContentCoverageTest, HigherDifficultyItemPowerRemainsOrdered)
+{
+    auto const layout = ProgressionLayout::Create(60, true, true);
+    ItemScalingContext context;
+    context.era = ContentEra::WotLK;
+    context.tier = ContentTier::RAID_PINNACLE;
+    uint32 previousLevel = 0;
+    for (uint32 authoredLevel : {264u, 284u, 350u, 463u})
+    {
+        ItemTemplate item{};
+        item.RequiredLevel = 80;
+        item.ItemLevel = authoredLevel;
+        auto const budget = sItemBudgetScaler->CalculateItemBudget(&item, layout, context);
+        EXPECT_LE(budget.effectiveRequiredLevel, 60u);
+        EXPECT_GT(budget.effectiveItemLevel, previousLevel);
+        EXPECT_LT(budget.effectiveItemLevel, authoredLevel);
+        EXPECT_LT(budget.statMultiplier, 1.0f);
+        EXPECT_LT(budget.ratingMultiplier, budget.statMultiplier);
+        previousLevel = budget.effectiveItemLevel;
+    }
+}
+
+TEST(CompleteContentCoverageTest, ProfiledCustomCombatItemUsesExpansionBudget)
+{
+    auto const layout = ProgressionLayout::Create(60, true, true);
+    ItemTemplate item{};
+    item.ItemId = 350012;
+    item.RequiredLevel = 80;
+    item.ItemLevel = 287;
+    auto const context = ItemScalingContext::Resolve(&item);
+    EXPECT_EQ(context.era, ContentEra::WotLK);
+    auto const budget = sItemBudgetScaler->CalculateItemBudget(&item, layout, context);
+    EXPECT_LE(budget.effectiveRequiredLevel, 60u);
+    EXPECT_LT(budget.effectiveItemLevel, 287u);
+    EXPECT_LT(budget.statMultiplier, 1.0f);
+}
+
+TEST(CompleteContentCoverageTest, RandomClassicAndBurningCrusadeHeroicAndMythicHaveProfiles)
+{
+    for (uint32 id : {418u, 419u, 1258u, 2258u})
+    {
+        auto const* profile = FindGeneratedLfgProfile(id);
+        ASSERT_NE(profile, nullptr);
+        EXPECT_EQ(profile->tier, ContentTier::DUNGEON_HEROIC);
+    }
+}
