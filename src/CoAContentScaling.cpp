@@ -54,8 +54,23 @@ CoAContentScaling* CoAContentScaling::Instance()
     return &instance;
 }
 
+void CoAContentScaling::LoadHealthMultipliers()
+{
+    auto const read = [](char const* key)
+    {
+        float const value = sConfigMgr->GetOption<float>(key, 1.0f);
+        return std::isfinite(value) ? std::clamp(value, 0.1f, 10.0f) : 1.0f;
+    };
+    _healthWorldMultiplier = read(CoAContentScalingConfigKeys::HealthWorldMultiplier);
+    _healthDungeonMultiplier = read(CoAContentScalingConfigKeys::HealthDungeonMultiplier);
+    _healthRaidMultiplier = read(CoAContentScalingConfigKeys::HealthRaidMultiplier);
+    _healthTrashMultiplier = read(CoAContentScalingConfigKeys::HealthTrashMultiplier);
+    _healthBossMultiplier = read(CoAContentScalingConfigKeys::HealthBossMultiplier);
+}
+
 void CoAContentScaling::LoadConfig()
 {
+    LoadHealthMultipliers();
     _enabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::Enable, true);
     _groupScalingEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingEnable, true);
     _lfgAllowPartialGroups = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::LfgAllowPartialGroups, true);
@@ -98,6 +113,7 @@ void CoAContentScaling::LoadConfig()
 
 void CoAContentScaling::LoadReloadableConfig()
 {
+    LoadHealthMultipliers();
     _debug = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::Debug, false);
     _groupScalingEnabled = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::GroupScalingEnable, true);
     _lfgAllowPartialGroups = sConfigMgr->GetOption<bool>(CoAContentScalingConfigKeys::LfgAllowPartialGroups, true);

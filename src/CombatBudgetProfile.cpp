@@ -4,6 +4,7 @@
  */
 
 #include "CombatBudgetProfile.h"
+#include "CoAContentScaling.h"
 #include "ContentPackRegistry.h"
 #include "CoACreatureScaling.h"
 #include "CoACreatureScalingPolicy.h"
@@ -144,6 +145,8 @@ CalculatedCombatBudget CombatBudgetProfile::CalculateBudget(CreatureTemplate con
 
     // Health: base * authored multiplier * tier modifier * group scale
     float finalHealth = float(baseHealth) * cinfo->ModHealth * tierHealthMod * context.groupHealthScale;
+    // The server's own health setting for this kind of place and role (CoAContentScaling.Difficulty.Health.*), on top of the budget above.
+    finalHealth *= sCoAContentScaling->GetHealthMultiplier(context.dungeon, context.raid, context.boss || context.worldBoss);
     if (cinfo->rank == CREATURE_ELITE_ELITE)
         finalHealth *= 2.0f;
     else if (cinfo->rank == CREATURE_ELITE_WORLDBOSS)

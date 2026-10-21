@@ -24,6 +24,11 @@ namespace CoAContentScalingConfigKeys
     inline constexpr char const* AdaptiveMechanicsEnable = "CoAContentScaling.AdaptiveMechanics.Enable";
     inline constexpr char const* SoloAssistMode = "CoAContentScaling.SoloAssist.Mode";
     inline constexpr char const* DamageMultiplier = "CoAContentScaling.Difficulty.DamageMultiplier";
+    inline constexpr char const* HealthWorldMultiplier = "CoAContentScaling.Difficulty.Health.WorldMultiplier";
+    inline constexpr char const* HealthDungeonMultiplier = "CoAContentScaling.Difficulty.Health.DungeonMultiplier";
+    inline constexpr char const* HealthRaidMultiplier = "CoAContentScaling.Difficulty.Health.RaidMultiplier";
+    inline constexpr char const* HealthTrashMultiplier = "CoAContentScaling.Difficulty.Health.TrashMultiplier";
+    inline constexpr char const* HealthBossMultiplier = "CoAContentScaling.Difficulty.Health.BossMultiplier";
     inline constexpr char const* RewardsScaleLootCount = "CoAContentScaling.Rewards.ScaleLootCount";
     inline constexpr char const* ScaleItems = "CoAContentScaling.ScaleItems";
     inline constexpr char const* RemoveItemClassRestrictions = "CoAContentScaling.Items.RemoveClassRestrictions";

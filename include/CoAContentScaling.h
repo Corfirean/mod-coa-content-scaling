@@ -63,6 +63,13 @@ public:
     [[nodiscard]] bool IsGroupScalingEnabled() const { return _groupScalingEnabled; }
     [[nodiscard]] bool IsLockOnEncounterStartEnabled() const { return _lockOnEncounterStart; }
     [[nodiscard]] float GetDamageMultiplier() const { return _damageMultiplier; }
+
+    // Configured health multiplier for a creature of this kind: the place (open world, dungeon, raid) times the role (boss or ordinary mob).
+    [[nodiscard]] float GetHealthMultiplier(bool dungeon, bool raid, bool boss) const
+    {
+        float const place = raid ? _healthRaidMultiplier : (dungeon ? _healthDungeonMultiplier : _healthWorldMultiplier);
+        return place * (boss ? _healthBossMultiplier : _healthTrashMultiplier);
+    }
     [[nodiscard]] bool IsAdaptiveMechanicsEnabled() const { return _adaptiveMechanicsEnabled; }
     [[nodiscard]] bool IsRemoveClassRestrictionsEnabled() const { return _removeClassRestrictions; }
     [[nodiscard]] bool IsDebugEnabled() const { return _debug; }
@@ -135,6 +142,12 @@ private:
     bool _worldLeechEnabled{false};
     float _worldLeechPercent{5.0f};
     float _damageMultiplier{1.0f};
+    float _healthWorldMultiplier{1.0f};
+    float _healthDungeonMultiplier{1.0f};
+    float _healthRaidMultiplier{1.0f};
+    float _healthTrashMultiplier{1.0f};
+    float _healthBossMultiplier{1.0f};
+    void LoadHealthMultipliers();
     bool _lockOnEncounterStart{true};
     bool _adaptiveMechanicsEnabled{true};
     bool _removeClassRestrictions{false};

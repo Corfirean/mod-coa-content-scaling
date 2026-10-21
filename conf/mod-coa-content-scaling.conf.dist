@@ -89,6 +89,27 @@ CoAContentScaling.SoloAssist.Mode = None
 #     Default:     1.0 (unchanged balance)
 CoAContentScaling.Difficulty.DamageMultiplier = 1.0
 
+# CoAContentScaling.Difficulty.Health.WorldMultiplier
+# CoAContentScaling.Difficulty.Health.DungeonMultiplier
+# CoAContentScaling.Difficulty.Health.RaidMultiplier
+#     Description: Health of scaled creatures in the open world, in dungeons and in raids, on top of the scaling budget (which already contains the
+#                  authored health modifier and CoA.CreatureScaling.<World|Dungeon|Raid>.Health from coa.conf). A boss that has a calibrated raid
+#                  health value keeps that value.
+#     Range:       0.1 to 10.0. Lower is easier. Reloadable with .reload config; creatures already in the world keep their health until they respawn.
+#     Default:     1.0 (unchanged balance)
+CoAContentScaling.Difficulty.Health.WorldMultiplier = 1.0
+CoAContentScaling.Difficulty.Health.DungeonMultiplier = 1.0
+CoAContentScaling.Difficulty.Health.RaidMultiplier = 1.0
+
+# CoAContentScaling.Difficulty.Health.TrashMultiplier
+# CoAContentScaling.Difficulty.Health.BossMultiplier
+#     Description: Health of ordinary creatures and of bosses everywhere, multiplied with the place setting above (a dungeon boss gets the dungeon
+#                  and the boss multiplier).
+#     Range:       0.1 to 10.0. Lower is easier. Reloadable with .reload config.
+#     Default:     1.0 (unchanged balance)
+CoAContentScaling.Difficulty.Health.TrashMultiplier = 1.0
+CoAContentScaling.Difficulty.Health.BossMultiplier = 1.0
+
 #
 # CoAContentScaling.Rewards.ScaleLootCount
 #     Description: Scale dropped item count with group size (guaranteeing at least 1 drop).
