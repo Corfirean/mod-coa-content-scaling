@@ -23,6 +23,13 @@ struct CalculatedCombatBudget
     float maxDamage{15.0f};
     float armor{100.0f};
     uint32 attackPower{50};
+
+    // How `health` was built, for CoAContentScaling.Debug and for tests:
+    // health = ceil(authoredHealth * tierHealthMultiplier * group scale * difficultyHealthMultiplier) * externalHealthMultiplier
+    float authoredHealth{0.0f};              // class/level base health * the template's ModHealth
+    float tierHealthMultiplier{1.0f};
+    float difficultyHealthMultiplier{1.0f};  // CoAContentScaling.Difficulty.Health.* for this place and role
+    float externalHealthMultiplier{1.0f};    // CoA.CreatureScaling (open world only when this module owns the map) * rank rate
 };
 
 class CombatBudgetProfile
@@ -38,6 +45,10 @@ public:
     // Calculates complete combat budget for a creature context
     CalculatedCombatBudget CalculateBudget(CreatureTemplate const* cinfo,
                                           CreatureScaleContext const& context) const;
+
+    // Authoritative boss identity of a template: a dungeon encounter boss (CREATURE_FLAG_EXTRA_DUNGEON_BOSS) or a
+    // WORLDBOSS rank. Ordinary elite trash is not a boss.
+    static bool IsBossTemplate(CreatureTemplate const* cinfo);
 
     // Builds scale context for a creature
     CreatureScaleContext BuildContext(CreatureTemplate const* cinfo, Creature const* creature,

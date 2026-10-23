@@ -75,6 +75,7 @@ public:
     [[nodiscard]] bool IsDebugEnabled() const { return _debug; }
 
     void SetEnabled(bool enabled) { _enabled = enabled; }
+    void SetDebugEnabled(bool enabled) { _debug = enabled; }
     void SetGroupScalingEnabled(bool enabled) { _groupScalingEnabled = enabled; }
     void SetLockOnEncounterStart(bool enabled) { _lockOnEncounterStart = enabled; }
     void SetAdaptiveMechanicsEnabled(bool enabled) { _adaptiveMechanicsEnabled = enabled; }
@@ -89,6 +90,13 @@ public:
     // Production Hook Lifecycle
     void RegisterLocalLevelScalingHooks();
     void UnregisterLocalLevelScalingHooks();
+
+    // Combat scaling ownership. While the module is enabled it builds the whole combat budget (health, damage, armor)
+    // of dungeon and raid creatures, so it is the single authority there. The core's CoA.CreatureScaling asks this
+    // (see CreatureScaling::SetCombatAuthority) and applies its Dungeon, Raid and Map* multipliers only to creatures
+    // the module does not own; open world creatures stay with CoA.CreatureScaling.World.* and Local Level Scaling.
+    [[nodiscard]] bool OwnsCombatScaling(Creature const* creature) const;
+    [[nodiscard]] static bool IsCombatScalable(Creature const* creature);
 
     // Combat scaling calculations
     void ApplyCreatureScaling(CreatureTemplate const* cinfo, Creature* creature);

@@ -31,6 +31,8 @@ def main():
         for sig in (
             'CoAContentScaling* CoAContentScaling::Instance()',
             'void RescaleLootDamageRequirement(',
+            'bool CoAContentScaling::IsCombatScalable(',
+            'bool CoAContentScaling::OwnsCombatScaling(',
             'void CoAContentScaling::ApplyCombatBudget(',
             'void CoAContentScaling::ApplyCreatureScaling(',
             'void CoAContentScaling::RecalculateEncounterCombatStats(',
@@ -618,9 +620,22 @@ namespace ObjectAccessor
 #include "Creature.h"
 namespace CreatureScaling
 {
+    // Mirror of the core contract (src/server/coa/CoACreatureScaling.cpp): the CoA.CreatureScaling health multiplier of
+    // a dungeon or raid creature is neutral when the registered combat authority owns it. The core side of this
+    // contract is covered by CreatureScalingAuthorityTest in the core unit tests.
+    using CombatAuthority = bool (*)(Creature const* creature);
+    inline CombatAuthority gAuthority = nullptr;
+    inline void SetCombatAuthority(CombatAuthority authority) { gAuthority = authority; }
+
     inline float HealthMultiplier(Creature const* creature)
     {
-        return creature ? creature->scalingMultiplier : 1.0f;
+        if (!creature)
+            return 1.0f;
+        Map const* map = creature->GetMap();
+        bool const dungeonOrRaid = map && (map->IsDungeon() || map->IsRaid());
+        if (dungeonOrRaid && gAuthority && gAuthority(creature))
+            return 1.0f;
+        return creature->scalingMultiplier;
     }
 }
 ''', encoding='utf-8')
@@ -688,7 +703,8 @@ using QueryResult = std::shared_ptr<ResultSetStub>;
 ''', encoding='utf-8')
             elif empty_hdr == 'Log.h':
                 (out / empty_hdr).write_text('''#pragma once
-#define LOG_INFO(...) do {} while (0)
+inline int gLogInfoCalls = 0;
+#define LOG_INFO(...) do { ++gLogInfoCalls; } while (0)
 #define LOG_WARN(...) do {} while (0)
 #define LOG_DEBUG(...) do {} while (0)
 #define LOG_ERROR(...) do {} while (0)
@@ -743,6 +759,7 @@ void CoAContentScaling::SavePlayerLfgSettings(Player*) {{}}
 #include <cmath>
 #include <iostream>
 #include "CoAContentScaling.h"
+#include "CoACreatureScaling.h"
 #include "CoACreatureScalingPolicy.h"
 #include "CombatBudgetProfile.h"
 #include "ContentPackRegistry.h"
@@ -752,6 +769,7 @@ void CoAContentScaling::SavePlayerLfgSettings(Player*) {{}}
 #include "GroupMgr.h"
 #include "InstanceScaleContext.h"
 #include "LFGMgr.h"
+#include "Log.h"
 #include "Map.h"
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
@@ -792,6 +810,48 @@ namespace
         return t;
     }
 
+    // Ordinary Classic dungeon elite trash (Deadmines Defias Overseer: rank ELITE, authored ModHealth 3, no encounter).
+    CreatureTemplate MakeEliteTrashTemplate()
+    {
+        CreatureTemplate t;
+        t.Entry = 634;
+        t.Name = "Defias Overseer";
+        t.minlevel = 19;
+        t.maxlevel = 19;
+        t.expansion = 0;
+        t.unit_class = 1;
+        t.rank = CREATURE_ELITE_ELITE;
+        t.flags_extra = 0;
+        t.ModHealth = 3.0f;
+        t.DamageModifier = 1.0f;
+        return t;
+    }
+
+    // Open-world boss: rank WORLDBOSS, no encounter flag, authored ModHealth in the hundreds.
+    CreatureTemplate MakeWorldBossTemplate()
+    {
+        CreatureTemplate t;
+        t.Entry = 6109;
+        t.Name = "Azuregos";
+        t.minlevel = 19;
+        t.maxlevel = 19;
+        t.expansion = 0;
+        t.unit_class = 1;
+        t.rank = CREATURE_ELITE_WORLDBOSS;
+        t.flags_extra = 0;
+        t.ModHealth = 100.0f;
+        t.DamageModifier = 1.0f;
+        return t;
+    }
+
+    // Authored budget (L19 warrior base HP 449 * ModHealth) * tier * group scale, with the core multiplier neutral.
+    uint32 ExpectedOwnedHp(float modHealth, uint32 effectivePlayers, float tier = 1.0f)
+    {
+        float const ratio = std::clamp<float>(float(effectivePlayers) / 5.0f, 0.025f, 1.0f);
+        float const healthScale = std::max<float>(0.05f, std::pow(ratio, 0.95f));
+        return static_cast<uint32>(std::ceil(449.0f * modHealth * tier * healthScale));
+    }
+
     #define MakeBoss Creature
 
     uint32 ComputeDestinyWeaverViewMaxHealth(Creature const& boss, uint8 viewerLevel)
@@ -815,6 +875,15 @@ namespace
 
 int main()
 {
+    // The module claims dungeon and raid combat scaling at script load (AddCoAContentScalingScripts).
+    CreatureScaling::SetCombatAuthority([](Creature const* creature) { return sCoAContentScaling->OwnsCombatScaling(creature); });
+
+    // Fixture values of the HP scenarios below, old formula -> corrected formula (Rhahk'Zor: L19 warrior, base HP 449,
+    // ModHealth 10, rank ELITE + DUNGEON_BOSS flag, Deadmines = map 36 with a stubbed core dungeon multiplier of 2.2):
+    //   old: ceil(449 * 10 * 1.35 tier * groupScale * 2.0 generic elite) * 2.2 core dungeon multiplier
+    //   new: ceil(449 * 10 * groupScale)                       (tier 1.0, no elite factor, core multiplier neutral)
+    //   1 player 5,782 -> 974, 2 players 11,169 -> 1,881, 3 players 16,416 -> 2,764, 4 players 21,578 -> 3,633,
+    //   5 players 26,671 -> 4,490. Lord Cobrahn and the other fixtures follow the same factors (5.94x lower).
     auto const rhahkZorTpl = MakeRhahkZorTemplate();
     auto const cobrahnTpl = MakeCobrahnTemplate();
 
@@ -833,8 +902,8 @@ int main()
         sCoAContentScaling->ApplyCreatureScaling(&rhahkZorTpl, &boss);
 
         uint32 const spawnHp = boss.GetMaxHealth();
-        assert(spawnHp == 26671);
-        assert(boss.GetHealth() == 26671);
+        assert(spawnHp == 4490);
+        assert(boss.GetHealth() == 4490);
 
         // Pull boss
         sInstanceScalingMgr->BeginEncounter(
@@ -863,7 +932,7 @@ int main()
         sCoAContentScaling->ApplyCreatureScaling(&rhahkZorTpl, &boss);
 
         uint32 const soloSpawnHp = boss.GetMaxHealth();
-        assert(soloSpawnHp == 5782);
+        assert(soloSpawnHp == 974);
 
         sInstanceScalingMgr->BeginEncounter(
             &deadmines,
@@ -878,9 +947,9 @@ int main()
     // =========================================================================
     // Scenario 3 & 4: Rhahk'Zor, one human + four bots (including mixed-level L49 bots)
     // Reproduces the exact user bug where Rhahk'Zor spawned while 0-1 players were
-    // registered in m_mapRefMgr (~25k L49 view HP = 5,782 server HP) and then 4 bots
+    // registered in m_mapRefMgr (solo budget = 974 server HP) and then 4 bots
     // entered the map. With RefreshDungeonCreatures on OnPlayerEnterAll, Rhahk'Zor
-    // updates to 5-player HP (~114k-115k L49 view HP = 26,671 server HP) BEFORE combat
+    // updates to 5-player HP (4,490 server HP) BEFORE combat
     // and does NOT spike on combat start!
     // =========================================================================
     {
@@ -893,12 +962,13 @@ int main()
         // Step A: Grid loads while first player is zoning in (before AddToWorld adds to m_mapRefMgr)
         Creature boss = MakeBoss(&rhahkZorTpl, &deadmines);
         sCoAContentScaling->ApplyCreatureScaling(&rhahkZorTpl, &boss);
-        assert(boss.GetMaxHealth() == 5782);
-        // Verify that at 1-player server HP (5,782), a level 46-49 viewer sees ~24.7k-27.5k HP
+        assert(boss.GetMaxHealth() == 974);
+        // Verify that at 1-player server HP (974), a level 46-49 viewer sees ~4.2k-4.6k HP: the per-viewer ratio of
+        // Local Level Scaling is untouched (old fixture: 5,782 server HP -> 24,712 / 27,532 view HP).
         uint32 const view1pL46 = ComputeDestinyWeaverViewMaxHealth(boss, 46);
         uint32 const view1pL49 = ComputeDestinyWeaverViewMaxHealth(boss, 49);
-        assert(view1pL46 == 24712);
-        assert(view1pL49 == 27532);
+        assert(view1pL46 == 4163);
+        assert(view1pL49 == 4638);
 
         // Step B: Human player and 4 mixed-level playerbots (including level 49 bots) finish entering map
         Player human{ObjectGuid(1), 19};
@@ -916,13 +986,14 @@ int main()
 
         // Before combat starts, Rhahk'Zor is already at full 5-participant budget!
         uint32 const prePullHp = boss.GetMaxHealth();
-        assert(prePullHp == 26671);
-        assert(boss.GetHealth() == 26671);
-        assert(ComputeDestinyWeaverViewMaxHealth(boss, 46) == 113990);
-        assert(ComputeDestinyWeaverViewMaxHealth(boss, 49) == 126999);
+        assert(prePullHp == 4490);
+        assert(boss.GetHealth() == 4490);
+        // Old fixture (stacked formula, 26,671 server HP): 113,990 / 126,999 view HP.
+        assert(ComputeDestinyWeaverViewMaxHealth(boss, 46) == 19190);
+        assert(ComputeDestinyWeaverViewMaxHealth(boss, 49) == 21380);
 
         // Verify that high-level bots do NOT add any extra level multiplier to server boss HP
-        assert(prePullHp == 26671);
+        assert(prePullHp == 4490);
 
         // Step C: Enter combat -> zero HP spike!
         boss.inCombat = true;
@@ -955,7 +1026,8 @@ int main()
         }
 
         uint32 const prePullHp = cobrahn.GetMaxHealth();
-        assert(prePullHp == 23001);
+        // Lord Cobrahn (L20, base HP 484, ModHealth 8): old 484 * 8 * 1.35 * 2.0 * 2.2 core WC multiplier = 23,001.
+        assert(prePullHp == 3872);
         assert(cobrahn.GetHealth() == prePullHp);
 
         cobrahn.inCombat = true;
@@ -986,9 +1058,9 @@ int main()
         Creature boss = MakeBoss(&rhahkZorTpl, &deadmines);
         sCoAContentScaling->ApplyCreatureScaling(&rhahkZorTpl, &boss);
 
-        // With GroupScaling.Enable = 0, healthScale is 1.0f (full 5-player dungeon budget = 26,671)
+        // With GroupScaling.Enable = 0, healthScale is 1.0f (full 5-player dungeon budget = 4,490)
         uint32 const spawnHp = boss.GetMaxHealth();
-        assert(spawnHp == 26671);
+        assert(spawnHp == 4490);
 
         InstanceScaleContext const ctx = sInstanceScalingMgr->GetOrCreateContext(&deadmines);
         assert(ctx.healthScale == 1.0f);
@@ -1015,8 +1087,10 @@ int main()
     {
         float const ratio = std::clamp<float>(float(effectivePlayers) / 5.0f, 0.025f, 1.0f);
         float const healthScale = std::max<float>(0.05f, std::pow(ratio, 0.95f));
-        float finalHealth = 449.0f * 10.0f * 1.35f * healthScale * 2.0f;
-        return CreatureScaling::Scaled(std::max<uint32>(1, static_cast<uint32>(std::ceil(finalHealth))), 2.2f);
+        // Corrected architecture: authored budget (base HP 449 at L19 * ModHealth 10) * group scale. The module owns
+        // Deadmines, so the old tier 1.35, the generic elite x2 and the core Dungeon/Map multiplier (2.2) are gone.
+        float const finalHealth = 449.0f * 10.0f * healthScale;
+        return CreatureScaling::Scaled(std::max<uint32>(1, static_cast<uint32>(std::ceil(finalHealth))), 1.0f);
     };
 
     // =========================================================================
@@ -1044,8 +1118,8 @@ int main()
             assert(boss.GetMaxHealth() > prevHp);
             prevHp = boss.GetMaxHealth();
         }
-        assert(ExpectedRhahkZorHp(1) == 5782);
-        assert(ExpectedRhahkZorHp(5) == 26671);
+        assert(ExpectedRhahkZorHp(1) == 974);
+        assert(ExpectedRhahkZorHp(5) == 4490);
     }
 
     // =========================================================================
@@ -1063,11 +1137,11 @@ int main()
 
         Creature boss = MakeBoss(&rhahkZorTpl, &deadmines);
         sCoAContentScaling->ApplyCreatureScaling(&rhahkZorTpl, &boss);
-        assert(boss.GetMaxHealth() == 5782);
+        assert(boss.GetMaxHealth() == 974);
 
         // Solo player sets fixed challenge size = 5 while inside the dungeon
         assert(sCoAContentScaling->SetPlayerLfgChallenge(solo.guid, 5));
-        assert(boss.GetMaxHealth() == 26671);
+        assert(boss.GetMaxHealth() == 4490);
 
         // Entering combat preserves the fixed challenge size 5 budget
         boss.inCombat = true;
@@ -1076,7 +1150,7 @@ int main()
             EncounterLifecycleSource::CREATURE_FALLBACK,
             EncounterKey{EncounterKeyType::CREATURE_ENTRY, boss.GetEntry()},
             &boss);
-        assert(boss.GetMaxHealth() == 26671);
+        assert(boss.GetMaxHealth() == 4490);
     }
 
     // =========================================================================
@@ -1111,7 +1185,7 @@ int main()
 
         Creature boss = MakeBoss(&rhahkZorTpl, &deadmines);
         sCoAContentScaling->ApplyCreatureScaling(&rhahkZorTpl, &boss);
-        assert(boss.GetMaxHealth() == 26671);
+        assert(boss.GetMaxHealth() == 4490);
 
         // 1) OnUnitEnterCombat locks encounter (CREATURE_FALLBACK)
         boss.inCombat = true;
@@ -1123,8 +1197,8 @@ int main()
         uint32 const gen1 = sInstanceScalingMgr->GetContext(36, 110).activeSnapshot.generation;
         assert(gen1 == 1);
 
-        // Boss takes damage mid-fight (down to 10,000 HP)
-        boss.SetHealth(10000);
+        // Boss takes damage mid-fight (down to 2,000 HP; old fixture 10,000 of 26,671)
+        boss.SetHealth(2000);
 
         // 2) InstanceScript SetBossState(IN_PROGRESS) fires with boss == nullptr
         // Must upgrade source to INSTANCE_SCRIPT WITHOUT re-locking or incrementing generation!
@@ -1144,8 +1218,8 @@ int main()
             EncounterLifecycleSource::CREATURE_FALLBACK,
             EncounterKey{EncounterKeyType::CREATURE_ENTRY, boss.GetEntry()},
             &boss);
-        assert(boss.GetMaxHealth() == 26671);
-        assert(boss.GetHealth() == 10000);
+        assert(boss.GetMaxHealth() == 4490);
+        assert(boss.GetHealth() == 2000);
 
         // 4) Even when LockOnEncounterStart = 0, active encounter state is tracked so repeated callbacks mid-fight do not heal boss
         ResetState();
@@ -1164,13 +1238,13 @@ int main()
             EncounterLifecycleSource::CREATURE_FALLBACK,
             EncounterKey{EncounterKeyType::CREATURE_ENTRY, bossUnlocked.GetEntry()},
             &bossUnlocked);
-        bossUnlocked.SetHealth(12000);
+        bossUnlocked.SetHealth(2500); // old fixture: 12,000 of 26,671
         sInstanceScalingMgr->BeginEncounter(
             &deadmines,
             EncounterLifecycleSource::CREATURE_FALLBACK,
             EncounterKey{EncounterKeyType::CREATURE_ENTRY, bossUnlocked.GetEntry()},
             &bossUnlocked);
-        assert(bossUnlocked.GetHealth() == 12000);
+        assert(bossUnlocked.GetHealth() == 2500);
     }
 
     // =========================================================================
@@ -1197,9 +1271,9 @@ int main()
 
         // 4 players leave during the wipe, leaving only p1
         deadmines.players = { &p1 };
-        // While locked in combat, boss stays at 5-player HP (26,671)
+        // While locked in combat, boss stays at 5-player HP (4,490)
         sCoAContentScaling->RefreshDungeonCreatures(&deadmines);
-        assert(boss.GetMaxHealth() == 26671);
+        assert(boss.GetMaxHealth() == 4490);
 
         // Boss evades and exits combat -> lock released and boss rescales to solo HP (5,782) at full health
         boss.inCombat = false;
@@ -1212,8 +1286,8 @@ int main()
             boss.GetGUID());
 
         assert(!sInstanceScalingMgr->GetContext(36, 111).encounterLocked);
-        assert(boss.GetMaxHealth() == 5782);
-        assert(boss.GetHealth() == 5782);
+        assert(boss.GetMaxHealth() == 974);
+        assert(boss.GetHealth() == 974);
 
         // Also verify stale INSTANCE_SCRIPT lock is cleared if all players leave the map (inWorld = false)
         boss.inEvadeMode = false;
@@ -1247,14 +1321,14 @@ int main()
         deadmines.players = { &p1 };
         sCoAContentScaling->RefreshDungeonCreatures(&deadmines);
         uint32 const soloMax = boss.GetMaxHealth();
-        assert(soloMax == static_cast<uint32>(5782 * 1.5f));
+        assert(soloMax == static_cast<uint32>(974 * 1.5f));
         assert(boss.GetPlayerDamageReq() == soloMax / 2);
 
         deadmines.players = { &p1, &p2, &p3, &p4, &p5 };
         for (int i = 0; i < 10; ++i)
             sCoAContentScaling->RefreshDungeonCreatures(&deadmines);
         uint32 const fiveMax = boss.GetMaxHealth();
-        assert(fiveMax == static_cast<uint32>(26671 * 1.5f));
+        assert(fiveMax == static_cast<uint32>(4490 * 1.5f));
         // Verify loot damage requirement scales up when uninjured creature scales up before pull
         assert(boss.GetPlayerDamageReq() == fiveMax / 2);
 
@@ -1492,8 +1566,8 @@ int main()
 
         Creature boss = MakeBoss(&rhahkZorTpl, &deadmines, 8001);
         sCoAContentScaling->ApplyCreatureScaling(&rhahkZorTpl, &boss);
-        // Solo in map -> 1-player HP (5,782), NOT artificially locked to 5!
-        assert(boss.GetMaxHealth() == 5782);
+        // Solo in map -> 1-player HP (974), NOT artificially locked to 5!
+        assert(boss.GetMaxHealth() == 974);
 
         // Incomplete bot recruitment / partial teleport: only 2 bots arrive (3 total participants)
         Player b1{ObjectGuid(2), 19}, b2{ObjectGuid(3), 19}, b3{ObjectGuid(4), 49}, b4{ObjectGuid(5), 49};
@@ -1504,37 +1578,264 @@ int main()
         }
         assert(boss.GetMaxHealth() == ExpectedRhahkZorHp(3));
 
-        // Remaining 2 bots arrive (5 total participants) -> scales to 5-player HP (26,671) before pull
+        // Remaining 2 bots arrive (5 total participants) -> scales to 5-player HP (4,490) before pull
         for (Player* b : { &b3, &b4 })
         {
             deadmines.players.push_back(b);
             sCoAContentScaling->RefreshDungeonCreatures(&deadmines);
         }
-        assert(boss.GetMaxHealth() == 26671);
+        assert(boss.GetMaxHealth() == 4490);
 
         // 1 bot disconnects before pull (inWorld = false in RemovePlayerFromMap) -> scales to 4-player HP
         b4.inWorld = false;
         sCoAContentScaling->RefreshDungeonCreatures(&deadmines);
         assert(boss.GetMaxHealth() == ExpectedRhahkZorHp(4));
 
-        // Bot 4 reconnects before pull -> back to 5-player HP (26,671)
+        // Bot 4 reconnects before pull -> back to 5-player HP (4,490)
         b4.inWorld = true;
         sCoAContentScaling->RefreshDungeonCreatures(&deadmines);
-        assert(boss.GetMaxHealth() == 26671);
+        assert(boss.GetMaxHealth() == 4490);
 
-        // Opening attack deals 671 damage before OnUnitEnterCombat fires -> preserved because maxHP did not change!
+        // Opening attack deals 490 damage before OnUnitEnterCombat fires -> preserved because maxHP did not change!
         boss.inCombat = true;
-        boss.SetHealth(26000);
+        boss.SetHealth(4000);
         sInstanceScalingMgr->BeginEncounter(
             &deadmines,
             EncounterLifecycleSource::CREATURE_FALLBACK,
             EncounterKey{EncounterKeyType::CREATURE_ENTRY, boss.GetEntry()},
             &boss);
-        assert(boss.GetMaxHealth() == 26671);
-        assert(boss.GetHealth() == 26000);
+        assert(boss.GetMaxHealth() == 4490);
+        assert(boss.GetHealth() == 4000);
     }
 
-    std::cout << "All 17 encounter & boss scaling regression scenarios passed!" << std::endl;
+    // =========================================================================
+    // Scenario 18: Normal Classic dungeon elite trash -> authored budget + group scale only, no hidden stack
+    //   old: ceil(449 * 3 * 1.35 tier * groupScale * 2.0 elite) * 2.2 core dungeon = 5 players 8,001 (5.94x authored)
+    //   new: ceil(449 * 3 * groupScale)                                            = 5 players 1,347 (authored)
+    // =========================================================================
+    {
+        ResetState();
+        auto const trashTpl = MakeEliteTrashTemplate();
+        uint32 const expected[6] = { 0, 292, 565, 830, 1090, 1347 };
+        for (uint32 count : { 1u, 2u, 3u, 4u, 5u })
+        {
+            sInstanceScalingMgr->Clear();
+            Map deadmines;
+            deadmines.mapId = 36;
+            deadmines.instanceId = 1800 + count;
+            std::vector<Player> party(count);
+            for (uint32 i = 0; i < count; ++i)
+            {
+                party[i].guid = ObjectGuid(i + 1);
+                deadmines.players.push_back(&party[i]);
+            }
+
+            Creature trash = MakeBoss(&trashTpl, &deadmines, 6000 + count);
+            sCoAContentScaling->ApplyCreatureScaling(&trashTpl, &trash);
+            assert(trash.GetMaxHealth() == expected[count]);
+            assert(trash.GetMaxHealth() == ExpectedOwnedHp(3.0f, count));
+        }
+        // Full party: exactly the authored HP. No x2 elite, x1.35 normal-dungeon tier or x2.2 core dungeon factor.
+        assert(expected[5] == 449u * 3u);
+        // The group curve is untouched: 0.217 / 0.419 / 0.616 / 0.809 / 1.0 of the full-party budget.
+        assert(std::abs(float(expected[1]) / float(expected[5]) - 0.217f) < 0.002f);
+        assert(std::abs(float(expected[3]) / float(expected[5]) - 0.616f) < 0.002f);
+    }
+
+    // =========================================================================
+    // Scenario 19: Dungeon boss is clearly above trash because of its own ModHealth, not because of its rank
+    // =========================================================================
+    {
+        ResetState();
+        auto const trashTpl = MakeEliteTrashTemplate();
+        Map deadmines;
+        deadmines.mapId = 36;
+        deadmines.instanceId = 1900;
+        Player p1{ObjectGuid(1), 19}, p2{ObjectGuid(2), 19}, p3{ObjectGuid(3), 19}, p4{ObjectGuid(4), 19}, p5{ObjectGuid(5), 19};
+        deadmines.players = { &p1, &p2, &p3, &p4, &p5 };
+        Creature trash = MakeBoss(&trashTpl, &deadmines, 6100);
+        Creature boss = MakeBoss(&rhahkZorTpl, &deadmines, 6101);
+        sCoAContentScaling->ApplyCreatureScaling(&trashTpl, &trash);
+        sCoAContentScaling->ApplyCreatureScaling(&rhahkZorTpl, &boss);
+        assert(trash.GetMaxHealth() == 1347);
+        assert(boss.GetMaxHealth() == 4490);
+        // Same rank, same level: the whole difference is ModHealth 10 against 3.
+        assert(std::abs(double(boss.GetMaxHealth()) / double(trash.GetMaxHealth()) - 10.0 / 3.0) < 0.01);
+        assert(boss.GetMaxHealth() > trash.GetMaxHealth() * 3);
+    }
+
+    // =========================================================================
+    // Scenario 20: Boss classification
+    // =========================================================================
+    {
+        auto const trashTpl = MakeEliteTrashTemplate();
+        auto const worldBossTpl = MakeWorldBossTemplate();
+        Map dungeon, raid, openWorld;
+        dungeon.dungeon = true;
+        raid.dungeon = true;
+        raid.raid = true;
+        openWorld.dungeon = false;
+
+        auto const classify = [](CreatureTemplate const& tpl, Map& map)
+        {
+            Creature creature(&tpl, &map, 6200);
+            return sCombatBudgetProfile->BuildContext(&tpl, &creature, 19);
+        };
+
+        // Ordinary elite is trash, in a dungeon and in a raid, even at its authored top level.
+        assert(!classify(trashTpl, dungeon).boss);
+        assert(!classify(trashTpl, raid).boss);
+        assert(!CombatBudgetProfile::IsBossTemplate(&trashTpl));
+
+        // A real dungeon encounter boss (instance_encounters credit => CREATURE_FLAG_EXTRA_DUNGEON_BOSS) is a boss.
+        assert(classify(rhahkZorTpl, dungeon).boss);
+        assert(!classify(rhahkZorTpl, dungeon).worldBoss);
+        assert(classify(cobrahnTpl, dungeon).boss);
+        assert(CombatBudgetProfile::IsBossTemplate(&rhahkZorTpl));
+
+        // World boss identity: rank WORLDBOSS, out in the open world it is also flagged as a world boss.
+        assert(classify(worldBossTpl, openWorld).boss);
+        assert(classify(worldBossTpl, openWorld).worldBoss);
+        assert(classify(worldBossTpl, raid).boss);
+        assert(!classify(worldBossTpl, raid).worldBoss);
+
+        // A rare elite in a raid is no longer promoted to boss by rank alone.
+        CreatureTemplate rareElite = trashTpl;
+        rareElite.rank = CREATURE_ELITE_RAREELITE;
+        assert(!classify(rareElite, raid).boss);
+
+        // Raid tier follows the boss identity: trash enters at RAID_ENTRY, bosses at RAID_MID.
+        assert(classify(trashTpl, raid).tier == ContentTier::RAID_ENTRY);
+        assert(classify(rhahkZorTpl, raid).tier == ContentTier::RAID_MID);
+    }
+
+    // =========================================================================
+    // Scenario 21: No rank factor on top of authored ModHealth (elite x2 / world boss x4 were duplicate scaling)
+    // =========================================================================
+    {
+        ResetState();
+        auto const worldBossTpl = MakeWorldBossTemplate();
+        Map raid;
+        raid.mapId = 409;
+        raid.instanceId = 2100;
+        raid.dungeon = true;
+        raid.raid = true;
+        Player solo{ObjectGuid(1), 19};
+        Player p2{ObjectGuid(2), 19}, p3{ObjectGuid(3), 19}, p4{ObjectGuid(4), 19}, p5{ObjectGuid(5), 19};
+        raid.players = { &solo, &p2, &p3, &p4, &p5 };
+        Creature boss = MakeBoss(&worldBossTpl, &raid, 6300);
+        sCoAContentScaling->ApplyCreatureScaling(&worldBossTpl, &boss);
+        // old: x4 world boss on top of ModHealth; new: base HP * ModHealth * RAID_MID tier (4.5) * group scale, core neutral
+        float const scale = sInstanceScalingMgr->GetOrCreateContext(&raid).healthScale;
+        float const tier = CombatBudgetProfile::GetTierHealthMultiplier(ContentTier::RAID_MID);
+        assert(tier == 4.5f);
+        assert(boss.GetMaxHealth() == static_cast<uint32>(std::ceil(449.0f * 100.0f * tier * scale)));
+        assert(CombatBudgetProfile::GetTierHealthMultiplier(ContentTier::DUNGEON_NORMAL) == 1.0f);
+    }
+
+    // =========================================================================
+    // Scenario 22: Ownership. Enabled: the module owns dungeon/raid creatures and the core's Dungeon/Raid multiplier is
+    // neutral. Disabled (CoAContentScaling.Enable = 0): the core keeps its multiplier exactly as before.
+    // Open world creatures are never handed over.
+    // =========================================================================
+    {
+        ResetState();
+        auto const trashTpl = MakeEliteTrashTemplate();
+        Map dungeon, raid, openWorld;
+        raid.raid = true;
+        openWorld.dungeon = false;
+        Creature inDungeon(&trashTpl, &dungeon, 6400), inRaid(&trashTpl, &raid, 6401), inWorld(&trashTpl, &openWorld, 6402);
+        Creature pet(&trashTpl, &dungeon, 6403);
+        pet.isPet = true;
+        Creature charmed(&trashTpl, &dungeon, 6404);
+        charmed.controlledByPlayer = true;
+
+        sCoAContentScaling->SetEnabled(true);
+        assert(sCoAContentScaling->OwnsCombatScaling(&inDungeon));
+        assert(sCoAContentScaling->OwnsCombatScaling(&inRaid));
+        assert(!sCoAContentScaling->OwnsCombatScaling(&inWorld));
+        assert(!sCoAContentScaling->OwnsCombatScaling(&pet));
+        assert(!sCoAContentScaling->OwnsCombatScaling(&charmed));
+        assert(CreatureScaling::HealthMultiplier(&inDungeon) == 1.0f);
+        assert(CreatureScaling::HealthMultiplier(&inRaid) == 1.0f);
+        assert(CreatureScaling::HealthMultiplier(&inWorld) == 2.2f);
+        assert(CreatureScaling::HealthMultiplier(&pet) == 2.2f);
+
+        sCoAContentScaling->SetEnabled(false);
+        assert(!sCoAContentScaling->OwnsCombatScaling(&inDungeon));
+        assert(!sCoAContentScaling->OwnsCombatScaling(&inRaid));
+        assert(CreatureScaling::HealthMultiplier(&inDungeon) == 2.2f);
+        assert(CreatureScaling::HealthMultiplier(&inRaid) == 2.2f);
+        assert(CreatureScaling::HealthMultiplier(&inWorld) == 2.2f);
+        // A disabled module changes nothing about the creature.
+        uint32 const before = inDungeon.GetMaxHealth();
+        sCoAContentScaling->ApplyCreatureScaling(&trashTpl, &inDungeon);
+        assert(inDungeon.GetMaxHealth() == before);
+        sCoAContentScaling->SetEnabled(true);
+    }
+
+    // =========================================================================
+    // Scenario 23: Open world creature stays on the core World multiplier (Local Level Scaling untouched);
+    // heroic keeps its explicit tier (2.2)
+    // =========================================================================
+    {
+        ResetState();
+        CreatureTemplate wolf;
+        wolf.Entry = 299;
+        wolf.Name = "Young Wolf";
+        wolf.minlevel = wolf.maxlevel = 19;
+        wolf.unit_class = 1;
+        wolf.rank = CREATURE_ELITE_NORMAL;
+        wolf.ModHealth = 1.0f;
+        Map openWorld;
+        openWorld.dungeon = false;
+        Creature world(&wolf, &openWorld, 6500);
+        sCoAContentScaling->ApplyCreatureScaling(&wolf, &world);
+        // Rank NORMAL is identical under the old and the new formula: 449 * 1.0 * 2.2 stubbed core world multiplier.
+        assert(world.GetMaxHealth() == 988);
+
+        // An open world elite loses the duplicate x2 (old 5,927 = 449 * 3 * 2 * 2.2): authored 449 * 3 * 2.2.
+        auto const trashTpl = MakeEliteTrashTemplate();
+        Creature worldElite(&trashTpl, &openWorld, 6501);
+        sCoAContentScaling->ApplyCreatureScaling(&trashTpl, &worldElite);
+        assert(worldElite.GetMaxHealth() == 2963);
+
+        Map heroic;
+        heroic.mapId = 36;
+        heroic.instanceId = 2300;
+        heroic.heroic = true;
+        Player solo{ObjectGuid(1), 19}, p2{ObjectGuid(2), 19}, p3{ObjectGuid(3), 19}, p4{ObjectGuid(4), 19}, p5{ObjectGuid(5), 19};
+        heroic.players = { &solo, &p2, &p3, &p4, &p5 };
+        Creature heroicTrash(&trashTpl, &heroic, 6502);
+        sCoAContentScaling->ApplyCreatureScaling(&trashTpl, &heroicTrash);
+        assert(heroicTrash.GetMaxHealth() == ExpectedOwnedHp(3.0f, 5, 2.2f));
+    }
+
+    // =========================================================================
+    // Scenario 24: Diagnostics only when CoAContentScaling.Debug = 1
+    // =========================================================================
+    {
+        ResetState();
+        auto const trashTpl = MakeEliteTrashTemplate();
+        Map deadmines;
+        deadmines.mapId = 36;
+        deadmines.instanceId = 2400;
+        Player solo{ObjectGuid(1), 19};
+        deadmines.players = { &solo };
+        Creature trash = MakeBoss(&trashTpl, &deadmines, 6600);
+
+        sCoAContentScaling->SetDebugEnabled(false);
+        int const quiet = gLogInfoCalls;
+        sCoAContentScaling->ApplyCreatureScaling(&trashTpl, &trash);
+        assert(gLogInfoCalls == quiet);
+
+        sCoAContentScaling->SetDebugEnabled(true);
+        sCoAContentScaling->ApplyCreatureScaling(&trashTpl, &trash);
+        assert(gLogInfoCalls == quiet + 1);
+        sCoAContentScaling->SetDebugEnabled(false);
+    }
+
+    std::cout << "All 24 encounter & boss scaling regression scenarios passed!" << std::endl;
     return 0;
 }
 ''', encoding='utf-8')

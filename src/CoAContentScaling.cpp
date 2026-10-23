@@ -8,6 +8,7 @@
 #include "AdaptiveEncounterAPI.h"
 #include "AllMapScript.h"
 #include "CoAContentScalingConfig.h"
+#include "CoACreatureScaling.h"
 #include "CombatBudgetProfile.h"
 #include "Config.h"
 #include "ContentPackRegistry.h"
@@ -384,6 +385,21 @@ void RescaleLootDamageRequirement(Creature* creature, uint32 previousMaxHealth)
     creature->LowerPlayerDamageReq(previousRequirement - requirement, false);
 }
 
+bool CoAContentScaling::IsCombatScalable(Creature const* creature)
+{
+    return creature && !creature->IsPet() && !creature->IsTotem() && !creature->IsCritter() &&
+        !creature->IsTrigger() && !creature->IsControlledByPlayer();
+}
+
+bool CoAContentScaling::OwnsCombatScaling(Creature const* creature) const
+{
+    if (!_enabled || !IsCombatScalable(creature))
+        return false;
+
+    Map const* map = creature->GetMap();
+    return map && (map->IsDungeon() || map->IsRaid());
+}
+
 void CoAContentScaling::ApplyCombatBudget(CreatureTemplate const* cinfo, Creature* creature,
                                           float groupHealthScale, float groupDamageScale,
                                           float effectivePlayers, EncounterHealthTransferPolicy hpPolicy)
@@ -391,8 +407,7 @@ void CoAContentScaling::ApplyCombatBudget(CreatureTemplate const* cinfo, Creatur
     if (!_enabled || !cinfo || !creature)
         return;
 
-    if (creature->IsPet() || creature->IsTotem() || creature->IsCritter() ||
-        creature->IsTrigger() || creature->IsControlledByPlayer())
+    if (!IsCombatScalable(creature))
         return;
 
     Map* map = creature->GetMap();
@@ -411,6 +426,17 @@ void CoAContentScaling::ApplyCombatBudget(CreatureTemplate const* cinfo, Creatur
     CalculatedCombatBudget budget = sCombatBudgetProfile->CalculateBudget(cinfo, ctx);
     if (calibratedHp > 0)
         budget.health = calibratedHp;
+
+    if (_debug)
+    {
+        LOG_INFO("module.coa_content_scaling",
+                 "CoAContentScaling hp: entry={} map={} level={}->{} role={} tier={} modHealth={:.2f} authoredHp={:.0f} "
+                 "tierMult={:.2f} groupScale={:.3f} difficultyMult={:.2f} coreAndRateMult={:.2f}{} finalHp={}",
+                 cinfo->Entry, map ? map->GetId() : 0, uint32(ctx.authoredLevel), uint32(ctx.effectiveLevel),
+                 ctx.boss ? "boss" : "trash", ContentTierToString(ctx.tier).data(), cinfo->ModHealth, budget.authoredHealth,
+                 budget.tierHealthMultiplier, ctx.groupHealthScale, budget.difficultyHealthMultiplier,
+                 budget.externalHealthMultiplier, calibratedHp > 0 ? " calibratedRaidHp=1" : "", budget.health);
+    }
 
     uint32 const oldMaxHp = creature->GetMaxHealth();
     uint32 const oldCurHp = creature->GetHealth();
@@ -1399,7 +1425,7 @@ namespace
 
             CreatureTemplate const* cinfo = creature->GetCreatureTemplate();
             // Authoritative encounter start: only bosses lock the encounter snapshot! Trash never locks.
-            if (cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || (cinfo->flags_extra & CREATURE_FLAG_EXTRA_DUNGEON_BOSS)))
+            if (CombatBudgetProfile::IsBossTemplate(cinfo))
             {
                 sInstanceScalingMgr->BeginEncounter(
                     creature->GetMap(),
@@ -1419,7 +1445,7 @@ namespace
                 return;
 
             CreatureTemplate const* cinfo = creature->GetCreatureTemplate();
-            if (cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || (cinfo->flags_extra & CREATURE_FLAG_EXTRA_DUNGEON_BOSS)))
+            if (CombatBudgetProfile::IsBossTemplate(cinfo))
             {
                 sInstanceScalingMgr->EndEncounter(
                     creature->GetMap(),
@@ -1440,7 +1466,7 @@ namespace
                 return;
 
             CreatureTemplate const* cinfo = creature->GetCreatureTemplate();
-            if (cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || (cinfo->flags_extra & CREATURE_FLAG_EXTRA_DUNGEON_BOSS)))
+            if (CombatBudgetProfile::IsBossTemplate(cinfo))
             {
                 sInstanceScalingMgr->EndEncounter(
                     creature->GetMap(),
@@ -1686,6 +1712,8 @@ void RegisterCuratedEncounterAdapters();
 void AddCoAContentScalingScripts()
 {
     RegisterCuratedEncounterAdapters();
+    // One explicit authority decision for dungeon and raid combat scaling (see CoAContentScaling::OwnsCombatScaling).
+    CreatureScaling::SetCombatAuthority([](Creature const* creature) { return sCoAContentScaling->OwnsCombatScaling(creature); });
     new coa_content_scaling_world();
     new coa_content_scaling_global();
     new coa_content_scaling_creature();

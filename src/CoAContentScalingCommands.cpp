@@ -201,6 +201,9 @@ private:
         handler->PSendSysMessage("Authored Level: {} | Effective Level: {}", uint32(ctx.authoredLevel), uint32(ctx.effectiveLevel));
         handler->PSendSysMessage("Tier: {} | HealthMod: {:.2f} | DamageMod: {:.2f} | GroupHPScale: {:.2f} | GroupDmgScale: {:.2f}",
             ContentTierToString(ctx.tier).data(), cinfo->ModHealth, cinfo->DamageModifier, ctx.groupHealthScale, ctx.groupDamageScale);
+        handler->PSendSysMessage("Role: {} | Health = {:.0f} authored x {:.2f} tier x {:.3f} group x {:.2f} difficulty x {:.2f} core/rate",
+            ctx.boss ? "boss" : "trash", budget.authoredHealth, budget.tierHealthMultiplier, ctx.groupHealthScale,
+            budget.difficultyHealthMultiplier, budget.externalHealthMultiplier);
         handler->PSendSysMessage("Scaled Health: {} | Mana: {} | Armor: {:.0f} | AP: {}",
             budget.health, budget.mana, budget.armor, budget.attackPower);
         handler->PSendSysMessage("Damage Range: {:.1f} - {:.1f} | Current HP: {} / {}",

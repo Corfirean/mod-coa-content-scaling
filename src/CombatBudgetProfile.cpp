@@ -27,7 +27,8 @@ float CombatBudgetProfile::GetTierHealthMultiplier(ContentTier tier)
     switch (tier)
     {
         case ContentTier::WORLD:          return 1.0f;
-        case ContentTier::DUNGEON_NORMAL: return 1.35f;
+        // Normal dungeons take the authored budget (ModHealth) as it is; group scaling alone adapts it to the party.
+        case ContentTier::DUNGEON_NORMAL: return 1.0f;
         case ContentTier::DUNGEON_HEROIC: return 2.20f;
         case ContentTier::RAID_ENTRY:     return 3.50f;
         case ContentTier::RAID_MID:       return 4.50f;
@@ -67,6 +68,13 @@ float CombatBudgetProfile::GetTierArmorMultiplier(ContentTier tier)
     }
 }
 
+bool CombatBudgetProfile::IsBossTemplate(CreatureTemplate const* cinfo)
+{
+    // CREATURE_FLAG_EXTRA_DUNGEON_BOSS is set at load from instance_encounters, so it names the real encounter bosses;
+    // a rank of WORLDBOSS is the other authored boss identity. Rank ELITE alone is ordinary trash.
+    return cinfo && (cinfo->rank == CREATURE_ELITE_WORLDBOSS || (cinfo->flags_extra & CREATURE_FLAG_EXTRA_DUNGEON_BOSS));
+}
+
 CreatureScaleContext CombatBudgetProfile::BuildContext(CreatureTemplate const* cinfo,
                                                       Creature const* creature,
                                                       uint8 effectiveLevel) const
@@ -94,11 +102,8 @@ CreatureScaleContext CombatBudgetProfile::BuildContext(CreatureTemplate const* c
         context.heroic  = map->IsHeroic();
     }
 
-    context.boss = (cinfo->rank == CREATURE_ELITE_WORLDBOSS) ||
-                   (context.raid && cinfo->rank == CREATURE_ELITE_RAREELITE) ||
-                   (context.dungeon && cinfo->rank == CREATURE_ELITE_ELITE && cinfo->maxlevel >= context.authoredLevel);
-
-    context.worldBoss = (cinfo->rank == CREATURE_ELITE_WORLDBOSS && !context.raid);
+    context.boss = IsBossTemplate(cinfo);
+    context.worldBoss = cinfo->rank == CREATURE_ELITE_WORLDBOSS && !context.dungeon && !context.raid;
 
     // Determine tier
     if (context.raid)
@@ -143,14 +148,17 @@ CalculatedCombatBudget CombatBudgetProfile::CalculateBudget(CreatureTemplate con
     float const tierDmgMod    = GetTierDamageMultiplier(context.tier);
     float const tierArmorMod  = GetTierArmorMultiplier(context.tier);
 
-    // Health: base * authored multiplier * tier modifier * group scale
-    float finalHealth = float(baseHealth) * cinfo->ModHealth * tierHealthMod * context.groupHealthScale;
-    // The server's own health setting for this kind of place and role (CoAContentScaling.Difficulty.Health.*), on top of the budget above.
-    finalHealth *= sCoAContentScaling->GetHealthMultiplier(context.dungeon, context.raid, context.boss || context.worldBoss);
-    if (cinfo->rank == CREATURE_ELITE_ELITE)
-        finalHealth *= 2.0f;
-    else if (cinfo->rank == CREATURE_ELITE_WORLDBOSS)
-        finalHealth *= 4.0f;
+    // Health: base * authored ModHealth * tier modifier * group scale * the server's own health setting for this kind of
+    // place and role (CoAContentScaling.Difficulty.Health.*). ModHealth already carries what the creature is: ordinary
+    // elites are authored around 3, encounter bosses around 5 to 20, world bosses in the hundreds, so there is no
+    // further elite or world boss factor here. CoA.CreatureScaling only joins in through context.healthModifier, and
+    // for dungeon and raid creatures this module owns that is neutral (see CoAContentScaling::OwnsCombatScaling).
+    float const difficultyHealthMod =
+        sCoAContentScaling->GetHealthMultiplier(context.dungeon, context.raid, context.boss || context.worldBoss);
+    budget.authoredHealth = float(baseHealth) * cinfo->ModHealth;
+    budget.tierHealthMultiplier = tierHealthMod;
+    budget.difficultyHealthMultiplier = difficultyHealthMod;
+    float const finalHealth = budget.authoredHealth * tierHealthMod * context.groupHealthScale * difficultyHealthMod;
 
     ServerConfigs healthRate = RATE_CREATURE_ELITE_ELITE_HP;
     switch (cinfo->rank)
@@ -162,8 +170,9 @@ CalculatedCombatBudget CombatBudgetProfile::CalculateBudget(CreatureTemplate con
         case CREATURE_ELITE_RARE: healthRate = RATE_CREATURE_ELITE_RARE_HP; break;
         default: break;
     }
+    budget.externalHealthMultiplier = context.healthModifier * sWorld->getRate(healthRate);
     budget.health = CreatureScaling::Scaled(std::max<uint32>(1, static_cast<uint32>(std::ceil(finalHealth))),
-        context.healthModifier * sWorld->getRate(healthRate));
+        budget.externalHealthMultiplier);
 
     // Mana: base * authored multiplier
     if (baseMana > 0)

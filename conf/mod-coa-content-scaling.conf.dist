@@ -92,9 +92,12 @@ CoAContentScaling.Difficulty.DamageMultiplier = 1.0
 # CoAContentScaling.Difficulty.Health.WorldMultiplier
 # CoAContentScaling.Difficulty.Health.DungeonMultiplier
 # CoAContentScaling.Difficulty.Health.RaidMultiplier
-#     Description: Health of scaled creatures in the open world, in dungeons and in raids, on top of the scaling budget (which already contains the
-#                  authored health modifier and CoA.CreatureScaling.<World|Dungeon|Raid>.Health from coa.conf). A boss that has a calibrated raid
-#                  health value keeps that value.
+#     Description: Health of scaled creatures in the open world, in dungeons and in raids, on top of the scaling budget. The budget is the authored
+#                  health modifier of the creature times the tier and the group size scale; it has no extra elite or boss factor, because the authored
+#                  modifier already is the elite and boss factor. While this module is enabled it is the single authority for dungeon and raid health
+#                  and damage: CoA.CreatureScaling.Dungeon.*, CoA.CreatureScaling.Raid.* and CoA.CreatureScaling.Map* from coa.conf are not applied
+#                  to those creatures (no change to coa.conf is needed), and these settings are the way to make dungeons and raids tougher or softer.
+#                  The open world keeps CoA.CreatureScaling.World.Health. A boss that has a calibrated raid health value keeps that value.
 #     Range:       0.1 to 10.0. Lower is easier. Reloadable with .reload config; creatures already in the world keep their health until they respawn.
 #     Default:     1.0 (unchanged balance)
 CoAContentScaling.Difficulty.Health.WorldMultiplier = 1.0
@@ -171,7 +174,9 @@ CoAContentScaling.LFG.DefaultChallengeSize = 0
 
 #
 # CoAContentScaling.Debug
-#     Description: Enable verbose debug logging for scaling calculations.
+#     Description: Enable verbose debug logging for scaling calculations. Every time a creature gets its combat budget one line is logged
+#                  (module.coa_content_scaling): entry, map, authored->effective level, trash or boss, ModHealth, authored HP, tier multiplier,
+#                  group scale, difficulty multiplier, CoA.CreatureScaling and rate multiplier, final HP. Reloadable with .reload config.
 #     Default:     0 - Disabled
 #                  1 - Enabled
 #

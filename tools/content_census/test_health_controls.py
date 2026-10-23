@@ -38,8 +38,10 @@ struct Creature {
         (out / 'CreatureData.h').write_text('''#pragma once
 #include "Define.h"
 enum { CREATURE_ELITE_NORMAL, CREATURE_ELITE_ELITE, CREATURE_ELITE_RAREELITE, CREATURE_ELITE_WORLDBOSS, CREATURE_ELITE_RARE };
+enum : uint32 { CREATURE_FLAG_EXTRA_DUNGEON_BOSS = 0x10000000 };
 struct CreatureTemplate {
   uint32 Entry=705; uint8 maxlevel=1, expansion=0, unit_class=1, rank=CREATURE_ELITE_NORMAL;
+  uint32 flags_extra=0;
   float ModHealth=.93f, ModMana=1.f, ModArmor=1.f, DamageModifier=1.f;
 };
 struct CreatureBaseStats {
@@ -64,6 +66,15 @@ struct Registry {
 inline Registry registry;
 inline auto sContentPackRegistry=&registry;
 ''')
+        (out / 'CoAContentScaling.h').write_text('''#pragma once
+#include "Define.h"
+struct ContentScalingStub {
+  float difficulty=1.f;  // CoAContentScaling.Difficulty.Health.* for any place and role
+  float GetHealthMultiplier(bool, bool, bool) const { return difficulty; }
+};
+inline ContentScalingStub contentScaling;
+inline auto sCoAContentScaling=&contentScaling;
+''')
         (out / 'CoACreatureScaling.h').write_text('''#pragma once
 #include "Creature.h"
 namespace CreatureScaling {
@@ -86,6 +97,8 @@ inline World world;
 inline auto sWorld=&world;
 ''')
         (out / 'test.cpp').write_text('''#include <cassert>
+#include <cmath>
+#include "CoAContentScaling.h"
 #include "CombatBudgetProfile.h"
 #include "Creature.h"
 #include "CreatureData.h"
@@ -121,6 +134,58 @@ int main() {
     world.rates[rank]=2.f;
     assert(sCombatBudgetProfile->CalculateBudget(&wolf,ctx).health==hp*2);
   }
+  for (auto& rate : world.rates) rate=1.f;
+
+  // Authored budget only: ModHealth already carries the rank, so there is no elite x2, world boss x4 or normal dungeon
+  // x1.35 on top. Base HP 42: elite trash ModHealth 3 -> 126 at a full party. (Old stack at a full party, with the core
+  // dungeon multiplier 2.5: 42 * 3 * 1.35 * 2 * 2.5 = 850.)
+  CreatureTemplate trash; trash.rank=CREATURE_ELITE_ELITE; trash.ModHealth=3.f;
+  CreatureTemplate boss=trash; boss.ModHealth=10.f; boss.flags_extra=CREATURE_FLAG_EXTRA_DUNGEON_BOSS;
+  CreatureTemplate worldBoss; worldBoss.rank=CREATURE_ELITE_WORLDBOSS; worldBoss.ModHealth=100.f;
+  Creature inDungeon; inDungeon.map.dungeon=true;
+  Creature inRaid; inRaid.map.dungeon=true; inRaid.map.raid=true;
+  Creature inOpenWorld;
+  assert(CombatBudgetProfile::GetTierHealthMultiplier(ContentTier::DUNGEON_NORMAL)==1.f);
+  assert(CombatBudgetProfile::GetTierHealthMultiplier(ContentTier::DUNGEON_HEROIC)==2.2f);
+
+  auto trashCtx=sCombatBudgetProfile->BuildContext(&trash,&inDungeon,1);
+  assert(!trashCtx.boss && trashCtx.tier==ContentTier::DUNGEON_NORMAL);
+  assert(sCombatBudgetProfile->CalculateBudget(&trash,trashCtx).health==126);
+  for (auto scale : {.217f,.419f,.616f,.809f,1.f}) {
+    trashCtx.groupHealthScale=scale;
+    assert(sCombatBudgetProfile->CalculateBudget(&trash,trashCtx).health==uint32(std::ceil(126.f*scale)));
+  }
+  auto bossCtx=sCombatBudgetProfile->BuildContext(&boss,&inDungeon,1);
+  assert(bossCtx.boss && !bossCtx.worldBoss);
+  assert(sCombatBudgetProfile->CalculateBudget(&boss,bossCtx).health==420);  // above trash by ModHealth alone
+
+  // Boss identity: only the encounter flag or the WORLDBOSS rank. Elite trash is trash in dungeons and raids.
+  assert(!CombatBudgetProfile::IsBossTemplate(&trash));
+  assert(CombatBudgetProfile::IsBossTemplate(&boss));
+  assert(CombatBudgetProfile::IsBossTemplate(&worldBoss));
+  assert(!sCombatBudgetProfile->BuildContext(&trash,&inRaid,1).boss);
+  auto worldBossCtx=sCombatBudgetProfile->BuildContext(&worldBoss,&inOpenWorld,1);
+  assert(worldBossCtx.boss && worldBossCtx.worldBoss);
+  assert(sCombatBudgetProfile->CalculateBudget(&worldBoss,worldBossCtx).health==4200);  // no x4
+  auto raidBossCtx=sCombatBudgetProfile->BuildContext(&worldBoss,&inRaid,1);
+  assert(raidBossCtx.boss && !raidBossCtx.worldBoss && raidBossCtx.tier==ContentTier::RAID_MID);
+
+  // CoAContentScaling.Difficulty.Health.* is the one explicit place and role knob and stays on top of the budget.
+  contentScaling.difficulty=1.5f;
+  assert(sCombatBudgetProfile->CalculateBudget(&trash,sCombatBudgetProfile->BuildContext(&trash,&inDungeon,1)).health==189);
+  contentScaling.difficulty=1.f;
+
+  // Breakdown used by CoAContentScaling.Debug.
+  trashCtx=sCombatBudgetProfile->BuildContext(&trash,&inDungeon,1);
+  trashCtx.groupHealthScale=.5f;
+  auto parts=sCombatBudgetProfile->CalculateBudget(&trash,trashCtx);
+  assert(parts.authoredHealth==126.f && parts.tierHealthMultiplier==1.f && parts.difficultyHealthMultiplier==1.f);
+  assert(parts.externalHealthMultiplier==1.f && parts.health==63);
+
+  // The core multiplier only enters through the context; the module's ownership makes it 1.0 for dungeons and raids,
+  // so a module-disabled server (healthModifier = core Dungeon value) is simply the old core behaviour on top.
+  inDungeon.multiplier=2.5f;
+  assert(sCombatBudgetProfile->CalculateBudget(&trash,sCombatBudgetProfile->BuildContext(&trash,&inDungeon,1)).health==315);
 }
 ''')
         exe = out / ('test.exe' if os.name == 'nt' else 'test')
