@@ -400,6 +400,11 @@ bool CoAContentScaling::OwnsCombatScaling(Creature const* creature) const
     return map && (map->IsDungeon() || map->IsRaid());
 }
 
+bool CoAContentScaling::BuildsHealthBudget(Creature const* creature) const
+{
+    return _enabled && IsCombatScalable(creature);
+}
+
 void CoAContentScaling::ApplyCombatBudget(CreatureTemplate const* cinfo, Creature* creature,
                                           float groupHealthScale, float groupDamageScale,
                                           float effectivePlayers, EncounterHealthTransferPolicy hpPolicy)
@@ -1714,6 +1719,7 @@ void AddCoAContentScalingScripts()
     RegisterCuratedEncounterAdapters();
     // One explicit authority decision for dungeon and raid combat scaling (see CoAContentScaling::OwnsCombatScaling).
     CreatureScaling::SetCombatAuthority([](Creature const* creature) { return sCoAContentScaling->OwnsCombatScaling(creature); });
+    CreatureScaling::SetHealthBudgetAuthority([](Creature const* creature) { return sCoAContentScaling->BuildsHealthBudget(creature); });
     new coa_content_scaling_world();
     new coa_content_scaling_global();
     new coa_content_scaling_creature();

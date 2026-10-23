@@ -33,6 +33,7 @@ def main():
             'void RescaleLootDamageRequirement(',
             'bool CoAContentScaling::IsCombatScalable(',
             'bool CoAContentScaling::OwnsCombatScaling(',
+            'bool CoAContentScaling::BuildsHealthBudget(',
             'void CoAContentScaling::ApplyCombatBudget(',
             'void CoAContentScaling::ApplyCreatureScaling(',
             'void CoAContentScaling::RecalculateEncounterCombatStats(',
@@ -637,6 +638,24 @@ namespace CreatureScaling
             return 1.0f;
         return creature->scalingMultiplier;
     }
+
+    // Mirror of the core's own health hook (CoACreatureScalingHealth::OnCreatureSelectLevel): it scales the creature's
+    // create health by HealthMultiplier, unless a registered budget owner has folded that multiplier in already.
+    inline CombatAuthority gHealthAuthority = nullptr;
+    inline void SetHealthBudgetAuthority(CombatAuthority authority) { gHealthAuthority = authority; }
+    inline float HookMultiplier(float multiplier, bool healthBudgetedElsewhere) { return healthBudgetedElsewhere ? 1.0f : multiplier; }
+
+    inline void RunCoreHealthHook(Creature* creature)
+    {
+        float const multiplier = HookMultiplier(HealthMultiplier(creature), gHealthAuthority && gHealthAuthority(creature));
+        if (multiplier == 1.0f)
+            return;
+        uint32 const health = static_cast<uint32>(double(creature->createHealth) * multiplier + 0.5);
+        creature->SetCreateHealth(health);
+        creature->SetStatFlatModifier(UNIT_MOD_HEALTH, BASE_VALUE, float(health));
+        creature->UpdateMaxHealth();
+        creature->SetHealth(creature->GetMaxHealth());
+    }
 }
 ''', encoding='utf-8')
 
@@ -877,6 +896,7 @@ int main()
 {
     // The module claims dungeon and raid combat scaling at script load (AddCoAContentScalingScripts).
     CreatureScaling::SetCombatAuthority([](Creature const* creature) { return sCoAContentScaling->OwnsCombatScaling(creature); });
+    CreatureScaling::SetHealthBudgetAuthority([](Creature const* creature) { return sCoAContentScaling->BuildsHealthBudget(creature); });
 
     // Fixture values of the HP scenarios below, old formula -> corrected formula (Rhahk'Zor: L19 warrior, base HP 449,
     // ModHealth 10, rank ELITE + DUNGEON_BOSS flag, Deadmines = map 36 with a stubbed core dungeon multiplier of 2.2):
@@ -1835,7 +1855,81 @@ int main()
         sCoAContentScaling->SetDebugEnabled(false);
     }
 
-    std::cout << "All 24 encounter & boss scaling regression scenarios passed!" << std::endl;
+    // =========================================================================
+    // Scenario 25: Open world, module enabled -> CoA.CreatureScaling.World.Health is applied exactly once, whichever
+    // of the core's health hook and the module's level selection hook runs first. Stock health 449 (L19 warrior,
+    // ModHealth 1), stubbed core world multiplier 2.2: the one correct result is 449 * 2.2 = 988, never 2,174.
+    // =========================================================================
+    {
+        ResetState();
+        CreatureTemplate wolf;
+        wolf.Entry = 299;
+        wolf.Name = "Young Wolf";
+        wolf.minlevel = wolf.maxlevel = 19;
+        wolf.unit_class = 1;
+        wolf.rank = CREATURE_ELITE_NORMAL;
+        wolf.ModHealth = 1.0f;
+        Map openWorld;
+        openWorld.dungeon = false;
+
+        auto const prime = [](Creature& c)
+        {
+            c.createHealth = c.maxHealth = c.curHealth = 449; // stock health before any CoA scaling
+            c.baseHealthMod = 449.0f;
+        };
+        auto const coreFirst = [&](uint64 guid)
+        {
+            Creature c(&wolf, &openWorld, guid);
+            prime(c);
+            CreatureScaling::RunCoreHealthHook(&c);
+            sCoAContentScaling->ApplyCreatureScaling(&wolf, &c);
+            return c.GetMaxHealth();
+        };
+        auto const moduleFirst = [&](uint64 guid)
+        {
+            Creature c(&wolf, &openWorld, guid);
+            prime(c);
+            sCoAContentScaling->ApplyCreatureScaling(&wolf, &c);
+            CreatureScaling::RunCoreHealthHook(&c);
+            return c.GetMaxHealth();
+        };
+
+        // Module enabled: once, in both orders.
+        assert(coreFirst(7001) == 988);
+        assert(moduleFirst(7002) == 988);
+
+        // Negative control: without the health budget authority the module-first order applies World.Health twice.
+        // This is the order dependence the contract removes.
+        CreatureScaling::SetHealthBudgetAuthority(nullptr);
+        assert(coreFirst(7003) == 988);
+        assert(moduleFirst(7004) == 2174);
+        CreatureScaling::SetHealthBudgetAuthority([](Creature const* creature) { return sCoAContentScaling->BuildsHealthBudget(creature); });
+
+        // Dungeon trash, module enabled, both orders: the owned budget only (1,347 at a full party).
+        auto const trashTpl = MakeEliteTrashTemplate();
+        Map deadmines;
+        deadmines.mapId = 36;
+        deadmines.instanceId = 2500;
+        Player p1{ObjectGuid(1), 19}, p2{ObjectGuid(2), 19}, p3{ObjectGuid(3), 19}, p4{ObjectGuid(4), 19}, p5{ObjectGuid(5), 19};
+        deadmines.players = { &p1, &p2, &p3, &p4, &p5 };
+        Creature a(&trashTpl, &deadmines, 7005), b(&trashTpl, &deadmines, 7006);
+        CreatureScaling::RunCoreHealthHook(&a);
+        sCoAContentScaling->ApplyCreatureScaling(&trashTpl, &a);
+        sCoAContentScaling->ApplyCreatureScaling(&trashTpl, &b);
+        CreatureScaling::RunCoreHealthHook(&b);
+        assert(a.GetMaxHealth() == 1347 && b.GetMaxHealth() == 1347);
+
+        // Module disabled: the core hook alone applies the world multiplier once, as before.
+        sCoAContentScaling->SetEnabled(false);
+        Creature plain(&wolf, &openWorld, 7007);
+        prime(plain);
+        CreatureScaling::RunCoreHealthHook(&plain);
+        sCoAContentScaling->ApplyCreatureScaling(&wolf, &plain);
+        assert(plain.GetMaxHealth() == 988);
+        sCoAContentScaling->SetEnabled(true);
+    }
+
+    std::cout << "All 25 encounter & boss scaling regression scenarios passed!" << std::endl;
     return 0;
 }
 ''', encoding='utf-8')

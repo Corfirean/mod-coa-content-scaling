@@ -98,6 +98,12 @@ public:
     [[nodiscard]] bool OwnsCombatScaling(Creature const* creature) const;
     [[nodiscard]] static bool IsCombatScalable(Creature const* creature);
 
+    // Every creature the module gives a combat budget (any map) gets its whole health from that budget, which already
+    // contains CoA.CreatureScaling's multiplier exactly once (World.Health in the open world). The core's own health
+    // hook asks this (CreatureScaling::SetHealthBudgetAuthority) and skips such creatures, so the world multiplier is
+    // applied once whichever of the two level selection hooks runs first.
+    [[nodiscard]] bool BuildsHealthBudget(Creature const* creature) const;
+
     // Combat scaling calculations
     void ApplyCreatureScaling(CreatureTemplate const* cinfo, Creature* creature);
     void RecalculateEncounterCombatStats(Creature* boss, EncounterScaleSnapshot const& snapshot,
