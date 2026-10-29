@@ -89,6 +89,9 @@ CoAContentScaling.SoloAssist.Mode = None
 #     Default:     1.0 (unchanged balance)
 CoAContentScaling.Difficulty.DamageMultiplier = 1.0
 
+# Normal Classic dungeons have no additional tier bonus to weapon damage or armor. At full party size and
+# multipliers of 1, the authored CoA budget is retained; creature DamageModifier and rank rates apply once in core.
+
 # CoAContentScaling.Difficulty.Health.WorldMultiplier
 # CoAContentScaling.Difficulty.Health.DungeonMultiplier
 # CoAContentScaling.Difficulty.Health.RaidMultiplier

@@ -106,6 +106,28 @@ inline auto sWorld=&world;
 int main() {
   CreatureTemplate wolf;
   Creature creature;
+  {
+    CreatureTemplate boss;
+    boss.DamageModifier=5.f;
+    boss.ModHealth=20.f;
+    boss.flags_extra=CREATURE_FLAG_EXTRA_DUNGEON_BOSS;
+    creature.map.dungeon=true;
+    auto context=sCombatBudgetProfile->BuildContext(&boss,&creature,60);
+    auto budget=sCombatBudgetProfile->CalculateBudget(&boss,context);
+    assert(budget.health==840);
+    assert(budget.minDamage==2.f && budget.maxDamage==3.f);
+    assert(budget.armor==1.f);
+    context.era=ContentEra::TBC;
+    auto expansionBudget=sCombatBudgetProfile->CalculateBudget(&boss,context);
+    assert(std::abs(expansionBudget.minDamage-2.3f)<.001f && expansionBudget.armor==2.f);
+    context.era=ContentEra::Classic;
+    boss.DamageModifier=10.f;
+    auto changed=sCombatBudgetProfile->CalculateBudget(&boss,context);
+    assert(changed.minDamage==budget.minDamage && changed.maxDamage==budget.maxDamage);
+    context.groupHealthScale=.5f;
+    assert(sCombatBudgetProfile->CalculateBudget(&boss,context).health==420);
+    creature.map.dungeon=false;
+  }
   auto baseline=sCombatBudgetProfile->BuildContext(&wolf,&creature,1);
   assert(sCombatBudgetProfile->CalculateBudget(&wolf,baseline).health==40);
   creature.multiplier=2.5f;

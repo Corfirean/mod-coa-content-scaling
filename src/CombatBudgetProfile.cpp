@@ -145,8 +145,10 @@ CalculatedCombatBudget CombatBudgetProfile::CalculateBudget(CreatureTemplate con
     uint32 const baseMana   = targetStats->BaseMana;
 
     float const tierHealthMod = GetTierHealthMultiplier(context.tier);
-    float const tierDmgMod    = GetTierDamageMultiplier(context.tier);
-    float const tierArmorMod  = GetTierArmorMultiplier(context.tier);
+    bool const classicNormalDungeon =
+        context.era == ContentEra::Classic && context.tier == ContentTier::DUNGEON_NORMAL;
+    float const tierDmgMod    = classicNormalDungeon ? 1.0f : GetTierDamageMultiplier(context.tier);
+    float const tierArmorMod  = classicNormalDungeon ? 1.0f : GetTierArmorMultiplier(context.tier);
 
     // Health: base * authored ModHealth * tier modifier * group scale * the server's own health setting for this kind of
     // place and role (CoAContentScaling.Difficulty.Health.*). ModHealth already carries what the creature is: ordinary
@@ -188,13 +190,9 @@ CalculatedCombatBudget CombatBudgetProfile::CalculateBudget(CreatureTemplate con
     // Armor: base * authored multiplier * tier modifier
     budget.armor = std::ceil(baseArmor * cinfo->ModArmor * tierArmorMod);
 
-    // Damage: Base weapon damage is calculated strictly from base stats, authored modifier and tier.
-    // Group scaling is applied at runtime in damage modification hooks to eliminate double scaling.
-    float effectiveDmgMod = cinfo->DamageModifier * tierDmgMod;
-    if (effectiveDmgMod <= 0.0f)
-        effectiveDmgMod = 1.0f;
-
-    float const baseMinDmg = baseDamage * effectiveDmgMod;
+    // The core applies the authored DamageModifier and rank rate when deriving physical damage from this range.
+    // Group scaling is applied at runtime in damage modification hooks.
+    float const baseMinDmg = baseDamage * tierDmgMod;
     budget.minDamage = std::max(1.0f, baseMinDmg);
     budget.maxDamage = std::max(budget.minDamage, baseMinDmg * 1.5f);
 
