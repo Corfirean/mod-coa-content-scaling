@@ -69,7 +69,8 @@ namespace LocalLevelScaling
 {
     std::atomic<bool> ContentScalingActive{true};
     std::atomic<void*> QuestBaseLevelOwner{reinterpret_cast<void*>(1)}, QuestMinLevelOwner{reinterpret_cast<void*>(1)},
-        CreatureBaseLevelOwner{reinterpret_cast<void*>(1)}, QuestMoneyMaxLevelOwner{reinterpret_cast<void*>(1)},
+        CreatureBaseLevelOwner{reinterpret_cast<void*>(1)}, CreatureReferenceLevelOwner{reinterpret_cast<void*>(1)},
+        QuestMoneyMaxLevelOwner{reinterpret_cast<void*>(1)},
         KillContentLevelOwner{reinterpret_cast<void*>(1)}, QuestRewardRateOwner{reinterpret_cast<void*>(1)};
 }
 struct ObjectGuid
@@ -156,6 +157,7 @@ int main()
           "disabled startup must not initialize scaling or mutate items");
     check(!LocalLevelScaling::ContentScalingActive && !LocalLevelScaling::QuestBaseLevelOwner &&
           !LocalLevelScaling::QuestMinLevelOwner && !LocalLevelScaling::CreatureBaseLevelOwner &&
+          !LocalLevelScaling::CreatureReferenceLevelOwner &&
           !LocalLevelScaling::QuestMoneyMaxLevelOwner && !LocalLevelScaling::KillContentLevelOwner &&
           !LocalLevelScaling::QuestRewardRateOwner, "disabled startup clears every local scaling callback");
     lfg::LfgQueuePolicy policy;
@@ -173,6 +175,10 @@ int main()
     enabled._enabled = true;
     enabled.FinalizeAndInitialize();
     enabled.FinalizeAndInitialize();
+    check(enabled.GetEffectiveCreatureLevel(&creature, nullptr, 60) == 60 &&
+          enabled.GetEffectiveCreatureLevel(&creature, nullptr, 61) == 61 &&
+          enabled.GetEffectiveCreatureLevel(&creature, nullptr, 63) == 63,
+          "classic creature levels above the player cap preserve their authored offset");
     check(world.reads == 1 && instances.loads == 1 && itemMutations == 0 && enabled.hooks == 1,
           "enabled startup initializes once without eagerly mutating item templates");
     enabled.OnResolveLfgQueuePolicy(1, policy);

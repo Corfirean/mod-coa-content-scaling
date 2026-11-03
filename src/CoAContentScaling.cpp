@@ -209,6 +209,12 @@ void CoAContentScaling::RegisterLocalLevelScalingHooks()
             return sCoAContentScaling->GetEffectiveCreatureLevel(cinfo, creature, cinfo ? cinfo->maxlevel : 1);
         }, std::memory_order_relaxed);
 
+        LocalLevelScaling::CreatureReferenceLevelOwner.store([](Creature const* creature, uint8 authoredLevel) -> uint8
+        {
+            return sCoAContentScaling->GetEffectiveCreatureLevel(
+                creature ? creature->GetCreatureTemplate() : nullptr, creature, authoredLevel);
+        }, std::memory_order_relaxed);
+
         LocalLevelScaling::QuestMoneyMaxLevelOwner.store([](Quest const* quest, uint32 defaultMoney) -> uint32
         {
             if (!quest || !sCoAContentScaling->IsEnabled())
@@ -278,6 +284,7 @@ void CoAContentScaling::UnregisterLocalLevelScalingHooks()
     LocalLevelScaling::QuestBaseLevelOwner.store(nullptr, std::memory_order_relaxed);
     LocalLevelScaling::QuestMinLevelOwner.store(nullptr, std::memory_order_relaxed);
     LocalLevelScaling::CreatureBaseLevelOwner.store(nullptr, std::memory_order_relaxed);
+    LocalLevelScaling::CreatureReferenceLevelOwner.store(nullptr, std::memory_order_relaxed);
     LocalLevelScaling::QuestMoneyMaxLevelOwner.store(nullptr, std::memory_order_relaxed);
     LocalLevelScaling::KillContentLevelOwner.store(nullptr, std::memory_order_relaxed);
     LocalLevelScaling::QuestRewardRateOwner.store(nullptr, std::memory_order_relaxed);
@@ -336,7 +343,10 @@ uint8 CoAContentScaling::GetEffectiveCreatureLevel(CreatureTemplate const* cinfo
     ContentEra const era = sContentPackRegistry->ResolveEraForCreature(
         cinfo->Entry, mapId, areaId, cinfo->expansion, authoredLevel);
 
-    return _layout.MapAuthoredToEffective(era, authoredLevel);
+    uint8 const mappedLevel = _layout.MapAuthoredToEffective(era, authoredLevel);
+    uint8 const authoredCap = era == ContentEra::Classic ? 60 : era == ContentEra::TBC ? 70 : 80;
+    uint8 const excess = authoredLevel > authoredCap ? authoredLevel - authoredCap : 0;
+    return static_cast<uint8>(std::min<unsigned>(255, unsigned(mappedLevel) + excess));
 }
 
 int32 CoAContentScaling::GetEffectiveQuestLevel(Quest const* quest) const
